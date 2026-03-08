@@ -9,7 +9,10 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
 app.use(express.json());
 
 // ─────────────────────────────────────────────────────────────
@@ -50,8 +53,9 @@ app.post('/api/v1/attendance/check-in', async (req, res) => {
         );
         res.status(201).json({ ...result.rows[0], message: 'Checked in successfully.' });
     } catch (err: any) {
-        res.status(500).json({ error: err.message });
-    }
+    console.error("CHECKIN ERROR:", err);   // <-- ADD THIS
+    res.status(500).json({ error: err.message });
+}
 });
 
 // Check-out

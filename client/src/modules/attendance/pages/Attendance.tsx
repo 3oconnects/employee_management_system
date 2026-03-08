@@ -1,250 +1,503 @@
-
-import React, { useState, useEffect } from 'react';
-import {
-    ChevronLeft,
-    ChevronRight,
-    Calendar as CalendarIcon,
-    LayoutGrid,
-    List,
-    CalendarDays,
-    SlidersHorizontal,
-    MoreHorizontal,
-    Info,
-    ChevronDown
-} from 'lucide-react';
-import api from '../../../services/api';
-import { useAuthStore } from '../../../store/authStore';
+import React, { useState, useEffect } from "react";
+import { Info } from "lucide-react";
+import api from "../../../services/api";
+import { useAuthStore } from "../../../store/authStore";
 
 const Attendance: React.FC = () => {
-    const { user } = useAuthStore();
 
-    const [loading, setLoading] = useState(true);
-    const [attendance, setAttendance] = useState<{
-        status: 'OUT' | 'IN' | 'COMPLETED',
-        checkInTime?: string
-    } | null>(null);
+  const { user } = useAuthStore();
 
-    const [timer, setTimer] = useState('00:00:00');
+  const DEMO_USER = "44444444-4444-4444-4444-444444444444";
 
-    // Fetch today's attendance
-    useEffect(() => {
-        const fetchAttendance = async () => {
-            try {
-                const { data } = await api.get('/api/v1/attendance/today', {
-                    params: { userId: user?.id }
-                });
+  const params = new URLSearchParams(window.location.search);
 
-                setAttendance({
-                    status: data.status,
-                    checkInTime: data.checkIn
-                });
+  const userId =
+    params.get("userId") ||
+    (user?.id && user.id.length === 36 ? user.id : DEMO_USER);
 
-            } catch (error) {
-                console.error('Failed to fetch attendance', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+  const [loading, setLoading] = useState(true);
+  const [attendance, setAttendance] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [timer, setTimer] = useState("00:00:00");
+  const [regularizeReason, setRegularizeReason] = useState("");
 
-        if (user?.id) {
-            fetchAttendance();
-        }
-    }, [user]);
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
 
-    // Timer logic
-    useEffect(() => {
-        let interval: any;
 
-        if (attendance?.status === 'IN' && attendance.checkInTime) {
-            interval = setInterval(() => {
-                const start = new Date(attendance.checkInTime!).getTime();
-                const now = new Date().getTime();
-                const diff = now - start;
 
-                const h = Math.floor(diff / 3600000);
-                const m = Math.floor((diff % 3600000) / 60000);
-                const s = Math.floor((diff % 60000) / 1000);
+  // FETCH TODAY
+  const fetchToday = async () => {
 
-                setTimer(
-                    `${h.toString().padStart(2, '0')}:` +
-                    `${m.toString().padStart(2, '0')}:` +
-                    `${s.toString().padStart(2, '0')}`
-                );
-            }, 1000);
-        } else {
-            setTimer('00:00:00');
-        }
+    const { data } = await api.get("/attendance/today", {
+      params: { userId }
+    });
 
-        return () => clearInterval(interval);
-    }, [attendance]);
+    setAttendance({
+      status: data.status,
+      checkInTime: data.checkIn || null
+    });
 
-    // Check-in / Check-out handler
-    const handleAttendance = async () => {
-        try {
-            if (!user?.id) return;
+  };
 
-            if (attendance?.status === 'IN') {
 
-                const { data } = await api.post('/api/v1/attendance/check-out', {
-                    userId: user.id
-                });
 
-                setAttendance({
-                    status: 'COMPLETED',
-                    checkInTime: data.check_in
-                });
+  // FETCH HISTORY
+  const fetchHistory = async () => {
 
-            } else {
+    const { data } = await api.get("/attendance/history", {
+      params: { userId, month, year }
+    });
 
-                const { data } = await api.post('/api/v1/attendance/check-in', {
-                    userId: user.id
-                });
+    setHistory(data.items || []);
 
-                setAttendance({
-                    status: 'IN',
-                    checkInTime: data.check_in
-                });
+  };
 
-            }
 
-        } catch (error) {
-            console.error("Attendance action failed", error);
-        }
+
+  // FETCH SUMMARY
+  const fetchSummary = async () => {
+
+    const { data } = await api.get(`/attendance/summary/${userId}`, {
+      params: { month, year }
+    });
+
+    setSummary(data);
+
+  };
+
+
+
+  // INITIAL LOAD
+  useEffect(() => {
+
+    const load = async () => {
+
+      setLoading(true);
+
+      await Promise.all([
+        fetchToday(),
+        fetchHistory(),
+        fetchSummary()
+      ]);
+
+      setLoading(false);
+
     };
 
-    const weekDays = [
-        { day: 'Sun', date: '15', status: 'Weekend', color: 'bg-amber-100 text-amber-700', barColor: 'bg-amber-200' },
-        { day: 'Mon', date: '16', status: 'Absent', color: 'bg-rose-100 text-rose-700', barColor: 'bg-rose-200' },
-        { day: 'Tue', date: '17', status: 'Absent', color: 'bg-rose-100 text-rose-700', barColor: 'bg-rose-200' },
-        { day: 'Wed', date: '18', status: 'Absent', color: 'bg-rose-100 text-rose-700', barColor: 'bg-rose-200' },
-        { day: 'Thu', date: '19', status: 'Today', isToday: true },
-    ];
+    load();
 
-    if (loading) {
-        return <div className="p-8 animate-pulse bg-slate-50 h-screen">Loading Attendance...</div>;
+  }, [userId]);
+
+
+
+  // TIMER
+  useEffect(() => {
+
+    let interval: any;
+
+    if (attendance?.status === "IN" && attendance?.checkInTime) {
+
+      interval = setInterval(() => {
+
+        const start = new Date(attendance.checkInTime).getTime();
+        const diff = Date.now() - start;
+
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+
+        setTimer(
+          `${h.toString().padStart(2, "0")}:` +
+          `${m.toString().padStart(2, "0")}:` +
+          `${s.toString().padStart(2, "0")}`
+        );
+
+      }, 1000);
+
     }
 
+    return () => clearInterval(interval);
+
+  }, [attendance]);
+
+
+
+  // CHECK IN / OUT
+  const handleAttendance = async () => {
+
+    if (!userId) return;
+
+    if (attendance?.status === "IN") {
+
+      await api.post("/attendance/check-out", { userId });
+
+    } else {
+
+      await api.post("/attendance/check-in", { userId });
+
+    }
+
+    await fetchToday();
+    await fetchHistory();
+    await fetchSummary();
+
+  };
+
+
+
+  // REGULARIZATION
+  const submitRegularization = async () => {
+
+    if (!regularizeReason) return;
+
+    await api.post("/attendance/regularize", {
+      userId,
+      date: new Date().toISOString().slice(0,10),
+      check_in_time: "09:00",
+      check_out_time: "18:00",
+      reason: regularizeReason
+    });
+
+    setRegularizeReason("");
+
+    alert("Regularization request submitted");
+
+  };
+
+
+
+  // CALCULATE HOURS
+  const calcHours = (inTime:string, outTime:string) => {
+
+    const diff =
+      new Date(outTime).getTime() -
+      new Date(inTime).getTime();
+
+    return (diff / 3600000).toFixed(1);
+
+  };
+
+
+
+  // BUILD CALENDAR
+  const buildCalendar = () => {
+
+  const days = new Date(year, month, 0).getDate();
+
+  const records:any = {};
+
+  history.forEach((rec:any)=>{
+
+    const day = new Date(rec.check_in).getDate();
+
+    records[day] = rec.status;
+
+  });
+
+  const calendar = [];
+
+  for(let i=1;i<=days;i++){
+
+    const date = new Date(year,month-1,i);
+
+    const weekday = date.getDay();
+
+    let status = "absent";
+
+    if(records[i]){
+      status = records[i];
+    }
+
+    if(weekday === 0 || weekday === 6){
+      status = "weekend";
+    }
+
+    calendar.push({
+      day:i,
+      status
+    });
+
+  }
+
+  return calendar;
+
+};
+
+
+
+  const calendarDays = buildCalendar();
+
+
+const statusColor = (status:string)=>{
+
+  const map:any = {
+
+    present:"bg-emerald-400",
+
+    half_day:"bg-amber-400",
+
+    on_duty:"bg-indigo-400",
+
+    absent:"bg-rose-400",
+
+    weekend:"bg-slate-200"
+
+  };
+
+  return map[status] || "bg-slate-200";
+
+};
+
+
+  if (loading) {
+
     return (
-        <div className="flex flex-col h-full bg-[#f4f7f9] font-sans overflow-hidden">
-
-            {/* Tab Header */}
-            <div className="bg-[#1d2b4d] text-white px-6 h-[40px] flex items-center shadow-sm">
-                <div className="h-full flex items-center border-b-2 border-blue-500 px-1 font-bold text-[13px] tracking-tight mr-8">
-                    Attendance Summary
-                </div>
-                <div className="h-full flex items-center text-slate-300 hover:text-white cursor-pointer text-[13px] font-medium transition-colors">
-                    Shift
-                </div>
-            </div>
-
-            {/* Sub Toolbar */}
-            <div className="bg-white border-b border-slate-200 px-6 py-2 flex items-center justify-between shadow-sm">
-                <div className="flex items-center space-x-4 mx-auto">
-
-                    <div className="flex items-center space-x-1">
-                        <button className="p-1 hover:bg-slate-50 rounded border border-slate-200 text-slate-400">
-                            <ChevronLeft size={16} />
-                        </button>
-
-                        <div className="flex items-center space-x-2 border border-slate-200 rounded px-3 py-1 bg-white cursor-pointer hover:border-slate-300 shadow-sm">
-                            <CalendarIcon size={14} className="text-slate-500" />
-                            <ChevronDown size={14} className="text-slate-400" />
-                        </div>
-
-                        <button className="p-1 hover:bg-slate-50 rounded border border-slate-200 text-slate-400">
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-
-                    <span className="text-[13px] font-bold text-slate-700">
-                        15-Feb-2026 - 21-Feb-2026
-                    </span>
-                </div>
-
-                <div className="flex items-center space-x-1">
-                    <button className="p-1.5 bg-blue-50 text-blue-600 rounded border border-blue-200">
-                        <LayoutGrid size={14} />
-                    </button>
-                    <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded border border-slate-200">
-                        <List size={14} />
-                    </button>
-                    <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded border border-slate-200">
-                        <CalendarDays size={14} />
-                    </button>
-
-                    <div className="w-px h-4 bg-slate-200 mx-2"></div>
-
-                    <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded border border-slate-200">
-                        <SlidersHorizontal size={14} />
-                    </button>
-                    <button className="p-1.5 text-slate-400 hover:bg-slate-50 rounded border border-slate-200">
-                        <MoreHorizontal size={14} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-
-                {/* Active Session Card */}
-                <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex items-center justify-between">
-
-                    <div className="flex items-center space-x-4">
-                        <span className="text-[13px] font-bold text-slate-800">
-                            General [ 9:00 AM - 6:00 PM ]
-                        </span>
-
-                        <div className="w-px h-6 bg-slate-200"></div>
-
-                        <input
-                            type="text"
-                            placeholder="Add notes for check-in"
-                            className="text-[12px] border border-slate-100 rounded px-3 py-1.5 w-64 focus:ring-1 focus:ring-blue-100 focus:border-blue-200 outline-none bg-slate-50/50"
-                        />
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-
-                        <button
-                            onClick={handleAttendance}
-                            className={`flex items-center space-x-3 px-6 py-2 rounded text-white font-bold text-[13px] shadow-lg transition-all active:scale-95 ${
-                                attendance?.status === 'IN'
-                                    ? 'bg-rose-500 shadow-rose-500/20'
-                                    : 'bg-[#00c853]'
-                            }`}
-                        >
-
-                            <div className="flex flex-col items-start leading-tight border-r border-white/20 pr-3 mr-1">
-                                <span className="text-[10px] opacity-80 uppercase tracking-tighter">
-                                    {attendance?.status === 'IN'
-                                        ? 'Active Session'
-                                        : 'Manual Entry'}
-                                </span>
-
-                                <span className="text-[14px] font-black">
-                                    {attendance?.status === 'IN'
-                                        ? 'Check-out'
-                                        : 'Check-in'}
-                                </span>
-                            </div>
-
-                            <span className="text-[16px] font-mono">
-                                {timer} Hrs
-                            </span>
-
-                            <div className="bg-white/20 p-1 rounded-full">
-                                <Info size={12} />
-                            </div>
-
-                        </button>
-
-                    </div>
-                </div>
-
-            </div>
-        </div>
+      <div className="p-8 bg-slate-50 h-screen">
+        Loading Attendance...
+      </div>
     );
+
+  }
+
+
+
+  return (
+
+    <div className="flex flex-col h-full bg-[#f4f7f9] font-sans overflow-hidden">
+
+      {/* HEADER */}
+
+      <div className="bg-[#1d2b4d] text-white px-6 h-[40px] flex items-center shadow-sm">
+
+        <div className="font-bold text-[13px]">
+          Attendance Summary
+        </div>
+
+      </div>
+
+
+
+      <div className="p-6 space-y-4">
+
+        {/* CHECK IN CARD */}
+
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex items-center justify-between">
+
+          <span className="text-[13px] font-bold text-slate-800">
+            General [ 9:00 AM - 6:00 PM ]
+          </span>
+
+          <button
+            onClick={handleAttendance}
+            disabled={attendance?.status === "COMPLETED"}
+            className={`flex items-center space-x-3 px-6 py-2 rounded text-white font-bold text-[13px]
+              ${
+                attendance?.status === "IN"
+                ? "bg-rose-500"
+                : attendance?.status === "COMPLETED"
+                ? "bg-slate-400"
+                : "bg-[#00c853]"
+              }`}
+          >
+
+            <span>
+              {attendance?.status === "IN"
+                ? "Check-out"
+                : attendance?.status === "COMPLETED"
+                ? "Done"
+                : "Check-in"}
+            </span>
+
+            <span className="font-mono">{timer}</span>
+
+            <div className="bg-white/20 p-1 rounded-full">
+              <Info size={12}/>
+            </div>
+
+          </button>
+
+        </div>
+
+
+
+        {/* SUMMARY */}
+
+        {summary && (
+
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 grid grid-cols-5 gap-4 text-center">
+
+            <div>
+              <p className="text-xs text-slate-400">Present</p>
+              <p className="font-bold text-emerald-600">
+                {summary.present_days}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400">Half Day</p>
+              <p className="font-bold text-amber-600">
+                {summary.half_days}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400">On Duty</p>
+              <p className="font-bold text-indigo-600">
+                {summary.on_duty_days}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400">Entries</p>
+              <p className="font-bold text-blue-600">
+                {summary.total_entries}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-400">Avg Hours</p>
+              <p className="font-bold text-sky-600">
+                {summary.avg_hours || "-"}
+              </p>
+            </div>
+
+          </div>
+
+        )}
+
+
+
+        {/* CALENDAR */}
+
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+
+          <div className="flex justify-between mb-3">
+
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+              Monthly Attendance
+            </h3>
+
+            <span className="text-xs text-slate-500">
+              {new Date(year,month-1).toLocaleString("default",{month:"long"})}
+            </span>
+
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 text-center">
+
+            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>(
+              <div key={d} className="text-[10px] text-slate-400 font-bold">
+                {d}
+              </div>
+            ))}
+
+            {calendarDays.map((d:any)=>(
+              <div
+                key={d.day}
+                className={`h-8 flex items-center justify-center rounded text-white text-xs font-bold ${statusColor(d.status)}`}
+              >
+                {d.day}
+              </div>
+            ))}
+
+          </div>
+
+        </div>
+
+
+
+        {/* HISTORY */}
+
+       <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+
+  <table className="w-full text-sm text-slate-700">
+
+    <thead className="bg-slate-50 border-b border-slate-200">
+
+      <tr className="text-slate-500 text-xs uppercase tracking-wider">
+
+        <th className="p-3 text-left">Date</th>
+        <th className="p-3 text-left">Check In</th>
+        <th className="p-3 text-left">Check Out</th>
+        <th className="p-3 text-left">Hours</th>
+
+      </tr>
+
+    </thead>
+
+    <tbody className="divide-y divide-slate-100">
+
+      {history.map((rec) => (
+
+        <tr
+          key={rec.id}
+          className="hover:bg-slate-50 transition-colors"
+        >
+
+          <td className="p-3 font-medium text-slate-800">
+            {new Date(rec.check_in).toLocaleDateString()}
+          </td>
+
+          <td className="p-3 text-slate-700">
+            {new Date(rec.check_in).toLocaleTimeString()}
+          </td>
+
+          <td className="p-3 text-slate-700">
+            {rec.check_out
+              ? new Date(rec.check_out).toLocaleTimeString()
+              : "-"}
+          </td>
+
+          <td className="p-3 font-semibold text-blue-600">
+            {rec.check_out
+              ? calcHours(rec.check_in, rec.check_out)
+              : "-"}
+          </td>
+
+        </tr>
+
+      ))}
+
+    </tbody>
+
+  </table>
+
+</div>
+
+
+        {/* REGULARIZATION */}
+
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+
+          <p className="text-sm font-bold mb-2">
+            Attendance Regularization
+          </p>
+
+          <textarea
+            value={regularizeReason}
+            onChange={(e)=>setRegularizeReason(e.target.value)}
+            placeholder="Explain why you missed check-in..."
+            className="w-full border p-2 rounded"
+          />
+
+          <button
+            onClick={submitRegularization}
+            className="mt-2 bg-blue-600 text-white px-4 py-2 rounded text-sm"
+          >
+            Submit Request
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
 };
 
 export default Attendance;
-

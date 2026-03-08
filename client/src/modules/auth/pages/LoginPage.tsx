@@ -7,7 +7,9 @@ const LoginPage: React.FC = () => {
     const [email, setEmail] = useState('admin@example.com');
     const [password, setPassword] = useState('password');
     const [isLoading, setIsLoading] = useState(false);
+
     const { setAuth } = useAuthStore();
+
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -15,30 +17,42 @@ const LoginPage: React.FC = () => {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!email || !password) {
+            alert("Please enter email and password");
+            return;
+        }
+
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            const mockUser = {
-                id: '1',
-                name: 'DB Karthik',
-                email: email,
-                role: 'admin' as const,
-                permissions: [
-                    'dashboard:view',
-                    'employee:view',
-                    'employee:create',
-                    'leave:apply',
-                    'payroll:generate',
-                    'reports:view'
-                ]
-            };
-            const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // generic mock token
+        try {
+            const res = await fetch("http://localhost:4000/api/v1/auth/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    email,
+                    password
+                })
+            });
 
-            setAuth(mockUser, mockToken);
-            setIsLoading(false);
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.message || "Invalid email or password");
+            }
+
+            setAuth(data.user, data.token);
+
             navigate(from, { replace: true });
-        }, 1500);
+
+        } catch (error: any) {
+            console.error("Login error:", error);
+            alert(error.message || "Login failed");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -54,15 +68,23 @@ const LoginPage: React.FC = () => {
 
                 <div className="bg-white p-8 rounded-2xl shadow-xl shadow-slate-200 border border-slate-100">
                     <form onSubmit={handleLogin} className="space-y-6">
+
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Email Address
+                            </label>
+
                             <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <Mail
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                                    size={18}
+                                />
+
                                 <input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                     placeholder="name@company.com"
                                     required
                                 />
@@ -70,14 +92,21 @@ const LoginPage: React.FC = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                Password
+                            </label>
+
                             <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <Lock
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                                    size={18}
+                                />
+
                                 <input
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                                     placeholder="••••••••"
                                     required
                                 />
@@ -86,10 +115,21 @@ const LoginPage: React.FC = () => {
 
                         <div className="flex items-center justify-between">
                             <label className="flex items-center">
-                                <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-slate-300" />
-                                <span className="ml-2 text-sm text-slate-600">Remember me</span>
+                                <input
+                                    type="checkbox"
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300"
+                                />
+                                <span className="ml-2 text-sm text-slate-600">
+                                    Remember me
+                                </span>
                             </label>
-                            <a href="#" className="text-sm font-semibold text-blue-600 hover:text-blue-700">Forgot password?</a>
+
+                            <a
+                                href="#"
+                                className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                            >
+                                Forgot password?
+                            </a>
                         </div>
 
                         <button
@@ -106,11 +146,18 @@ const LoginPage: React.FC = () => {
                                 <span>Sign In</span>
                             )}
                         </button>
+
                     </form>
 
                     <div className="mt-8 pt-6 border-t border-slate-100 text-center">
                         <p className="text-sm text-slate-500">
-                            Don't have an account? <a href="#" className="font-semibold text-blue-600 hover:text-blue-700">Contact HR</a>
+                            Don't have an account?
+                            <a
+                                href="#"
+                                className="font-semibold text-blue-600 hover:text-blue-700"
+                            >
+                                {" "}Contact HR
+                            </a>
                         </p>
                     </div>
                 </div>

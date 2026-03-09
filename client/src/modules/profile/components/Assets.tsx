@@ -10,7 +10,7 @@ const Assets: React.FC = () => {
 
     setAssets([
       ...assets,
-      { name: "New Asset", model: "Unknown", status: "Pending" }
+      { name: "Asset Request", model: "Pending Approval", status: "Pending" }
     ]);
 
   };
@@ -19,7 +19,7 @@ const Assets: React.FC = () => {
 
     <div className="space-y-6">
 
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
 
         <h3 className="text-[14px] font-bold text-slate-800">
           Asset Management
@@ -27,7 +27,7 @@ const Assets: React.FC = () => {
 
         <button
           onClick={addAsset}
-          className="bg-blue-600 text-white px-4 py-1 rounded text-sm"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded text-sm"
         >
           Request Asset
         </button>
@@ -40,12 +40,12 @@ const Assets: React.FC = () => {
 
           <div
             key={i}
-            className="border p-4 rounded flex justify-between"
+            className="border border-slate-200 bg-white p-4 rounded flex justify-between items-center shadow-sm"
           >
 
             <div>
 
-              <p className="font-semibold">
+              <p className="font-semibold text-slate-800">
                 {a.name}
               </p>
 
@@ -55,7 +55,7 @@ const Assets: React.FC = () => {
 
             </div>
 
-            <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
+            <span className="text-xs px-3 py-1 rounded bg-green-100 text-green-600 font-semibold">
               {a.status}
             </span>
 

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Play,
-    Square,
     Moon,
     MoreHorizontal,
-    LayoutGrid,
-    CalendarDays
+    LayoutGrid
 } from 'lucide-react';
+
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import Profile from '../../profile/pages/Profile';
@@ -119,7 +117,7 @@ const Dashboard: React.FC = () => {
 
     };
 
-    if (loading)
+    if (loading || !user)
         return (
             <div className="p-8 space-y-4">
                 <div className="h-40 bg-slate-200 rounded animate-pulse w-full"></div>
@@ -145,11 +143,15 @@ const Dashboard: React.FC = () => {
 
             {/* BANNER */}
             <div className="relative h-[180px] w-full bg-[url('https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&q=80&w=2070')] bg-cover bg-center">
+
                 <div className="absolute inset-0 bg-black/20"></div>
 
                 <button className="absolute top-4 right-6 bg-white/20 p-1.5 rounded hover:bg-white/40 transition-colors">
+
                     <MoreHorizontal size={16} className="text-white" />
+
                 </button>
+
             </div>
 
             <div className="max-w-[1550px] mx-auto px-6 -mt-16 relative z-10 grid grid-cols-12 gap-6">
@@ -162,13 +164,17 @@ const Dashboard: React.FC = () => {
                         <div className="w-20 h-20 bg-slate-100 rounded-lg mb-4 flex items-center justify-center">
 
                             <span className="text-2xl font-light text-slate-400">
-                                {user?.name.charAt(0)}
+
+                                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+
                             </span>
 
                         </div>
 
                         <h2 className="text-[13px] font-bold text-slate-800 text-center">
+
                             1 - {user?.name}
+
                         </h2>
 
                         <p className={`text-[12px] font-bold mt-1 text-center ${
@@ -176,11 +182,15 @@ const Dashboard: React.FC = () => {
                                 ? 'text-emerald-500'
                                 : 'text-rose-500'
                         }`}>
+
                             {attendance?.status === 'IN' ? 'In' : 'Out'}
+
                         </p>
 
                         <div className="text-[18px] font-mono font-bold text-slate-800 mt-2 mb-4 tracking-widest">
+
                             {timer}
+
                         </div>
 
                         <button
@@ -189,15 +199,17 @@ const Dashboard: React.FC = () => {
                                     ? handleCheckOut
                                     : handleCheckIn
                             }
-                            className={`w-full py-1.5 rounded border text-[12px] font-bold ${
+                            className={`w-full py-1.5 rounded border text-[12px] font-bold transition-all ${
                                 attendance?.status === 'IN'
-                                    ? 'border-rose-200 text-rose-500'
-                                    : 'border-emerald-500 text-emerald-600'
+                                    ? 'border-rose-200 text-rose-500 hover:bg-rose-50'
+                                    : 'border-emerald-500 text-emerald-600 hover:bg-emerald-50'
                             }`}
                         >
+
                             {attendance?.status === 'IN'
                                 ? 'Check out'
                                 : 'Check in'}
+
                         </button>
 
                     </div>
@@ -209,7 +221,7 @@ const Dashboard: React.FC = () => {
 
                     <div className="bg-white rounded-[8px] border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
 
-                        {/* Tabs */}
+                        {/* TABS */}
                         <div className="px-6 border-b border-slate-100 flex items-center justify-between">
 
                             <div className="flex space-x-10 text-[13px]">
@@ -224,18 +236,23 @@ const Dashboard: React.FC = () => {
                                     'Time Logs',
                                     'Timesheets',
                                 ].map((tab) => (
+
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
-                                        className={`py-4 px-1 border-b-2 ${
+                                        className={`py-4 px-1 border-b-2 transition-all ${
                                             activeTab === tab
                                                 ? 'text-blue-600 border-blue-600 font-bold'
-                                                : 'text-slate-500 border-transparent'
+                                                : 'text-slate-500 border-transparent hover:text-slate-800'
                                         }`}
                                     >
+
                                         {tab}
+
                                     </button>
+
                                 ))}
+
                             </div>
 
                             <LayoutGrid size={14} className="text-slate-400" />
@@ -252,18 +269,21 @@ const Dashboard: React.FC = () => {
                             ) : (
 
                                 <>
-                                    {/* Activities Content */}
-
+                                    {/* Welcome */}
                                     <div className="bg-white rounded-[8px] border border-slate-100 p-6 flex items-center justify-between shadow-sm">
 
                                         <div>
 
                                             <h3 className="text-[16px] font-bold text-slate-800">
+
                                                 Good Evening {user?.name}
+
                                             </h3>
 
                                             <p className="text-[13px] text-slate-500 mt-0.5">
+
                                                 Have a productive day!
+
                                             </p>
 
                                         </div>
@@ -272,10 +292,13 @@ const Dashboard: React.FC = () => {
 
                                     </div>
 
+                                    {/* Schedule */}
                                     <div className="bg-white rounded-[8px] border border-slate-100 p-6 mt-6 shadow-sm">
 
                                         <h4 className="text-[14px] font-bold mb-6">
+
                                             Work Schedule
+
                                         </h4>
 
                                         <div className="grid grid-cols-7 gap-4">
@@ -288,11 +311,15 @@ const Dashboard: React.FC = () => {
                                                 >
 
                                                     <p className="text-xs font-bold">
+
                                                         {day.day}
+
                                                     </p>
 
                                                     <p className="text-sm">
+
                                                         {day.date}
+
                                                     </p>
 
                                                 </div>
@@ -307,9 +334,13 @@ const Dashboard: React.FC = () => {
                             )}
 
                         </div>
+
                     </div>
+
                 </div>
+
             </div>
+
         </div>
     );
 };

@@ -24,10 +24,13 @@ const Profile: React.FC = () => {
     <div className="space-y-6">
 
       {/* Profile Header */}
+
       <div className="bg-white rounded-[8px] border border-slate-200 shadow-sm p-6 flex items-center space-x-5">
 
         <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-xl font-bold text-slate-600">
-          {user?.name?.charAt(0)}
+
+          {user?.name?.charAt(0)?.toUpperCase() || "U"}
+
         </div>
 
         <div>
@@ -49,6 +52,7 @@ const Profile: React.FC = () => {
       </div>
 
       {/* Tabs */}
+
       <div className="bg-white rounded-[8px] border border-slate-200 shadow-sm">
 
         <div className="border-b border-slate-100 flex space-x-8 px-6">

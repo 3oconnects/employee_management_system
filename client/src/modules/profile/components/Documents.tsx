@@ -10,7 +10,20 @@ const Documents: React.FC = () => {
 
     const file = e.target.files[0];
 
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File must be under 5MB");
+      return;
+    }
+
     setDocs([...docs, file.name]);
+
+  };
+
+  const deleteDoc = (index: number) => {
+
+    const updated = docs.filter((_, i) => i !== index);
+
+    setDocs(updated);
 
   };
 
@@ -18,7 +31,7 @@ const Documents: React.FC = () => {
 
     <div className="space-y-6">
 
-      <div className="flex justify-between">
+      <div className="flex justify-between items-center">
 
         <h3 className="text-[14px] font-bold text-slate-800">
           Document Vault
@@ -40,12 +53,15 @@ const Documents: React.FC = () => {
 
           <div
             key={i}
-            className="border rounded p-3 flex justify-between"
+            className="border border-slate-200 rounded p-3 flex justify-between items-center bg-white shadow-sm"
           >
 
             <span>{doc}</span>
 
-            <button className="text-red-500 text-sm">
+            <button
+              onClick={() => deleteDoc(i)}
+              className="text-red-500 text-sm"
+            >
               Delete
             </button>
 

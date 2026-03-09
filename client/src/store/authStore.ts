@@ -4,11 +4,13 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 export type UserRole = 'admin' | 'hr' | 'manager' | 'employee';
 
 interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: UserRole;
-    permissions: string[];
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  phone?: string;
+  address?: string;
+  emergency?: string;
 }
 
 interface AuthState {

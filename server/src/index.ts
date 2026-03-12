@@ -19,23 +19,57 @@ app.use(express.json());
 //  ATTENDANCE & TIME TRACKING
 // ─────────────────────────────────────────────────────────────
 
-// Today's status for current user
+// Today's status for current user – supports multiple sessions per day
 app.get('/api/v1/attendance/today', async (req, res) => {
     try {
         const userId = req.query.userId;
-        const result = await query(
+
+        // 1. Find the currently OPEN session (checked in, not yet checked out)
+        const openResult = await query(
             `SELECT * FROM attendance
-             WHERE user_id = $1 AND check_in::date = CURRENT_DATE
+             WHERE user_id = $1
+               AND check_in::date = CURRENT_DATE
+               AND check_out IS NULL
              ORDER BY check_in DESC LIMIT 1`,
             [userId]
         );
-        if (result.rows.length === 0) return res.json({ status: 'OUT' });
-        const record = result.rows[0];
+
+        // 2. Aggregate today's sessions (count + cumulative hours for closed sessions)
+        const statsResult = await query(
+            `SELECT
+                COUNT(*)                                                              AS sessions_count,
+                COALESCE(SUM(
+                    EXTRACT(EPOCH FROM (check_out - check_in)) / 3600
+                ) FILTER (WHERE check_out IS NOT NULL), 0)                           AS closed_hours
+             FROM attendance
+             WHERE user_id = $1 AND check_in::date = CURRENT_DATE`,
+            [userId]
+        );
+
+        const stats = statsResult.rows[0];
+        const sessionsToday  = parseInt(stats.sessions_count) || 0;
+        const closedHours    = parseFloat(stats.closed_hours) || 0;
+
+        if (openResult.rows.length === 0) {
+            // No open session → OUT (can check in again)
+            return res.json({
+                status:            'OUT',
+                checkIn:           null,
+                sessions_today:    sessionsToday,
+                total_hours_today: closedHours.toFixed(2)
+            });
+        }
+
+        const open = openResult.rows[0];
+        // Add elapsed time of current open session to closed hours for live total
+        const elapsedHours = (Date.now() - new Date(open.check_in).getTime()) / 3600000;
+
         res.json({
-            status: record.check_out ? 'COMPLETED' : 'IN',
-            checkIn: record.check_in,
-            checkOut: record.check_out,
-            ipAddress: record.ip_address
+            status:            'IN',
+            checkIn:           open.check_in,
+            ipAddress:         open.ip_address,
+            sessions_today:    sessionsToday,
+            total_hours_today: (closedHours + elapsedHours).toFixed(2)
         });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -94,6 +128,34 @@ app.get('/api/v1/attendance/history', async (req, res) => {
             [userId, parseInt(month as string), parseInt(year as string)]
         );
         res.json({ items: result.rows, total: result.rowCount });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Weekly attendance hours – per-day totals for timesheet auto-fill
+app.get('/api/v1/attendance/weekly-hours', async (req, res) => {
+    try {
+        const { userId, weekStart, weekEnd } = req.query;
+        const result = await query(
+            `SELECT
+                TO_CHAR(check_in, 'YYYY-MM-DD')            AS day,
+                SUM(
+                    EXTRACT(EPOCH FROM (COALESCE(check_out, check_in) - check_in)) / 3600
+                )                                          AS hours
+             FROM attendance
+             WHERE user_id = $1
+               AND check_in::date BETWEEN $2::date AND $3::date
+             GROUP BY TO_CHAR(check_in, 'YYYY-MM-DD')
+             ORDER BY day`,
+            [userId, weekStart, weekEnd]
+        );
+        // Build a map { 'YYYY-MM-DD': hours }
+        const map: Record<string, number> = {};
+        result.rows.forEach((r: any) => {
+            map[r.day] = parseFloat(r.hours) || 0;
+        });
+        res.json({ days: map });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }
@@ -376,6 +438,149 @@ app.put('/api/v1/attendance/regularize/:id/approve', async (req, res) => {
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Request not found.' });
         res.json({ ...result.rows[0], message: `Regularization request ${action}.` });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────
+//  TIMESHEETS
+// ─────────────────────────────────────────────────────────────
+
+// Get or create the timesheet record for a given week_start (YYYY-MM-DD = Monday)
+app.get('/api/v1/timesheets/week', async (req, res) => {
+    try {
+        const { userId, weekStart } = req.query;
+        if (!userId || !weekStart) return res.status(400).json({ error: 'userId and weekStart required.' });
+
+        // Calculate week_end (Sunday = weekStart + 6 days)
+        const start = new Date(weekStart as string);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        const weekEnd = end.toISOString().slice(0, 10);
+
+        // Find existing or create draft
+        let result = await query(
+            `SELECT t.*, json_agg(te.* ORDER BY te.created_at) FILTER (WHERE te.id IS NOT NULL) AS entries
+             FROM timesheets t
+             LEFT JOIN timesheet_entries te ON te.timesheet_id = t.id
+             WHERE t.user_id = $1 AND t.week_start = $2
+             GROUP BY t.id`,
+            [userId, weekStart]
+        );
+
+        if (result.rows.length === 0) {
+            const created = await query(
+                `INSERT INTO timesheets (user_id, week_start, week_end, status, total_hours)
+                 VALUES ($1, $2, $3, 'draft', 0) RETURNING *`,
+                [userId, weekStart, weekEnd]
+            );
+            return res.status(201).json({ ...created.rows[0], entries: [] });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// List all timesheets for a user (history)
+app.get('/api/v1/timesheets', async (req, res) => {
+    try {
+        const { userId } = req.query;
+        const result = await query(
+            `SELECT t.*, u.email AS approved_by_email
+             FROM timesheets t
+             LEFT JOIN users u ON u.id = t.approved_by
+             WHERE t.user_id = $1
+             ORDER BY t.week_start DESC`,
+            [userId]
+        );
+        res.json({ items: result.rows, total: result.rowCount });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// List all submitted timesheets (for manager/HR approvals)
+app.get('/api/v1/timesheets/pending', async (req, res) => {
+    try {
+        const result = await query(
+            `SELECT t.*, u.email AS applicant_email, p.employee_id, p.designation
+             FROM timesheets t
+             JOIN users u ON u.id = t.user_id
+             LEFT JOIN profiles p ON p.user_id = t.user_id
+             WHERE t.status = 'submitted'
+             ORDER BY t.week_start DESC`
+        );
+        res.json({ items: result.rows, total: result.rowCount });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Save entries for a timesheet (replaces all entries for that sheet)
+app.put('/api/v1/timesheets/:id/entries', async (req, res) => {
+    try {
+        const { entries } = req.body;
+        // entries: Array<{ project_name, task_desc, mon_hours, tue_hours, wed_hours, thu_hours, fri_hours, sat_hours, sun_hours }>
+        if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array.' });
+
+        // Delete existing entries
+        await query(`DELETE FROM timesheet_entries WHERE timesheet_id = $1`, [req.params.id]);
+
+        // Insert new
+        let totalHours = 0;
+        for (const e of entries) {
+            const dayHours = [e.mon_hours, e.tue_hours, e.wed_hours, e.thu_hours, e.fri_hours, e.sat_hours, e.sun_hours]
+                .map(h => parseFloat(h) || 0);
+            const rowTotal = dayHours.reduce((a, b) => a + b, 0);
+            totalHours += rowTotal;
+            await query(
+                `INSERT INTO timesheet_entries (timesheet_id, project_name, task_desc, mon_hours, tue_hours, wed_hours, thu_hours, fri_hours, sat_hours, sun_hours)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                [req.params.id, e.project_name, e.task_desc || null, ...dayHours]
+            );
+        }
+
+        // Update total_hours + updated_at
+        const updated = await query(
+            `UPDATE timesheets SET total_hours = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+            [totalHours, req.params.id]
+        );
+
+        res.json({ ...updated.rows[0], message: 'Entries saved.' });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Submit timesheet for approval
+app.put('/api/v1/timesheets/:id/submit', async (req, res) => {
+    try {
+        const result = await query(
+            `UPDATE timesheets SET status = 'submitted', updated_at = NOW()
+             WHERE id = $1 AND status IN ('draft','rejected') RETURNING *`,
+            [req.params.id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Timesheet not found or cannot be submitted.' });
+        res.json({ ...result.rows[0], message: 'Timesheet submitted for approval.' });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Approve or reject a timesheet
+app.put('/api/v1/timesheets/:id/approve', async (req, res) => {
+    try {
+        const { action, approved_by, remarks } = req.body; // action = 'approved' | 'rejected'
+        const result = await query(
+            `UPDATE timesheets SET status = $1, approved_by = $2, remarks = $3, updated_at = NOW()
+             WHERE id = $4 RETURNING *`,
+            [action, approved_by || null, remarks || null, req.params.id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Timesheet not found.' });
+        res.json({ ...result.rows[0], message: `Timesheet ${action}.` });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

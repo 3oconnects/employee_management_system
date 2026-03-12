@@ -21,6 +21,8 @@ const Attendance: React.FC = () => {
   const [summary, setSummary] = useState<any>(null);
   const [timer, setTimer] = useState("00:00:00");
   const [regularizeReason, setRegularizeReason] = useState("");
+  const [sessionsToday, setSessionsToday] = useState(0);
+  const [totalHoursToday, setTotalHoursToday] = useState("0.00");
 
   const now = new Date();
   const month = now.getMonth() + 1;
@@ -39,6 +41,14 @@ const Attendance: React.FC = () => {
       status: data.status,
       checkInTime: data.checkIn || null
     });
+
+    setSessionsToday(data.sessions_today ?? 0);
+    setTotalHoursToday(data.total_hours_today ?? "0.00");
+
+    // Reset visual timer immediately when not checked in
+    if (data.status !== "IN") {
+      setTimer("00:00:00");
+    }
 
   };
 
@@ -155,7 +165,7 @@ const Attendance: React.FC = () => {
 
     await api.post("/attendance/regularize", {
       userId,
-      date: new Date().toISOString().slice(0,10),
+      date: new Date().toISOString().slice(0, 10),
       check_in_time: "09:00",
       check_out_time: "18:00",
       reason: regularizeReason
@@ -170,13 +180,13 @@ const Attendance: React.FC = () => {
 
 
   // CALCULATE HOURS
-  const calcHours = (inTime:string, outTime:string) => {
+  const calcHours = (inTime: string, outTime: string) => {
 
     const diff =
       new Date(outTime).getTime() -
       new Date(inTime).getTime();
 
-    return (diff / 3600000).toFixed(1);
+    return (diff / 3600000).toFixed(2);
 
   };
 
@@ -185,71 +195,71 @@ const Attendance: React.FC = () => {
   // BUILD CALENDAR
   const buildCalendar = () => {
 
-  const days = new Date(year, month, 0).getDate();
+    const days = new Date(year, month, 0).getDate();
 
-  const records:any = {};
+    const records: any = {};
 
-  history.forEach((rec:any)=>{
+    history.forEach((rec: any) => {
 
-    const day = new Date(rec.check_in).getDate();
+      const day = new Date(rec.check_in).getDate();
 
-    records[day] = rec.status;
+      records[day] = rec.status;
 
-  });
-
-  const calendar = [];
-
-  for(let i=1;i<=days;i++){
-
-    const date = new Date(year,month-1,i);
-
-    const weekday = date.getDay();
-
-    let status = "absent";
-
-    if(records[i]){
-      status = records[i];
-    }
-
-    if(weekday === 0 || weekday === 6){
-      status = "weekend";
-    }
-
-    calendar.push({
-      day:i,
-      status
     });
 
-  }
+    const calendar = [];
 
-  return calendar;
+    for (let i = 1; i <= days; i++) {
 
-};
+      const date = new Date(year, month - 1, i);
+
+      const weekday = date.getDay();
+
+      let status = "absent";
+
+      if (records[i]) {
+        status = records[i];
+      }
+
+      if (weekday === 0 || weekday === 6) {
+        status = "weekend";
+      }
+
+      calendar.push({
+        day: i,
+        status
+      });
+
+    }
+
+    return calendar;
+
+  };
 
 
 
   const calendarDays = buildCalendar();
 
 
-const statusColor = (status:string)=>{
+  const statusColor = (status: string) => {
 
-  const map:any = {
+    const map: any = {
 
-    present:"bg-emerald-400",
+      present: "bg-emerald-400",
 
-    half_day:"bg-amber-400",
+      half_day: "bg-amber-400",
 
-    on_duty:"bg-indigo-400",
+      on_duty: "bg-indigo-400",
 
-    absent:"bg-rose-400",
+      absent: "bg-rose-400",
 
-    weekend:"bg-slate-200"
+      weekend: "bg-slate-200"
+
+    };
+
+    return map[status] || "bg-slate-200";
 
   };
-
-  return map[status] || "bg-slate-200";
-
-};
 
 
   if (loading) {
@@ -292,33 +302,45 @@ const statusColor = (status:string)=>{
 
           <button
             onClick={handleAttendance}
-            disabled={attendance?.status === "COMPLETED"}
             className={`flex items-center space-x-3 px-6 py-2 rounded text-white font-bold text-[13px]
-              ${
-                attendance?.status === "IN"
+              ${attendance?.status === "IN"
                 ? "bg-rose-500"
-                : attendance?.status === "COMPLETED"
-                ? "bg-slate-400"
                 : "bg-[#00c853]"
               }`}
           >
 
             <span>
-              {attendance?.status === "IN"
-                ? "Check-out"
-                : attendance?.status === "COMPLETED"
-                ? "Done"
-                : "Check-in"}
+              {attendance?.status === "IN" ? "Check-out" : "Check-in"}
             </span>
 
             <span className="font-mono">{timer}</span>
 
             <div className="bg-white/20 p-1 rounded-full">
-              <Info size={12}/>
+              <Info size={12} />
             </div>
 
           </button>
 
+        </div>
+
+        {/* TODAY SESSION INFO */}
+
+        <div className="flex items-center space-x-6 px-4 py-2.5 bg-white rounded-lg border border-slate-200 shadow-sm text-[13px]">
+          <span className="text-slate-400 font-medium">
+            Today&apos;s sessions:
+            <span className="ml-1.5 font-bold text-slate-700">{sessionsToday}</span>
+          </span>
+          <span className="text-slate-300">|</span>
+          <span className="text-slate-400 font-medium">
+            Total hours worked:
+            <span className="ml-1.5 font-bold text-blue-600">{totalHoursToday} hrs</span>
+          </span>
+          {attendance?.status === "IN" && (
+            <span className="ml-auto flex items-center space-x-1.5 text-emerald-600 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+              <span>Currently checked in</span>
+            </span>
+          )}
         </div>
 
 
@@ -360,7 +382,7 @@ const statusColor = (status:string)=>{
             <div>
               <p className="text-xs text-slate-400">Avg Hours</p>
               <p className="font-bold text-sky-600">
-                {summary.avg_hours || "-"}
+                {summary.avg_hours != null ? parseFloat(summary.avg_hours).toFixed(2) : "-"}
               </p>
             </div>
 
@@ -381,20 +403,20 @@ const statusColor = (status:string)=>{
             </h3>
 
             <span className="text-xs text-slate-500">
-              {new Date(year,month-1).toLocaleString("default",{month:"long"})}
+              {new Date(year, month - 1).toLocaleString("default", { month: "long" })}
             </span>
 
           </div>
 
           <div className="grid grid-cols-7 gap-2 text-center">
 
-            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>(
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
               <div key={d} className="text-[10px] text-slate-400 font-bold">
                 {d}
               </div>
             ))}
 
-            {calendarDays.map((d:any)=>(
+            {calendarDays.map((d: any) => (
               <div
                 key={d.day}
                 className={`h-8 flex items-center justify-center rounded text-white text-xs font-bold ${statusColor(d.status)}`}
@@ -411,61 +433,61 @@ const statusColor = (status:string)=>{
 
         {/* HISTORY */}
 
-       <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
 
-  <table className="w-full text-sm text-slate-700">
+          <table className="w-full text-sm text-slate-700">
 
-    <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50 border-b border-slate-200">
 
-      <tr className="text-slate-500 text-xs uppercase tracking-wider">
+              <tr className="text-slate-500 text-xs uppercase tracking-wider">
 
-        <th className="p-3 text-left">Date</th>
-        <th className="p-3 text-left">Check In</th>
-        <th className="p-3 text-left">Check Out</th>
-        <th className="p-3 text-left">Hours</th>
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Check In</th>
+                <th className="p-3 text-left">Check Out</th>
+                <th className="p-3 text-left">Hours</th>
 
-      </tr>
+              </tr>
 
-    </thead>
+            </thead>
 
-    <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100">
 
-      {history.map((rec) => (
+              {history.map((rec) => (
 
-        <tr
-          key={rec.id}
-          className="hover:bg-slate-50 transition-colors"
-        >
+                <tr
+                  key={rec.id}
+                  className="hover:bg-slate-50 transition-colors"
+                >
 
-          <td className="p-3 font-medium text-slate-800">
-            {new Date(rec.check_in).toLocaleDateString()}
-          </td>
+                  <td className="p-3 font-medium text-slate-800">
+                    {new Date(rec.check_in).toLocaleDateString()}
+                  </td>
 
-          <td className="p-3 text-slate-700">
-            {new Date(rec.check_in).toLocaleTimeString()}
-          </td>
+                  <td className="p-3 text-slate-700">
+                    {new Date(rec.check_in).toLocaleTimeString()}
+                  </td>
 
-          <td className="p-3 text-slate-700">
-            {rec.check_out
-              ? new Date(rec.check_out).toLocaleTimeString()
-              : "-"}
-          </td>
+                  <td className="p-3 text-slate-700">
+                    {rec.check_out
+                      ? new Date(rec.check_out).toLocaleTimeString()
+                      : "-"}
+                  </td>
 
-          <td className="p-3 font-semibold text-blue-600">
-            {rec.check_out
-              ? calcHours(rec.check_in, rec.check_out)
-              : "-"}
-          </td>
+                  <td className="p-3 font-semibold text-blue-600">
+                    {rec.check_out
+                      ? calcHours(rec.check_in, rec.check_out)
+                      : "-"}
+                  </td>
 
-        </tr>
+                </tr>
 
-      ))}
+              ))}
 
-    </tbody>
+            </tbody>
 
-  </table>
+          </table>
 
-</div>
+        </div>
 
 
         {/* REGULARIZATION */}
@@ -478,7 +500,7 @@ const statusColor = (status:string)=>{
 
           <textarea
             value={regularizeReason}
-            onChange={(e)=>setRegularizeReason(e.target.value)}
+            onChange={(e) => setRegularizeReason(e.target.value)}
             placeholder="Explain why you missed check-in..."
             className="w-full border p-2 rounded"
           />

@@ -168,6 +168,42 @@ export async function initializeDatabase(): Promise<void> {
         );
     `);
 
+    // ── 12. timesheets ────────────────────────────────────────
+    await query(`
+        CREATE TABLE IF NOT EXISTS timesheets (
+            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            week_start      DATE NOT NULL,
+            week_end        DATE NOT NULL,
+            status          VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted','approved','rejected')),
+            total_hours     NUMERIC(6,2) NOT NULL DEFAULT 0,
+            approved_by     UUID REFERENCES users(id),
+            remarks         TEXT,
+            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+            UNIQUE(user_id, week_start)
+        );
+    `);
+
+    // ── 13. timesheet_entries ─────────────────────────────────
+    await query(`
+        CREATE TABLE IF NOT EXISTS timesheet_entries (
+            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            timesheet_id    UUID NOT NULL REFERENCES timesheets(id) ON DELETE CASCADE,
+            project_name    VARCHAR(255) NOT NULL,
+            task_desc       TEXT,
+            mon_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            tue_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            wed_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            thu_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            fri_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            sat_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            sun_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
+            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+    `);
+
     // ── Indexes (from doc: Performance & Security) ────────────
     await query(`CREATE INDEX IF NOT EXISTS idx_users_email         ON users(email);`);
     await query(`CREATE INDEX IF NOT EXISTS idx_profiles_employee_id ON profiles(employee_id);`);
@@ -178,6 +214,9 @@ export async function initializeDatabase(): Promise<void> {
     await query(`CREATE INDEX IF NOT EXISTS idx_profiles_dept        ON profiles(dept_id);`);
     await query(`CREATE INDEX IF NOT EXISTS idx_audit_record         ON audit_logs(table_name, record_id);`);
     await query(`CREATE INDEX IF NOT EXISTS idx_regularization_user   ON regularization_requests(user_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_timesheets_user        ON timesheets(user_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_timesheets_week        ON timesheets(week_start);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_timesheet_entries_ts   ON timesheet_entries(timesheet_id);`);
 
     console.log('✅ Database schema initialized successfully.');
 }

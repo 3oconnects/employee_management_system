@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+﻿import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from './store/authStore';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './modules/dashboard/pages/Dashboard';
 import EmployeeTable from './modules/employees/components/EmployeeTable';
@@ -10,12 +11,18 @@ import Onboarding from './modules/onboarding/pages/Onboarding';
 import Attendance from './modules/attendance/pages/Attendance';
 import Timesheets from './modules/timesheet/pages/Timesheets';
 import Reports from './modules/reports/pages/Reports';
-import Profile from './modules/profile/pages/Profile';
+
+const RootRedirect = () => {
+    const { isAuthenticated, user } = useAuthStore();
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    if (user?.role === 'employee') return <Navigate to="/payroll" replace />;
+    return <Navigate to="/dashboard" replace />;
+};
 
 function App() {
     return (
         <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<RootRedirect />} />
 
             <Route path="/login" element={<LoginPage />} />
 
@@ -23,18 +30,10 @@ function App() {
                 <Route
                     path="/dashboard"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager']}>
                             <Dashboard />
                         </ProtectedRoute>
                     }
-                />
-            <Route
-                    path="/profile"
-                    element={
-                        <ProtectedRoute>
-                            <Profile />
-                        </ProtectedRoute>
-                     }
                 />
                 <Route
                     path="/onboarding"
@@ -47,7 +46,7 @@ function App() {
                 <Route
                     path="/attendance"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager']}>
                             <Attendance />
                         </ProtectedRoute>
                     }
@@ -63,7 +62,7 @@ function App() {
                 <Route
                     path="/leave"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager']}>
                             <ApplyLeave />
                         </ProtectedRoute>
                     }
@@ -71,7 +70,7 @@ function App() {
                 <Route
                     path="/timesheet"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager']}>
                             <Timesheets />
                         </ProtectedRoute>
                     }
@@ -87,7 +86,7 @@ function App() {
                 <Route
                     path="/payroll"
                     element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr']}>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'employee']}>
                             <GeneratePayroll />
                         </ProtectedRoute>
                     }

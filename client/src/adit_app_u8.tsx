@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+﻿import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './modules/dashboard/pages/Dashboard';
 import EmployeeTable from './modules/employees/components/EmployeeTable';
@@ -10,7 +10,6 @@ import Onboarding from './modules/onboarding/pages/Onboarding';
 import Attendance from './modules/attendance/pages/Attendance';
 import Timesheets from './modules/timesheet/pages/Timesheets';
 import Reports from './modules/reports/pages/Reports';
-import Profile from './modules/profile/pages/Profile';
 
 function App() {
     return (
@@ -27,14 +26,6 @@ function App() {
                             <Dashboard />
                         </ProtectedRoute>
                     }
-                />
-            <Route
-                    path="/profile"
-                    element={
-                        <ProtectedRoute>
-                            <Profile />
-                        </ProtectedRoute>
-                     }
                 />
                 <Route
                     path="/onboarding"

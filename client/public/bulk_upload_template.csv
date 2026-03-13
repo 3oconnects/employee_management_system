@@ -1,0 +1,6 @@
+employee_id,name,department,position,join_date,annual_ctc
+EMP101,Alice Johnson,Engineering,Software Engineer,2024-01-15,1200000
+EMP102,Bob Smith,Marketing,Marketing Manager,2024-02-01,900000
+EMP103,Carol White,HR,HR Executive,2024-03-10,720000
+EMP104,David Lee,Sales,Sales Executive,2024-04-05,840000
+EMP105,Eva Martinez,Finance,Finance Analyst,2024-05-20,960000

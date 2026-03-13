@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuthStore } from './store/authStore';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './modules/dashboard/pages/Dashboard';
 import EmployeeTable from './modules/employees/components/EmployeeTable';
@@ -12,29 +13,29 @@ import Timesheets from './modules/timesheet/pages/Timesheets';
 import Reports from './modules/reports/pages/Reports';
 import Profile from './modules/profile/pages/Profile';
 
+const RootRedirect = () => {
+    const { isAuthenticated, user } = useAuthStore();
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    // Different dashboards for different roles
+    if (user?.role === 'employee') return <Navigate to="/attendance" replace />; 
+    return <Navigate to="/dashboard" replace />;
+};
+
 function App() {
     return (
         <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
+            <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
 
             <Route element={<MainLayout />}>
+                {/* Admin/Manager specific */}
                 <Route
                     path="/dashboard"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager']}>
                             <Dashboard />
                         </ProtectedRoute>
                     }
-                />
-            <Route
-                    path="/profile"
-                    element={
-                        <ProtectedRoute>
-                            <Profile />
-                        </ProtectedRoute>
-                     }
                 />
                 <Route
                     path="/onboarding"
@@ -45,18 +46,36 @@ function App() {
                     }
                 />
                 <Route
-                    path="/attendance"
-                    element={
-                        <ProtectedRoute>
-                            <Attendance />
-                        </ProtectedRoute>
-                    }
-                />
-                <Route
                     path="/employees"
                     element={
                         <ProtectedRoute allowedRoles={['admin', 'hr', 'manager']}>
                             <EmployeeTable />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/reports"
+                    element={
+                        <ProtectedRoute allowedRoles={['admin', 'hr']}>
+                            <Reports />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* General Employee / All roles */}
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute>
+                            <Profile />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/attendance"
+                    element={
+                        <ProtectedRoute>
+                            <Attendance />
                         </ProtectedRoute>
                     }
                 />
@@ -77,23 +96,14 @@ function App() {
                     }
                 />
                 <Route
-                    path="/reports"
-                    element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr']}>
-                            <Reports />
-                        </ProtectedRoute>
-                    }
-                />
-                <Route
                     path="/payroll"
                     element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr']}>
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'employee']}>
                             <GeneratePayroll />
                         </ProtectedRoute>
                     }
                 />
 
-                {/* Fallback for unauthorized */}
                 <Route path="/unauthorized" element={<div className="p-8 text-red-500 font-bold">Unauthorized Access</div>} />
             </Route>
 

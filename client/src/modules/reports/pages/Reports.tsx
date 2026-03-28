@@ -1,175 +1,252 @@
 import React, { useState } from 'react';
 import {
     BarChart3,
-    LineChart,
-    Filter,
-    ChevronDown,
     TrendingUp,
     TrendingDown,
     Calendar,
     Users,
-    DollarSign,
-    Zap,
     Activity,
     ArrowUpRight,
     ArrowDownRight,
     PieChart,
     FileText,
-    Download
+    Download,
+    Filter,
+    ChevronDown,
+    Zap,
+    Clock,
+    UserMinus,
+    Shell,
+    Layers,
+    Table as TableIcon
 } from 'lucide-react';
 
+const inr = (v: number) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
+
+/* ─── Stat Card ─────────────────────────────────────────── */
+const ReportStat: React.FC<{
+    label: string; value: string; trend: string; up: boolean;
+    icon: React.ElementType; iconBg: string; iconColor: string;
+}> = ({ label, value, trend, up, icon: Icon, iconBg, iconColor }) => (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 card-hover transition-all">
+        <div className="flex items-start justify-between mb-4">
+            <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center`}>
+                <Icon size={18} className={iconColor} />
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${up ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                {trend}
+            </span>
+        </div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+        <p className="text-[24px] font-bold text-gray-900 leading-none">{value}</p>
+    </div>
+);
+
+/* ─── Main Component ─────────────────────────────────────── */
 const Reports: React.FC = () => {
+    const [activeTab, setActiveTab] = useState('overview');
+    const [dateRange, setDateRange] = useState('Last 30 Days');
+
+    const tabs = [
+        { id: 'overview',   label: 'Overview',      icon: Layers },
+        { id: 'attendance', label: 'Attendance',    icon: Clock },
+        { id: 'leave',      label: 'Leave & PTO',   icon: Calendar },
+        { id: 'payroll',    label: 'Payroll',       icon: Shell },
+        { id: 'team',       label: 'Team & Growth', icon: Users },
+    ];
+
     return (
-        <div className="min-h-screen bg-[#F4F7F9] p-8 space-y-10 font-sans pb-20">
-
-            {/* Header Area */}
+        <div className="p-6 space-y-5 page-enter">
+            
+            {/* ── Page Header ──────────────────────────────── */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Workforce Intelligence Center</h1>
-                    <p className="text-sm text-slate-500 font-medium italic mt-1 flex items-center">
-                        <Activity size={14} className="mr-2 text-indigo-500" />
-                        Generating aggregate strategic reports for HR and Leadership.
-                    </p>
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm shadow-blue-200">
+                        <BarChart3 size={18} className="text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-[15px] font-bold text-gray-900 leading-tight">Reports & Analytics</h2>
+                        <p className="text-[11.5px] text-gray-400 font-medium leading-tight mt-0.5">
+                            Insights and workforce intelligence for strategic planning
+                        </p>
+                    </div>
                 </div>
-                <button className="flex items-center space-x-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-[12px] font-black uppercase text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95">
-                    <Download size={14} />
-                    <span>Export Analytics</span>
-                </button>
+
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-semibold text-gray-600 cursor-pointer hover:bg-white transition-all">
+                        <Calendar size={13} />
+                        {dateRange}
+                        <ChevronDown size={12} className="text-gray-400" />
+                    </div>
+                    <button className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-[12px] font-semibold hover:bg-blue-700 transition-all shadow-sm shadow-blue-200">
+                        <Download size={13} />
+                        Export
+                    </button>
+                </div>
             </div>
 
-            {/* 1. Global Filter Panel (Additive Optimization) */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-4 gap-6 items-end">
-                <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date Parameter</label>
-                    <div className="flex items-center space-x-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 transition-all group">
-                        <Calendar size={14} className="text-slate-400 group-hover:text-blue-500" />
-                        <span className="text-[13px] font-bold text-slate-700">Last 30 Days</span>
-                        <ChevronDown size={14} className="ml-auto text-slate-400" />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Department</label>
-                    <div className="flex items-center space-x-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 transition-all">
-                        <span className="text-[13px] font-bold text-slate-700">All Departments</span>
-                        <ChevronDown size={14} className="ml-auto text-slate-400" />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Structural Role</label>
-                    <div className="flex items-center space-x-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 cursor-pointer hover:border-blue-400 transition-all">
-                        <span className="text-[13px] font-bold text-slate-700">Software Engineer</span>
-                        <ChevronDown size={14} className="ml-auto text-slate-400" />
-                    </div>
-                </div>
-                <button className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[12px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 flex items-center justify-center space-x-2">
-                    <Filter size={16} />
-                    <span>Execute Intelligence Filter</span>
-                </button>
+            {/* ── Tab Bar ──────────────────────────────────── */}
+            <div className="flex items-center gap-1 border-b border-gray-100 overflow-x-auto no-scrollbar">
+                {tabs.map(tab => {
+                    const Icon = tab.icon;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex-shrink-0 flex items-center gap-2 px-4 py-3 text-[12.5px] font-semibold border-b-2 transition-all whitespace-nowrap ${
+                                activeTab === tab.id
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-400 hover:text-gray-700'
+                            }`}
+                        >
+                            <Icon size={14} />
+                            {tab.label}
+                        </button>
+                    );
+                })}
             </div>
 
-            {/* 2. Operational Reports (Presence & Compliance) */}
+            {/* ── Content Area ─────────────────────────────── */}
             <div className="space-y-6">
-                <div className="flex items-center space-x-4">
-                    <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                    <h2 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Tier 1: Operational Efficiency</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {[
-                        { label: 'Attendance Compliance', val: '94.2%', trend: '+2.1%', up: true, desc: 'Daily presence across all hubs' },
-                        { label: 'Leave Utilization', val: '12.4%', trend: '-0.5%', up: true, desc: 'Percentage of total PTO consumed' },
-                        { label: 'Timesheet Submissions', val: '88.1%', trend: '+4.8%', up: true, desc: 'Weekly accountability rate' }
-                    ].map((rep, i) => (
-                        <div key={i} className="bg-white rounded-[24px] border border-slate-200 shadow-sm p-8 group hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between mb-4">
-                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{rep.label}</span>
-                                <div className={`p-2 rounded-lg ${rep.up ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                    {rep.up ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                                </div>
-                            </div>
-                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">{rep.val}</h3>
-                            <p className="text-[11px] text-slate-400 font-bold mt-2 uppercase tracking-tighter">{rep.desc}</p>
-                            <div className="mt-8 h-20 w-full flex items-end space-x-1">
-                                {Array.from({ length: 12 }).map((_, j) => (
-                                    <div
-                                        key={j}
-                                        className={`flex-1 rounded-t-sm transition-all hover:bg-blue-600 ${j % 3 === 0 ? 'bg-blue-500 h-[60%]' : j % 2 === 0 ? 'bg-blue-200 h-[40%]' : 'bg-slate-100 h-[80%]'}`}
-                                    ></div>
-                                ))}
-                            </div>
+                
+                {activeTab === 'overview' && (
+                    <div className="space-y-6">
+                        {/* Summary Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <ReportStat label="Headcount" value="128" trend="+4.2%" up={true} icon={Users} iconBg="bg-blue-50" iconColor="text-blue-600" />
+                            <ReportStat label="Revenue / Emp" value={inr(85000)} trend="+1.5%" up={true} icon={TrendingUp} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                            <ReportStat label="Attrition Rate" value="2.4%" trend="-0.8%" up={true} icon={UserMinus} iconBg="bg-rose-50" iconColor="text-rose-600" />
+                            <ReportStat label="Satisfaction" value="4.8/5" trend="+0.2" up={true} icon={Activity} iconBg="bg-purple-50" iconColor="text-purple-600" />
                         </div>
-                    ))}
-                </div>
-            </div>
 
-            {/* 3. Financial Reports (Cost Intelligence) */}
-            <div className="space-y-6">
-                <div className="flex items-center space-x-4">
-                    <div className="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                    <h2 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Tier 2: Financial Integrity</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm p-8 flex flex-col">
-                        <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Global Payroll Cost Trend</h3>
-                            <LineChart size={20} className="text-indigo-400" />
-                        </div>
-                        <div className="flex-1 flex flex-col justify-center items-center py-10 relative">
-                            <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] scale-150">
-                                <PieChart size={200} />
-                            </div>
-                            <h4 className="text-4xl font-black text-indigo-600 tracking-tighter">€1.42M</h4>
-                            <p className="text-[11px] font-black text-slate-400 uppercase mt-2 tracking-widest">Average Monthly Cycle</p>
-                        </div>
-                    </div>
-                    <div className="bg-[#0F172A] rounded-[32px] p-8 text-white flex flex-col relative overflow-hidden group shadow-xl">
-                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-600/10 rounded-full blur-[100px] -ml-32 -mb-32"></div>
-                        <div className="flex items-center justify-between mb-8 relative z-10">
-                            <h3 className="text-[12px] font-black text-indigo-300 uppercase tracking-widest">Overtime Impact Analysis</h3>
-                            <Zap size={20} className="text-amber-400" />
-                        </div>
-                        <div className="space-y-6 relative z-10">
-                            {[
-                                { label: 'Tech Dept', cost: '€12,400', pct: 82 },
-                                { label: 'Sales Operations', cost: '€2,100', pct: 14 }
-                            ].map((d, i) => (
-                                <div key={i} className="space-y-2">
-                                    <div className="flex justify-between text-xs font-black">
-                                        <span className="text-slate-300">{d.label}</span>
-                                        <span>{d.cost} <span className="text-indigo-400 ml-2">[{d.pct}%]</span></span>
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                            {/* Attendance Analytics */}
+                            <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-[14px] font-bold text-gray-800">Attendance Compliance Trend</h3>
+                                        <p className="text-[11.5px] text-gray-400 mt-0.5">Performance over the last 30 working days</p>
                                     </div>
-                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${d.pct}%` }}></div>
+                                    <div className="flex items-center gap-2 px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                        Goal: 95%
                                     </div>
                                 </div>
-                            ))}
+                                
+                                {/* Mock Chart Visualization */}
+                                <div className="h-48 w-full flex items-end gap-1.5 px-2">
+                                    {[88, 92, 95, 84, 91, 89, 96, 92, 94, 98, 95, 93, 89, 91, 95, 97, 94, 92, 90, 94, 96, 95, 93, 91, 94, 97, 95, 93, 96, 94].map((h, i) => (
+                                        <div key={i} className="group relative flex-1">
+                                            <div 
+                                                className={`w-full rounded-t-sm transition-all duration-500 hover:bg-blue-500 ${h >= 95 ? 'bg-blue-600' : h >= 90 ? 'bg-blue-300' : 'bg-blue-100'}`} 
+                                                style={{ height: `${h}%` }}
+                                            />
+                                            {/* Tooltip on hover */}
+                                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all pointer-events-none">
+                                                <div className="bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-xl whitespace-nowrap">
+                                                    Day {i+1}: {h}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-50">
+                                    <div className="flex gap-4">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+                                            <span className="text-[11px] font-medium text-gray-500">Above Target</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-300"></div>
+                                            <span className="text-[11px] font-medium text-gray-500">Normal</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-100"></div>
+                                            <span className="text-[11px] font-medium text-gray-500">Below Target</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11.5px] font-bold text-gray-900">Avg Compliance: 92.4%</p>
+                                </div>
+                            </div>
+
+                            {/* Department Breakdown */}
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+                                <h3 className="text-[14px] font-bold text-gray-800 mb-6 font-sans">Utilization by Dept.</h3>
+                                <div className="space-y-5">
+                                    {[
+                                        { name: 'Engineering', val: 88, color: 'bg-blue-500' },
+                                        { name: 'Product', val: 94, color: 'bg-indigo-500' },
+                                        { name: 'Sales & Mktg', val: 76, color: 'bg-emerald-500' },
+                                        { name: 'Operation', val: 82, color: 'bg-amber-500' },
+                                        { name: 'HR & Finance', val: 91, color: 'bg-purple-500' },
+                                    ].map(d => (
+                                        <div key={d.name}>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-[12px] font-semibold text-gray-600">{d.name}</span>
+                                                <span className="text-[11px] font-bold text-gray-900">{d.val}%</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-gray-50 rounded-full overflow-hidden">
+                                                <div className={`h-full ${d.color} rounded-full`} style={{ width: `${d.val}%` }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
+                )}
 
-            {/* 4. Strategic Reports (Growth & Performance) */}
-            <div className="space-y-6">
-                <div className="flex items-center space-x-4">
-                    <div className="w-1.5 h-6 bg-slate-900 rounded-full"></div>
-                    <h2 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Tier 3: Strategic Performance</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    {[
-                        { icon: Users, label: 'Headcount Growth', val: '+4.2%', color: 'blue' },
-                        { icon: TrendingDown, label: 'Attrition Rate', val: '2.1%', color: 'rose' },
-                        { icon: Zap, label: 'Productivity Index', val: '8.4/10', color: 'emerald' },
-                        { icon: Activity, label: 'Operational Health', val: 'P-99', color: 'indigo' }
-                    ].map((s, i) => (
-                        <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col space-y-4 hover:shadow-md transition-all">
-                            <div className={`w-10 h-10 rounded-xl bg-${s.color}-50 flex items-center justify-center text-${s.color}-600`}>
-                                <s.icon size={20} strokeWidth={2.5} />
-                            </div>
-                            <div>
-                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</h4>
-                                <span className={`text-2xl font-black text-slate-900 tracking-tight`}>{s.val}</span>
-                            </div>
+                {/* Coming soon states for other tabs */}
+                {activeTab !== 'overview' && (
+                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 flex flex-col items-center justify-center space-y-4">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
+                            <Shell size={32} className="text-gray-300 animate-pulse" />
                         </div>
-                    ))}
+                        <div className="text-center">
+                            <h3 className="text-[15px] font-bold text-gray-800">Advanced {tabs.find(t => t.id === activeTab)?.label} Reports</h3>
+                            <p className="text-[12px] text-gray-400 mt-1 max-w-xs">Detailed analytical module for {tabs.find(t => t.id === activeTab)?.label.toLowerCase()} is being populated with live database metrics.</p>
+                        </div>
+                        <button onClick={() => setActiveTab('overview')} className="px-5 py-2 text-[12px] font-semibold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-all">
+                            Back to Overview
+                        </button>
+                    </div>
+                )}
+
+                {/* ── Recent Reports ─────────────────────────── */}
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mt-6">
+                    <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+                        <div>
+                            <h3 className="text-[14px] font-bold text-gray-800">Available Standard Reports</h3>
+                            <p className="text-[11.5px] text-gray-400 mt-0.5">Quick export for compliance and auditing</p>
+                        </div>
+                        <TableIcon size={16} className="text-gray-300" />
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                        {[
+                            { name: 'Monthly Attendance Ledger', type: 'Compliance', size: '2.4 MB', date: 'Mar 14, 2026' },
+                            { name: 'Payroll Summary (FY 2025-26)', type: 'Finance', size: '1.8 MB', date: 'Mar 12, 2026' },
+                            { name: 'Leave Balance Statement', type: 'HR Ops', size: '840 KB', date: 'Mar 10, 2026' },
+                            { name: 'Performance Bell Curve', type: 'Strategic', size: '3.1 MB', date: 'Mar 05, 2026' },
+                        ].map((report, i) => (
+                            <div key={i} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 group cursor-pointer transition-all">
+                                <div className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
+                                    <FileText size={16} className="text-gray-400 group-hover:text-blue-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[13px] font-semibold text-gray-800 truncate">{report.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded leading-none">{report.type}</span>
+                                        <span className="text-[11px] text-gray-400">{report.size}</span>
+                                    </div>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                    <p className="text-[11.5px] font-medium text-gray-500">{report.date}</p>
+                                    <button className="text-[11px] font-bold text-blue-600 hover:underline mt-0.5">Download</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

@@ -5,12 +5,14 @@ export type UserRole = 'admin' | 'hr' | 'manager' | 'employee';
 
 interface User {
   id: number;
+  employee_id?: string;
   name: string;
   email: string;
-  role: string;
+  role: UserRole;
   phone?: string;
   address?: string;
   emergency?: string;
+  permissions?: string[];
 }
 
 interface AuthState {

@@ -11,11 +11,15 @@ import {
     Clock,
     XCircle,
     X,
-    Send
+    Send,
+    Wallet,
+    Calendar,
+    ArrowUpRight,
+    Search,
+    ShieldCheck
 } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
-import { useNavigate } from 'react-router-dom';
 
 const EmployeePayroll = () => {
     const { user } = useAuthStore();
@@ -24,7 +28,6 @@ const EmployeePayroll = () => {
     const [loading, setLoading] = useState(true);
     const [showClaimModal, setShowClaimModal] = useState(false);
     const [submittingClaim, setSubmittingClaim] = useState(false);
-    const navigate = useNavigate();
 
     const [claimData, setClaimData] = useState({
         type: 'Travel',
@@ -33,15 +36,9 @@ const EmployeePayroll = () => {
     });
 
     const fetchData = async () => {
-        const storedUser = localStorage.getItem('user');
-        const currentUser = storedUser ? JSON.parse(storedUser) : (user as any);
-        const empId = currentUser?.employee_id;
-
+        const empId = user?.employee_id;
         if (!empId) {
-            console.error("Fetch data failed: Employee ID not found in session.");
-            alert("Session expired or Employee ID not found. Redirecting to login...");
             setLoading(false);
-            navigate('/login');
             return;
         }
 
@@ -55,8 +52,6 @@ const EmployeePayroll = () => {
             setClaims(claimsRes.data || []);
         } catch (err) {
             console.error('Failed to load employee claims/history:', err);
-            setClaims([]);
-            setPayslips([]);
         } finally {
             setLoading(false);
         }
@@ -75,279 +70,256 @@ const EmployeePayroll = () => {
                 `/payroll/payslip/${encodeURIComponent(employeeId)}/monthly?month=${month}&year=${year}`,
                 { responseType: 'blob' }
             );
-            
             const blob = new Blob([res.data], { type: 'application/pdf' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            
             const safeName = (name || employeeId).replace(/[^a-zA-Z0-9]/g, '_');
             a.download = `${safeName}_${monthLabel}_${year}_Payslip.pdf`;
-            
             a.click();
             window.URL.revokeObjectURL(url);
         } catch (err: any) {
-            alert('Failed to download payslip: ' + (err.message || 'Unknown error'));
+            alert('Failed to download payslip.');
         }
     };
 
     const handleClaimSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        const storedUser = localStorage.getItem('user');
-        const currentUser = storedUser ? JSON.parse(storedUser) : (user as any);
-        const empId = currentUser?.employee_id;
-        
-        if (!empId) {
-            alert("Employee ID not found in session. Please re-login.");
-            navigate('/login');
-            return;
-        }
-
-        if (!claimData.amount || !claimData.reason) {
-            alert("Please provide both amount and reason.");
-            return;
-        }
+        const empId = user?.employee_id;
+        if (!empId || !claimData.amount || !claimData.reason) return;
 
         setSubmittingClaim(true);
         try {
-            const payload = {
+            await api.post('claims', {
                 employee_id: empId,
                 category: claimData.type,
                 amount: Number(claimData.amount),
                 description: claimData.reason
-            };
-
-            // Diagnostic logging as requested
-            console.log("Submitting claim payload:", payload);
-
-            await api.post('claims', payload);
-            
-            // Success feedback
-            alert('✅ Claim submitted successfully for processing.');
-            
+            });
             setShowClaimModal(false);
             setClaimData({ type: 'Travel', amount: '', reason: '' });
-            
-            // Refresh employee claims list
             fetchData();
         } catch (error: any) {
-            // Improved error handling showing server response
-            console.error("Claim submission error:", error.response?.data || error);
-            alert("Failed to submit claim. Foreign key check failed or network error.");
+            alert("Failed to submit claim.");
         } finally {
             setSubmittingClaim(false);
         }
     };
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center p-32 space-y-4">
-            <Loader2 size={40} className="animate-spin text-blue-600" />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Synchronizing Financial Ledger...</p>
+        <div className="flex flex-col items-center justify-center py-32 gap-4">
+            <Loader2 size={32} className="text-blue-600 animate-spin" />
+            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Hydrating Financial Record...</p>
         </div>
     );
 
     return (
-        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* My Payslips Section */}
-            <section className="space-y-6">
-                <div className="flex justify-between items-center">
+        <div className="p-6 space-y-8 page-enter">
+            
+            {/* ── Page Header ──────────────────────────────── */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
+                        <Wallet size={20} className="text-white" />
+                    </div>
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">My Earnings Summary</h2>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1 italic">Verified Salary Statements & Tax Forms</p>
+                        <h2 className="text-[17px] font-black text-gray-900 tracking-tight uppercase">My Payroll Hub</h2>
+                        <p className="text-[11.5px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                            Personal Earnings & Expense Tracking
+                        </p>
                     </div>
                 </div>
 
-                {payslips.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {payslips.map(p => (
-                            <div
-                                key={p.id}
-                                className="group relative bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer"
-                                onClick={() => downloadPayslip(p.id, p.employee, p.month, p.year, p.employee_id)}
-                            >
-                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <History size={64} className="text-slate-400" />
-                                </div>
-                                <div className="flex items-center space-x-4 mb-6">
-                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
-                                        <FileText size={20} />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                                            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(p.month) - 1]} {p.year}
-                                        </h4>
-                                        <p className="text-lg font-black text-slate-900 tracking-tight">₹{p.net_salary.toLocaleString()}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-2 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                                        <CheckCircle2 size={12} />
-                                        <span className="text-[9px] font-black uppercase tracking-widest">Paid</span>
-                                    </div>
-                                    <button className="flex items-center space-x-2 text-blue-600 text-[10px] font-black uppercase tracking-widest hover:underline decoration-2">
-                                        <Download size={14} />
-                                        <span>Download PDF</span>
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
+                        <ShieldCheck size={14} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Account Verified</span>
                     </div>
-                ) : (
-                    <div className="bg-slate-50 rounded-[2.5rem] p-20 flex flex-col items-center justify-center border-2 border-dashed border-slate-200">
-                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-slate-300 mb-6 shadow-sm"><FileText size={32} /></div>
-                        <h3 className="text-lg font-black text-slate-900 tracking-tight">No Pay Statements Found</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 italic">Your payroll history will appear here once processed.</p>
-                    </div>
-                )}
-            </section>
-
-            {/* My Claims Section */}
-            <section className="space-y-6 pt-12 border-t border-slate-200">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 tracking-tight">Reimbursements & Claims</h2>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1 italic">Submit your business expenses for approval</p>
-                    </div>
-                    <button
+                    <button 
                         onClick={() => setShowClaimModal(true)}
-                        className="flex items-center space-x-3 px-6 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-blue-600 hover:scale-105 active:scale-95 transition-all"
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-[12px] font-bold hover:bg-black transition-all shadow-lg shadow-gray-200 active:scale-95"
                     >
-                        <Plus size={16} />
-                        <span>Submit New Claim</span>
+                        <Plus size={14} />
+                        New Claim
                     </button>
                 </div>
+            </div>
 
-                <div className="bg-white rounded-[2.5rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 overflow-hidden">
-                    {claims.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-100">
-                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
-                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                        <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {claims.map((c: any) => (
-                                        <tr key={c.id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-8 py-6">
-                                                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200">
-                                                    {c.category || c.type}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center space-x-2">
-                                                    <IndianRupee size={12} className="text-slate-400" />
-                                                    <span className="text-sm font-black text-slate-900">{Number(c.amount).toLocaleString()}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6 max-w-xs">
-                                                <p className="text-[11px] font-bold text-slate-500 italic line-clamp-1">{c.description || c.reason}</p>
-                                            </td>
-                                            <td className="px-8 py-6">
-                                                <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border w-fit ${c.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                    c.status === 'rejected' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                        'bg-amber-50 text-amber-600 border-amber-100 font-black'
-                                                    }`}>
-                                                    {c.status === 'approved' ? <CheckCircle2 size={12} /> :
-                                                        c.status === 'rejected' ? <XCircle size={12} /> :
-                                                            <Clock size={12} />}
-                                                    <span className="text-[9px] font-black uppercase tracking-widest">{c.status || 'pending'}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-6 text-[11px] font-bold text-slate-400 italic">
-                                                {c.created_at ? new Date(c.created_at).toLocaleDateString() : new Date().toLocaleDateString()}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+            {/* ── Stats Strip ─────────────────────────────── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5">
+                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100"><FileText size={24}/></div>
+                    <div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Available Payslips</p>
+                        <p className="text-[22px] font-black text-gray-900 tracking-tight">{payslips.length}</p>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5">
+                    <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-100"><Clock size={24}/></div>
+                    <div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pending Claims</p>
+                        <p className="text-[22px] font-black text-gray-900 tracking-tight">{claims.filter(c => c.status === 'pending').length}</p>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5">
+                    <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100"><CheckCircle2 size={24}/></div>
+                    <div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Claim Lifecycle</p>
+                        <p className="text-[22px] font-black text-gray-900 tracking-tight">Active</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                
+                {/* ── My Earnings List ────────────────────────── */}
+                <div className="lg:col-span-3 space-y-4">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-[13px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                           <Calendar size={14} className="text-blue-600"/> Salary Archive
+                        </h3>
+                    </div>
+
+                    {payslips.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {payslips.map(p => (
+                                <div 
+                                    key={p.id} 
+                                    onClick={() => downloadPayslip(p.id, p.employee, p.month, p.year, p.employee_id)}
+                                    className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-100 transition-all cursor-pointer group"
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="p-2 bg-gray-50 text-gray-400 rounded-xl group-hover:bg-blue-50 group-hover:text-blue-600 transition-all border border-gray-100">
+                                            <FileText size={18} />
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">
+                                            <CheckCircle2 size={10} /> Paid
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(p.month) - 1]} {p.year}
+                                        </p>
+                                        <p className="text-[20px] font-black text-gray-900 tracking-tight mt-1">₹{p.net_salary.toLocaleString()}</p>
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
+                                        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">ID: {p.id}</span>
+                                        <button className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-wider hover:translate-x-1 transition-transform">
+                                            Download <Download size={12}/>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center p-24 space-y-4">
-                            <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300 border border-slate-200">
-                                <History size={20} />
+                        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-100 py-20 flex flex-col items-center gap-4 text-center">
+                            <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-200"><History size={28}/></div>
+                            <div>
+                                <p className="text-[14px] font-black text-gray-800 uppercase tracking-tight">No Pay History</p>
+                                <p className="text-[11px] text-gray-400 px-10">Historical payslips will manifest here once the payroll engine processes your cycle.</p>
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No reimbursement history available.</p>
                         </div>
                     )}
                 </div>
-            </section>
 
-            {/* Claim Submission Modal */}
-            {showClaimModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
-                        <div className="bg-slate-900 p-8 flex justify-between items-center text-white">
-                            <div>
-                                <h3 className="text-xl font-black tracking-tight">Submit Reimbursement</h3>
-                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Financial Reconciliation Request</p>
+                {/* ── Recent Claims Area ──────────────────────── */}
+                <div className="lg:col-span-2 space-y-4">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-[13px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                           <ArrowUpRight size={14} className="text-amber-600"/> Recent Claims
+                        </h3>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        {claims.length > 0 ? (
+                            <div className="divide-y divide-gray-50">
+                                {claims.map((c: any) => (
+                                    <div key={c.id} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center group">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all ${c.status === 'approved' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                                <IndianRupee size={14}/>
+                                            </div>
+                                            <div>
+                                                <p className="text-[13px] font-black text-gray-800 uppercase tracking-tight">{c.category || 'General'}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">₹{Number(c.amount).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={`inline-flex px-2 py-0.5 rounded-lg text-[8.5px] font-black uppercase tracking-widest border ${c.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                                {c.status || 'pending'}
+                                            </span>
+                                            <p className="text-[9.5px] text-gray-300 font-bold mt-1 italic">{new Date(c.created_at || Date.now()).toLocaleDateString('en-IN', {month: 'short', day: 'numeric'})}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                            <button onClick={() => setShowClaimModal(false)} className="p-2 hover:bg-white/10 rounded-2xl transition-colors">
-                                <X size={24} />
-                            </button>
+                        ) : (
+                            <div className="py-20 flex flex-col items-center gap-3 text-center">
+                                <div className="p-3 bg-gray-50 text-gray-200 rounded-2xl"><Send size={24}/></div>
+                                <p className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest">No Transmitted Claims</p>
+                            </div>
+                        )}
+                        <div className="bg-gray-50 p-3 text-center border-t border-gray-100">
+                             <p className="text-[9.5px] text-gray-400 font-bold uppercase tracking-widest">Audited by Financial Compliance Team</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Claim Modal ─────────────────────────────── */}
+            {showClaimModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8">
+                        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-900 text-white">
+                            <div>
+                                <h3 className="text-[17px] font-black uppercase tracking-tight">Transmit Claim</h3>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Financial Reconciliation Request</p>
+                            </div>
+                            <button onClick={() => setShowClaimModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X size={20}/></button>
                         </div>
                         <form onSubmit={handleClaimSubmit} className="p-8 space-y-6">
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Claim Category</label>
-                                    <select
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all cursor-pointer"
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Category</label>
+                                    <select 
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-400 transition-all"
                                         value={claimData.type}
-                                        onChange={e => setClaimData({ ...claimData, type: e.target.value })}
+                                        onChange={e => setClaimData({...claimData, type: e.target.value})}
                                     >
-                                        <option value="Travel">Travel Allowance</option>
-                                        <option value="Medical">Medical Reimbursement</option>
-                                        <option value="Food">Meals & Entertainment</option>
-                                        <option value="Training">Personal Development</option>
-                                        <option value="Other">General / Miscellaneous</option>
+                                        <option value="Travel">Travel</option>
+                                        <option value="Medical">Medical</option>
+                                        <option value="Food">Meals</option>
+                                        <option value="Other">Miscellaneous</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Amount (INR)</label>
-                                    <div className="relative">
-                                        <IndianRupee size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                        <input
-                                            type="number"
-                                            required
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 pl-10 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
-                                            placeholder="0.00"
-                                            value={claimData.amount}
-                                            onChange={e => setClaimData({ ...claimData, amount: e.target.value })}
-                                        />
-                                    </div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Amount (INR)</label>
+                                    <input 
+                                        type="number" 
+                                        required
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm font-black text-gray-900 outline-none focus:bg-white focus:border-blue-400 transition-all"
+                                        placeholder="0.00"
+                                        value={claimData.amount}
+                                        onChange={e => setClaimData({...claimData, amount: e.target.value})}
+                                    />
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Business Reason & Justification</label>
-                                <textarea
-                                    required
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Business Reason</label>
+                                <textarea 
+                                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm font-medium text-gray-700 outline-none focus:bg-white transition-all resize-none italic"
                                     rows={4}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-black text-slate-900 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all resize-none italic"
-                                    placeholder="Provide a detailed description of the expense for audit purposes..."
+                                    placeholder="Briefly explain the expense..."
+                                    required
                                     value={claimData.reason}
-                                    onChange={e => setClaimData({ ...claimData, reason: e.target.value })}
+                                    onChange={e => setClaimData({...claimData, reason: e.target.value})}
                                 />
                             </div>
-                            <div className="flex space-x-4 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowClaimModal(false)}
-                                    className="flex-1 px-8 py-4 border-2 border-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all font-black"
-                                >
-                                    Abort
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submittingClaim}
-                                    className="flex-1 px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 flex items-center justify-center space-x-3 disabled:opacity-50 active:scale-95"
-                                >
-                                    {submittingClaim ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                    <span>Transmit Claim</span>
+                            <div className="flex gap-3">
+                                <button type="button" onClick={() => setShowClaimModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all">Abort</button>
+                                <button type="submit" disabled={submittingClaim} className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                    {submittingClaim ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                    Transmit
                                 </button>
                             </div>
                         </form>

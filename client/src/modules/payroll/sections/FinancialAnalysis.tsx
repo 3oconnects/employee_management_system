@@ -1,221 +1,228 @@
 import React, { useState, useEffect } from 'react';
-import { IndianRupee, Users, TrendingUp, Clock, BarChart3, Loader2, AlertCircle, History as LucideHistory, CheckCircle2, ShieldCheck } from 'lucide-react';
-import StatCard from '../components/StatCard';
+import {
+    IndianRupee,
+    Users,
+    Clock,
+    ShieldCheck,
+    BarChart3,
+    Loader2,
+    AlertCircle,
+    CheckCircle2,
+    TrendingUp,
+    Activity,
+} from 'lucide-react';
 import api from '../../../services/api';
 
-const FinancialAnalysis = () => {
+/* ─── Currency util ──────────────────────────────────────── */
+const inr = (v: number) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
+
+/* ─── Stat card ─────────────────────────────────────────── */
+const Stat: React.FC<{
+    label: string; value: string; sub: string;
+    icon: React.ElementType; iconBg: string; iconColor: string;
+    up?: boolean;
+}> = ({ label, value, sub, icon: Icon, iconBg, iconColor, up }) => (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 card-hover">
+        <div className="flex items-start justify-between mb-4">
+            <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center`}>
+                <Icon size={18} className={iconColor} />
+            </div>
+            {up !== undefined && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${up ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                    {up ? '↑' : '↓'}
+                </span>
+            )}
+        </div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+        <p className="text-[22px] font-bold text-gray-900 leading-none">{value}</p>
+        <p className="text-[11px] text-gray-400 font-medium mt-1.5">{sub}</p>
+    </div>
+);
+
+/* ─── Component ─────────────────────────────────────────── */
+const FinancialAnalysis: React.FC = () => {
     const [employees, setEmployees] = useState<any[]>([]);
-    const [history, setHistory] = useState<any[]>([]);
-    const [activity, setActivity] = useState<any[]>([]);
-    const [summary, setSummary] = useState<any>({ totalGross: 0, totalDeductions: 0, netOutflow: 0, govtPayables: 0 });
+    const [activity,  setActivity]  = useState<any[]>([]);
+    const [summary,   setSummary]   = useState<any>({ totalGross: 0, totalDeductions: 0, netOutflow: 0, govtPayables: 0 });
     const [pendingCount, setPendingCount] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    // Currency Formatter for Indian Rupees using Intl.NumberFormat('en-IN')
-    const formatter = new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-    });
-
-    const fetchData = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const now = new Date();
-            const m = (now.getMonth() + 1).toString();
-            const y = now.getFullYear().toString();
-
-            const [empRes, runRes, activityRes, pendingRes] = await Promise.all([
-                api.get('payroll/employees'),
-                api.get('payroll/runs'),
-                api.get('payroll/activity'),
-                api.get('payroll/pending-approvals')
-            ]);
-            
-            setEmployees(Array.isArray(empRes.data) ? empRes.data : []);
-            const runHistory = Array.isArray(runRes.data) ? runRes.data : [];
-            setHistory(runHistory);
-            setActivity(Array.isArray(activityRes.data) ? activityRes.data : []);
-            setPendingCount(pendingRes.data?.pending || 0);
-
-            // Fetch live summary based on profiles
-            const summaryRes = await api.get('payroll/live-summary');
-            setSummary(summaryRes.data);
-
-        } catch (err: any) {
-            console.error('Failed to fetch dashboard data:', err);
-            setError('Unable to sync with payroll database.');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const [loading,   setLoading]   = useState(true);
+    const [error,     setError]     = useState<string | null>(null);
 
     useEffect(() => {
-        fetchData();
+        (async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const [empRes, actRes, pendRes, sumRes] = await Promise.all([
+                    api.get('payroll/employees'),
+                    api.get('payroll/activity'),
+                    api.get('payroll/pending-approvals'),
+                    api.get('payroll/live-summary'),
+                ]);
+                setEmployees(Array.isArray(empRes.data) ? empRes.data : []);
+                setActivity(Array.isArray(actRes.data) ? actRes.data : []);
+                setPendingCount(pendRes.data?.pending || 0);
+                setSummary(sumRes.data);
+            } catch {
+                setError('Unable to sync with payroll database.');
+            } finally {
+                setLoading(false);
+            }
+        })();
     }, []);
 
-    // Dynamic Calculations
-    // Dynamic Calculations
-    const totalEmployees = employees.length;
-    const totalPayrollCost = summary.totalGross; // Use live summary for accurate totals
-    const averageSalary = totalEmployees > 0 ? totalPayrollCost / totalEmployees : 0;
+    const totalEmployees  = employees.length;
+    const totalPayroll    = summary.netOutflow || 0;
+    const avgSalary       = totalEmployees > 0 ? totalPayroll / totalEmployees : 0;
 
-    // Department Distribution
     const departments = ['Engineering', 'Sales', 'HR', 'Marketing', 'Finance', 'Operations'];
-    const departmentDistribution = departments.map(name => {
-        const cost = employees
-            .filter(e => e.department === name)
-            .reduce((acc, curr) => acc + (Number(curr.annual_ctc || 0) / 12), 0);
-        return { name, cost };
-    }).filter(d => d.cost > 0);
-    // Usually better to show all if they exist in the schema, but user example showed 5.
-    // Let's keep all from the departments list if they have data.
+    const deptDist = departments.map(name => ({
+        name,
+        cost: employees.filter(e => e.department === name)
+                       .reduce((acc, e) => acc + (Number(e.annual_ctc || 0) / 12), 0),
+    })).filter(d => d.cost > 0);
+    const maxCost = Math.max(...deptDist.map(d => d.cost), 1);
 
-    const maxCost = Math.max(...departmentDistribution.map(d => d.cost), 1);
+    if (loading) return (
+        <div className="flex items-center justify-center py-24 gap-3 text-gray-400">
+            <Loader2 size={20} className="animate-spin text-blue-500" />
+            <span className="text-[13px] font-medium">Loading payroll data…</span>
+        </div>
+    );
 
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center p-32 space-y-4">
-                <Loader2 size={48} className="animate-spin text-blue-600" />
-                <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Recalculating Financial Metrics...</p>
-            </div>
-        );
-    }
-
-    if (totalEmployees === 0 && !error) {
-        return (
-            <div className="p-16 bg-white rounded-3xl border border-slate-200 shadow-sm text-center">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <IndianRupee size={32} className="text-slate-300" />
-                </div>
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Financial Hub Inactive</h3>
-                <p className="text-slate-500 text-sm font-medium mt-2">Payroll dashboard will populate once employee payroll profiles are added.</p>
-            </div>
-        );
-    }
+    if (totalEmployees === 0 && !error) return (
+        <div className="flex flex-col items-center justify-center py-24 text-gray-300">
+            <IndianRupee size={40} className="mb-3 opacity-40" />
+            <p className="text-[13.5px] font-semibold text-gray-500">No payroll profiles</p>
+            <p className="text-[12px] text-gray-400 mt-1">Add employee payroll profiles to see the dashboard.</p>
+        </div>
+    );
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Error Banner if any */}
+        <div className="space-y-5">
+            {/* Error banner */}
             {error && (
-                <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center space-x-3 text-rose-600">
-                    <AlertCircle size={18} />
-                    <p className="text-xs font-bold">{error} Showing last cached data or zeros.</p>
+                <div className="flex items-center gap-3 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
+                    <AlertCircle size={15} className="text-rose-500 flex-shrink-0" />
+                    <p className="text-[12.5px] text-rose-600 font-medium">{error} Showing last cached data.</p>
                 </div>
             )}
 
-            {/* Payroll Metrics Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                    label="Net Payroll Outflow"
-                    value={formatter.format(summary.netOutflow)}
-                    icon={IndianRupee}
-                    color="bg-blue-600"
-                    trend={`${totalEmployees} Recipients`}
-                    isUp={true}
-                />
-                <StatCard
-                    label="Active Payroll Profiles"
-                    value={totalEmployees.toString()}
-                    icon={Users}
-                    color="bg-purple-600"
-                    trend="Verified"
-                    isUp={true}
-                />
-                <StatCard
-                    label="Government Payables"
-                    value={formatter.format(summary.govtPayables)}
-                    icon={ShieldCheck}
-                    color="bg-emerald-600"
-                    trend="Tax & PF"
-                    isUp={true}
-                />
-                <StatCard
-                    label="Pending Approvals"
-                    value={pendingCount.toString()}
-                    icon={Clock}
-                    color="bg-amber-600"
-                    trend={pendingCount > 0 ? "Action Required" : "All Clear"}
-                    isUp={pendingCount > 0}
-                />
+            {/* ── Stat cards ─────────────────────────────── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <Stat label="Net Payroll Outflow"    value={inr(summary.netOutflow)}    sub={`${totalEmployees} recipients`} icon={IndianRupee} iconBg="bg-blue-50"   iconColor="text-blue-600"   up={true} />
+                <Stat label="Active Profiles"         value={String(totalEmployees)}     sub="Payroll enrolled"               icon={Users}       iconBg="bg-purple-50" iconColor="text-purple-600" up={true} />
+                <Stat label="Government Payables"     value={inr(summary.govtPayables)}  sub="Tax & PF obligations"           icon={ShieldCheck} iconBg="bg-emerald-50"iconColor="text-emerald-600"up={true} />
+                <Stat label="Pending Approvals"       value={String(pendingCount)}        sub={pendingCount > 0 ? 'Action required' : 'All clear'} icon={Clock} iconBg="bg-amber-50" iconColor="text-amber-600" up={pendingCount > 0} />
             </div>
 
-            {/* Department Distribution Section */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900 tracking-tight">Payroll Cost Distribution</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Allocation by Business Unit</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+                {/* ── Financial summary ──────────────────── */}
+                <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 className="text-[13px] font-bold text-gray-800">Financial Summary</h3>
+                            <p className="text-[11px] text-gray-400 font-medium mt-0.5">Current month estimates from active profiles</p>
+                        </div>
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                            <TrendingUp size={15} className="text-gray-400" />
+                        </div>
                     </div>
-                    <div className="p-3 bg-slate-50 rounded-2xl">
-                        <BarChart3 className="text-slate-400" size={20} />
+
+                    <div className="grid grid-cols-2 gap-3">
+                        {[
+                            { label: 'Total Gross',        value: inr(summary.totalGross),      bg: 'bg-gray-50',   text: 'text-gray-900',    sub: 'Before deductions' },
+                            { label: 'Statutory Deductions',value: inr(summary.totalDeductions), bg: 'bg-rose-50',   text: 'text-rose-600',    sub: 'PF, PT, TDS' },
+                            { label: 'Net Fund Outflow',    value: inr(summary.netOutflow),      bg: 'bg-emerald-50',text: 'text-emerald-600', sub: 'Disbursed to employees' },
+                            { label: 'Govt. Payables',      value: inr(summary.govtPayables),    bg: 'bg-blue-50',   text: 'text-blue-600',    sub: 'Regulatory remittance' },
+                        ].map(s => (
+                            <div key={s.label} className={`${s.bg} rounded-xl p-4 border border-gray-100/80`}>
+                                <p className="text-[10.5px] font-semibold text-gray-500 mb-1">{s.label}</p>
+                                <p className={`text-[18px] font-bold ${s.text} leading-none`}>{s.value}</p>
+                                <p className="text-[10px] text-gray-400 mt-1.5">{s.sub}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Avg salary bar */}
+                    <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
+                        <p className="text-[11.5px] text-gray-500 font-medium">Avg. salary / employee</p>
+                        <p className="text-[13px] font-bold text-gray-900">{inr(avgSalary)}</p>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                    {departmentDistribution.length > 0 ? departmentDistribution.map(dept => (
-                        <div key={dept.name} className="space-y-3">
-                            <div className="flex justify-between items-end">
-                                <div>
-                                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">{dept.name}</span>
-                                    <span className="text-lg font-black text-slate-900">{formatter.format(dept.cost)}</span>
+
+                {/* ── Department Distribution ─────────────── */}
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-5">
+                        <h3 className="text-[13px] font-bold text-gray-800">Cost by Dept.</h3>
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                            <BarChart3 size={15} className="text-gray-400" />
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        {deptDist.length > 0 ? deptDist.map(d => (
+                            <div key={d.name}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[11.5px] font-semibold text-gray-600">{d.name}</span>
+                                    <span className="text-[10.5px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                        {((d.cost / (totalPayroll || 1)) * 100).toFixed(1)}%
+                                    </span>
                                 </div>
-                                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-                                    {((dept.cost / totalPayrollCost) * 100).toFixed(1)}%
-                                </span>
+                                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-700"
+                                        style={{ width: `${(d.cost / maxCost) * 100}%` }}
+                                    ></div>
+                                </div>
+                                <p className="text-[10.5px] text-gray-400 mt-1">{inr(d.cost)}</p>
                             </div>
-                            <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-blue-600 rounded-full transition-all duration-1000 ease-out shadow-sm shadow-blue-500/20"
-                                    style={{ width: `${(dept.cost / maxCost) * 100}%` }}
-                                ></div>
+                        )) : (
+                            <div className="flex flex-col items-center justify-center py-10 text-gray-300">
+                                <BarChart3 size={28} className="mb-2 opacity-30" />
+                                <p className="text-[11.5px] text-gray-400">No department data</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Recent Activity ─────────────────────────── */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-[13px] font-bold text-gray-800">Recent Activity</h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Live processing feed</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                        <Activity size={14} className="text-gray-400" />
+                    </div>
+                </div>
+                <div className="divide-y divide-gray-50">
+                    {activity.length > 0 ? activity.map((run: any) => (
+                        <div key={run.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                <CheckCircle2 size={15} className="text-blue-500" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[12.5px] font-semibold text-gray-800">Payroll cycle completed: {run.payrollcycle}</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                    Processed on {new Date(run.processed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </p>
                             </div>
                         </div>
                     )) : (
-                        <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No department data available</p>
+                        <div className="flex items-center gap-4 px-5 py-3.5">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                                <ShieldCheck size={15} className="text-emerald-500" />
+                            </div>
+                            <div>
+                                <p className="text-[12.5px] font-semibold text-gray-800">Compliance In-Sync</p>
+                                <p className="text-[11px] text-gray-400 mt-0.5">Enterprise statutory filings verified</p>
+                            </div>
                         </div>
                     )}
-                </div>
-            </div>
-
-            {/* Recent Payroll Activity Feed */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[300px]">
-                <div className="p-8 border-b border-slate-50 bg-slate-50/30">
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest leading-none">Recent Activity</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 px-1 border-l-2 border-emerald-500">Live Processing Feed</p>
-                </div>
-                <div className="flex-1 p-8">
-                    <div className="space-y-6">
-                        {activity && activity.length > 0 ? activity.map((run: any) => (
-                            <div key={run.id} className="flex space-x-4 relative group">
-                                <div className="relative z-10 w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
-                                    <CheckCircle2 size={16} />
-                                </div>
-                                <div className="flex-1 pt-1 pb-4 border-b border-slate-50">
-                                    <p className="text-xs font-black text-slate-900 leading-none">Payroll cycle completed: {run.payrollcycle}</p>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-tight mt-1.5 font-mono">
-                                         Processed on {new Date(run.processed_at).toLocaleDateString()}
-                                    </p>
-                                </div>
-                            </div>
-                        )) : (
-                            <div className="flex flex-col items-center justify-center h-full opacity-20 space-y-4 py-8">
-                                <LucideHistory size={32} />
-                                <p className="text-[10px] font-black uppercase tracking-widest">No activity logged</p>
-                            </div>
-                        )}
-                        <div className="flex space-x-4 relative group">
-                            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 border border-emerald-100 shadow-sm">
-                                <ShieldCheck size={16} />
-                            </div>
-                            <div className="flex-1 pt-1">
-                                <p className="text-xs font-black text-slate-900 leading-none">Compliance In-Sync</p>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tight mt-1.5">Enterprise statutory filings verified</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

@@ -1,0 +1,2 @@
+﻿src/modules/auth/components/Can.tsx(22,32): error TS2339: Property 'permissions' does not exist on type 'User'.
+src/modules/auth/components/ProtectedRoute.tsx(18,56): error TS2345: Argument of type 'string' is not assignable to parameter of type 'UserRole'.

@@ -1,222 +1,208 @@
+import bcrypt from 'bcryptjs';
 import { query } from './connection';
 
-/**
- * Creates all tables defined in docs/11_database_schema_requirements.md
- * Tables: users, departments, profiles, attendance, leave_types,
- *         leave_requests, payroll, performance_appraisals, assets, audit_logs
- *
- * Safe to run multiple times (IF NOT EXISTS).
- */
-export async function initializeDatabase(): Promise<void> {
-    console.log('🔧 Initializing database schema...');
+export const initializeDatabase = async () => {
+    try {
+        console.log('Initializing database schema...');
 
-    // Enable UUID generation
-    await query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
+        // Users table (Common to all)
+        await query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'employee',
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 1. users ──────────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS users (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            email           VARCHAR(255) UNIQUE NOT NULL,
-            password_hash   VARCHAR(255) NOT NULL,
-            role            VARCHAR(20) NOT NULL CHECK (role IN ('admin','hr','manager','employee')),
-            status          VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','terminated')),
-            deleted_at      TIMESTAMP,
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        // Profiles / Employees table (Narendhar's work)
+        await query(`
+            CREATE TABLE IF NOT EXISTS employees (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                position TEXT,
+                department TEXT,
+                join_date TIMESTAMP,
+                email TEXT UNIQUE
+            );
+        `);
 
-    // ── 2. departments ────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS departments (
-            id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            name    VARCHAR(100) UNIQUE NOT NULL,
-            head_id UUID REFERENCES users(id),
-            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS payroll_profiles (
+                employee_id TEXT PRIMARY KEY REFERENCES employees(id),
+                name TEXT,
+                department TEXT,
+                role TEXT,
+                annual_ctc NUMERIC,
+                bank_account TEXT,
+                tax_regime TEXT,
+                basic_salary NUMERIC,
+                hra NUMERIC,
+                allowances NUMERIC,
+                bonus NUMERIC,
+                overtime NUMERIC
+            );
+        `);
 
-    // ── 3. profiles ───────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS profiles (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            employee_id     VARCHAR(50) UNIQUE NOT NULL,
-            dept_id         UUID REFERENCES departments(id),
-            manager_id      UUID REFERENCES users(id),
-            joining_date    DATE NOT NULL,
-            designation     VARCHAR(100) NOT NULL,
-            compensation    JSONB,
-            deleted_at      TIMESTAMP,
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        // Attendance & Leave (Adithyan's work)
+        await query(`
+            CREATE TABLE IF NOT EXISTS attendance (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                check_in TIMESTAMP NOT NULL,
+                check_out TIMESTAMP,
+                ip_address TEXT,
+                status TEXT DEFAULT 'present',
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 4. attendance ─────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS attendance (
-            id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            check_in    TIMESTAMP NOT NULL,
-            check_out   TIMESTAMP,
-            ip_address  VARCHAR(45),
-            status      VARCHAR(20) DEFAULT 'present' CHECK (status IN ('present','half_day','on_duty')),
-            created_at  TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS leave_types (
+                id SERIAL PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                annual_quota INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 5. leave_types ────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS leave_types (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            name            VARCHAR(100) NOT NULL,
-            annual_quota    INTEGER NOT NULL,
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS leave_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                leave_type_id INTEGER NOT NULL REFERENCES leave_types(id),
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                reason TEXT,
+                status TEXT DEFAULT 'pending',
+                approved_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 6. leave_requests ─────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS leave_requests (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            leave_type_id   UUID NOT NULL REFERENCES leave_types(id),
-            start_date      DATE NOT NULL,
-            end_date        DATE NOT NULL,
-            reason          TEXT,
-            status          VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
-            approved_by     UUID REFERENCES users(id),
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        // Timesheets (Adithyan's work)
+        await query(`
+            CREATE TABLE IF NOT EXISTS timesheets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                week_start DATE NOT NULL,
+                week_end DATE NOT NULL,
+                total_hours NUMERIC(5,2) DEFAULT 0,
+                status TEXT DEFAULT 'draft',
+                approved_by INTEGER REFERENCES users(id),
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 7. payroll ────────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS payroll (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            month           INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
-            year            INTEGER NOT NULL,
-            base_salary     NUMERIC(12,2) NOT NULL,
-            tax_deduction   NUMERIC(12,2) NOT NULL,
-            net_payable     NUMERIC(12,2) NOT NULL,
-            status          VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft','processed','paid')),
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            UNIQUE(user_id, month, year)
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS timesheet_entries (
+                id SERIAL PRIMARY KEY,
+                timesheet_id INTEGER REFERENCES timesheets(id) ON DELETE CASCADE,
+                project_name TEXT NOT NULL,
+                task_desc TEXT,
+                mon_hours NUMERIC(4,2) DEFAULT 0,
+                tue_hours NUMERIC(4,2) DEFAULT 0,
+                wed_hours NUMERIC(4,2) DEFAULT 0,
+                thu_hours NUMERIC(4,2) DEFAULT 0,
+                fri_hours NUMERIC(4,2) DEFAULT 0,
+                sat_hours NUMERIC(4,2) DEFAULT 0,
+                sun_hours NUMERIC(4,2) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 8. performance_appraisals ─────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS performance_appraisals (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            cycle_id        VARCHAR(50) NOT NULL,
-            self_rating     INTEGER CHECK (self_rating BETWEEN 1 AND 5),
-            manager_rating  INTEGER CHECK (manager_rating BETWEEN 1 AND 5),
-            final_score     NUMERIC(3,2),
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        // Regularization (Adithyan)
+        await query(`
+            CREATE TABLE IF NOT EXISTS regularization_requests (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                date DATE NOT NULL,
+                check_in_time TIME NOT NULL,
+                check_out_time TIME,
+                reason TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                approved_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 9. assets ─────────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS assets (
-            id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            name        VARCHAR(255) NOT NULL,
-            serial_no   VARCHAR(100) UNIQUE,
-            assigned_to UUID REFERENCES users(id),
-            created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        // Payroll & Approvals (Narendhar)
+        await query(`
+            CREATE TABLE IF NOT EXISTS payroll_runs (
+                id TEXT PRIMARY KEY,
+                month TEXT,
+                year TEXT,
+                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
-    // ── 10. audit_logs ────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            table_name  VARCHAR(50) NOT NULL,
-            record_id   UUID NOT NULL,
-            field       VARCHAR(100) NOT NULL,
-            old_value   TEXT,
-            new_value   TEXT,
-            changed_by  UUID REFERENCES users(id),
-            changed_at  TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS payroll_entries (
+                id SERIAL PRIMARY KEY,
+                payroll_run_id TEXT REFERENCES payroll_runs(id),
+                employee_id TEXT REFERENCES employees(id),
+                month TEXT,
+                year TEXT,
+                gross_salary NUMERIC,
+                pf_employee NUMERIC,
+                esi_employee NUMERIC,
+                professional_tax NUMERIC,
+                tds NUMERIC,
+                total_deductions NUMERIC,
+                net_salary NUMERIC,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        `);
 
-    // ── 11. regularization_requests ───────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS regularization_requests (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            date            DATE NOT NULL,
-            check_in_time   TIME NOT NULL,
-            check_out_time  TIME,
-            reason          TEXT NOT NULL,
-            status          VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
-            approved_by     UUID REFERENCES users(id),
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS approvals (
+                id TEXT PRIMARY KEY,
+                employee_id TEXT REFERENCES employees(id),
+                type TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
-    // ── 12. timesheets ────────────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS timesheets (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            week_start      DATE NOT NULL,
-            week_end        DATE NOT NULL,
-            status          VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted','approved','rejected')),
-            total_hours     NUMERIC(6,2) NOT NULL DEFAULT 0,
-            approved_by     UUID REFERENCES users(id),
-            remarks         TEXT,
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            UNIQUE(user_id, week_start)
-        );
-    `);
+        await query(`
+            CREATE TABLE IF NOT EXISTS claims (
+                id TEXT PRIMARY KEY,
+                employee_id TEXT REFERENCES employees(id),
+                amount NUMERIC,
+                category TEXT,
+                description TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
-    // ── 13. timesheet_entries ─────────────────────────────────
-    await query(`
-        CREATE TABLE IF NOT EXISTS timesheet_entries (
-            id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            timesheet_id    UUID NOT NULL REFERENCES timesheets(id) ON DELETE CASCADE,
-            project_name    VARCHAR(255) NOT NULL,
-            task_desc       TEXT,
-            mon_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            tue_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            wed_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            thu_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            fri_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            sat_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            sun_hours       NUMERIC(4,2) NOT NULL DEFAULT 0,
-            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-    `);
+        // Seed Admin User if not exists
+        const { rows: userCount } = await query('SELECT COUNT(*) FROM users');
+        if (parseInt(userCount[0].count) === 0) {
+            const hashedPassword = await bcrypt.hash('password', 10);
+            await query(`
+                INSERT INTO users (name, email, password, role)
+                VALUES ('Admin User', 'admin@example.com', $1, 'admin')
+            `, [hashedPassword]);
+            
+            await query(`
+                INSERT INTO employees (id, name, department, position, join_date, email)
+                VALUES ('EMP001', 'Admin User', 'Management', 'Administrator', NOW(), 'admin@example.com')
+            `);
+            console.log('✅ Admin user seeded: admin@example.com / password');
+        }
 
-    // ── Indexes (from doc: Performance & Security) ────────────
-    await query(`CREATE INDEX IF NOT EXISTS idx_users_email         ON users(email);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_profiles_employee_id ON profiles(employee_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_attendance_user_id   ON attendance(user_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_attendance_check_in  ON attendance(check_in);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_leave_requests_user  ON leave_requests(user_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_payroll_user         ON payroll(user_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_profiles_dept        ON profiles(dept_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_audit_record         ON audit_logs(table_name, record_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_regularization_user   ON regularization_requests(user_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_timesheets_user        ON timesheets(user_id);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_timesheets_week        ON timesheets(week_start);`);
-    await query(`CREATE INDEX IF NOT EXISTS idx_timesheet_entries_ts   ON timesheet_entries(timesheet_id);`);
-
-    console.log('✅ Database schema initialized successfully.');
-}
+        console.log('✅ Database schema initialized successfully.');
+    } catch (err) {
+        console.error('❌ Database initialization failed:', err);
+        throw err;
+    }
+};

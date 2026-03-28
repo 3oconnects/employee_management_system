@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 // Unified DB reference
 import { pool } from './config/db';
@@ -11,12 +10,16 @@ import { initializeDatabase } from './db/schema';
 // Routes
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
-// TODO: Import newly created modular routes here (Extracted from narendhar and adithyan)
+import attendanceRoutes from './routes/attendanceRoutes';
+import leaveRoutes from './routes/leaveRoutes';
+import timesheetRoutes from './routes/timesheetRoutes';
+import employeeRoutes from './routes/employeeRoutes';
+import payrollRoutes from './routes/payrollRoutes';
+import reportRoutes from './routes/reportRoutes';
+import claimRoutes from './routes/claimRoutes';
+import approvalRoutes from './routes/approvalRoutes';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -32,36 +35,38 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Serving static files if needed
-app.use('/public', express.static(path.join(__dirname, '../public')));
+// Serving static files
+app.use('/public', express.static(path.join(process.cwd(), 'public')));
 
 /* ROUTES */
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
+app.use('/api/v1/leave', leaveRoutes);
+app.use('/api/v1/timesheets', timesheetRoutes);
+app.use('/api/v1/employees', employeeRoutes);
+app.use('/api/v1/payroll', payrollRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/claims', claimRoutes);
+app.use('/api/v1/approvals', approvalRoutes);
 
-// Add unified routes for features from all developers...
-// (These will be populated as I modularize the massive index.ts)
-
-app.get('/health', (req, res) => {
+app.get('/api/v1/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
 const start = async () => {
     try {
-        // Run any DB initializations
         await initializeDatabase();
         
         app.listen(port, () => {
             console.log(`🚀 Unified EMS Server running at http://localhost:${port}`);
         });
 
-        // Test DB connection
         const res = await pool.query("SELECT NOW()");
         console.log("PostgreSQL connected:", res.rows[0]);
 
     } catch (err) {
         console.error('❌ Failed to start server:', err);
-        process.exit(1);
     }
 };
 

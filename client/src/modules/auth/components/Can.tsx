@@ -19,7 +19,7 @@ const Can: React.FC<CanProps> = ({ perform, role, children, fallback = null }) =
     }
 
     // Permission check
-    const hasPermission = user.permissions.includes(perform);
+    const hasPermission = user.permissions?.includes(perform) ?? false;
 
     return hasPermission ? <>{children}</> : <>{fallback}</>;
 };

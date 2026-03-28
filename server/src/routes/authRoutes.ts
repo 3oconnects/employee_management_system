@@ -1,7 +1,7 @@
 import express from "express";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { pool } from "../config/db";
+import { pool } from '../config/db';
 
 const router = express.Router();
 
@@ -12,11 +12,12 @@ const JWT_SECRET = "ems_secret";
 router.post("/login", async (req, res) => {
 
   const { email, password } = req.body;
+  console.log(`Login attempt for: ${email}`);
 
   try {
 
     const result = await pool.query(
-      "SELECT * FROM users WHERE email=$1",
+      "SELECT u.*, e.id as employee_id FROM users u LEFT JOIN employees e ON u.email = e.email WHERE u.email=$1",
       [email]
     );
 
@@ -42,6 +43,7 @@ router.post("/login", async (req, res) => {
       token,
       user: {
         id: user.id,
+        employee_id: user.employee_id,
         name: user.name,
         email: user.email,
         role: user.role

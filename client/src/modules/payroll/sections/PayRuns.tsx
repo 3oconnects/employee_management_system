@@ -1,114 +1,145 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, History, IndianRupee, Loader2, CheckCircle2, Calculator, ArrowRight, FileText, Users } from 'lucide-react';
+import {
+    CreditCard,
+    Loader2,
+    CheckCircle2,
+    AlertCircle,
+    IndianRupee,
+    TrendingDown,
+    TrendingUp,
+    Landmark,
+    Play,
+} from 'lucide-react';
 import api from '../../../services/api';
 
-const PayRuns = () => {
-    const [month, setMonth] = useState('3');
-    const [year, setYear] = useState('2026');
-    const [status, setStatus] = useState<'IDLE' | 'PROCESSING' | 'SUCCESS' | 'ERROR'>('IDLE');
+const inr = (v: number) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
+
+const MONTHS  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const PayRuns: React.FC = () => {
+    const [month,   setMonth]   = useState(String(new Date().getMonth() + 1));
+    const [year,    setYear]    = useState(String(new Date().getFullYear()));
+    const [status,  setStatus]  = useState<'IDLE'|'PROCESSING'|'SUCCESS'|'ERROR'>('IDLE');
     const [summary, setSummary] = useState<any>(null);
+    const [loadingSum, setLoadingSum] = useState(true);
 
     useEffect(() => {
-        fetchSummary();
+        api.get('payroll/live-summary')
+            .then(r => setSummary(r.data))
+            .catch(() => {})
+            .finally(() => setLoadingSum(false));
     }, []);
-
-    const fetchSummary = async () => {
-        try {
-            const res = await api.get('payroll/live-summary');
-            setSummary(res.data);
-        } catch (err) {
-            console.error('Failed to fetch summary:', err);
-        }
-    };
 
     const handleRun = async () => {
         setStatus('PROCESSING');
         try {
             await api.post('payroll/run', { month, year });
-            await fetchSummary();
+            const r = await api.get('payroll/live-summary');
+            setSummary(r.data);
             setStatus('SUCCESS');
-        } catch (err) {
-            console.error('Payroll generation error:', err);
+        } catch {
             setStatus('ERROR');
         }
     };
 
-    const formatter = new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR',
-        maximumFractionDigits: 0,
-    });
-
     return (
-        <div className="space-y-12 animate-in fade-in duration-500">
-            {/* Payroll Generation Engine */}
-            <div className="bg-[#0F172A] rounded-2xl p-8 text-white relative overflow-hidden">
-                <div className="relative z-10 grid grid-cols-12 gap-8 items-center">
-                    <div className="col-span-12 lg:col-span-7 space-y-4">
-                        <div className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/20">
-                            <Calculator size={14} />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-[#60A5FA]">Calculated Engine v2.4</span>
+        <div className="space-y-5">
+
+            {/* ── Run engine card ──────────────────────────── */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-50">
+                    <h3 className="text-[13px] font-bold text-gray-800">Execute Monthly Payroll Cycle</h3>
+                    <p className="text-[11.5px] text-gray-400 mt-0.5">
+                        Calculates Indian income tax, PF, ESI, and professional deductions automatically.
+                    </p>
+                </div>
+
+                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 items-end">
+                    {/* Period selectors */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Month</label>
+                            <select
+                                value={month}
+                                onChange={e => setMonth(e.target.value)}
+                                className="w-full text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-300 focus:bg-white transition-all"
+                            >
+                                {MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+                            </select>
                         </div>
-                        <h2 className="text-3xl font-black tracking-tight">Execute Monthly Payroll Cycle</h2>
-                        <p className="text-slate-400 text-sm max-w-lg">Advanced statutory calculations for Indian income tax, PF, ESI, and other professional deductions.</p>
+                        <div className="space-y-1.5">
+                            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Year</label>
+                            <select
+                                value={year}
+                                onChange={e => setYear(e.target.value)}
+                                className="w-full text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-300 focus:bg-white transition-all"
+                            >
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026">2026</option>
+                            </select>
+                        </div>
                     </div>
-                    <div className="col-span-12 lg:col-span-5 flex justify-end">
-                        <div className="bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-sm w-full max-w-md space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Month</label>
-                                    <select value={month} onChange={(e) => setMonth(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                                        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Year</label>
-                                    <select value={year} onChange={(e) => setYear(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-bold text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                                        <option value="2025">2025</option>
-                                        <option value="2026">2026</option>
-                                    </select>
-                                </div>
+
+                    {/* Run button + status */}
+                    <div className="flex flex-col gap-3">
+                        {status === 'SUCCESS' && (
+                            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 text-emerald-600 text-[12px] font-semibold">
+                                <CheckCircle2 size={14} /> Payroll cycle processed successfully!
                             </div>
-                            <button onClick={handleRun} disabled={status === 'PROCESSING'} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center space-x-2">
-                                {status === 'PROCESSING' ? (<><Loader2 size={16} className="animate-spin" /><span>Initialising...</span></>) : (<><CreditCard size={16} /><span>Process Payroll</span></>)}
-                            </button>
-                        </div>
+                        )}
+                        {status === 'ERROR' && (
+                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2.5 text-rose-600 text-[12px] font-semibold">
+                                <AlertCircle size={14} /> Processing failed — please try again.
+                            </div>
+                        )}
+                        <button
+                            onClick={handleRun}
+                            disabled={status === 'PROCESSING'}
+                            className="flex items-center justify-center gap-2.5 py-3 bg-blue-600 text-white rounded-xl text-[13.5px] font-semibold hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-60 shadow-sm shadow-blue-200"
+                        >
+                            {status === 'PROCESSING'
+                                ? <><Loader2 size={15} className="animate-spin" /> Processing…</>
+                                : <><Play size={14} /> Process Payroll for {MONTHS[Number(month)-1]} {year}</>
+                            }
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Live Payroll Summary */}
-            {summary && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-8">
-                    <div className="flex items-center justify-between mb-8">
-                        <div>
-                            <h3 className="text-xl font-black text-slate-900 tracking-tight">Financial Estimates</h3>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Based on active payroll profiles</p>
-                        </div>
-                        {status === 'SUCCESS' && (
-                            <div className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center space-x-2 text-emerald-600 animate-in fade-in slide-in-from-top-2">
-                                <CheckCircle2 size={16} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Cycle Processed</span>
-                            </div>
-                        )}
+            {/* ── Live financial estimates ──────────────────── */}
+            {loadingSum ? (
+                <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+                    <Loader2 size={16} className="animate-spin text-blue-400" />
+                    <span className="text-[12.5px]">Loading estimates…</span>
+                </div>
+            ) : summary && (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-50">
+                        <h3 className="text-[13px] font-bold text-gray-800">Financial Estimates</h3>
+                        <p className="text-[11.5px] text-gray-400 mt-0.5">Based on active payroll profiles</p>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Monthly Gross</span>
-                            <div className="text-xl font-black text-slate-900">{formatter.format(summary.totalGross)}</div>
-                        </div>
-                        <div className="p-6 bg-rose-50/30 rounded-2xl border border-rose-100 space-y-3">
-                            <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest block">Statutory Deductions</span>
-                            <div className="text-xl font-black text-rose-600">{formatter.format(summary.totalDeductions)}</div>
-                        </div>
-                        <div className="p-6 bg-emerald-50/30 rounded-2xl border border-emerald-100 space-y-3">
-                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">Net Fund Outflow</span>
-                            <div className="text-xl font-black text-emerald-600">{formatter.format(summary.netOutflow)}</div>
-                        </div>
-                        <div className="p-6 bg-blue-50/30 rounded-2xl border border-blue-100 space-y-3">
-                            <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest block">Govt. Payables</span>
-                            <div className="text-xl font-black text-blue-600">{formatter.format(summary.govtPayables)}</div>
-                        </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-50">
+                        {[
+                            { label: 'Total Monthly Gross',   value: inr(summary.totalGross),      icon: IndianRupee,  color: 'text-gray-900',   bg: '' },
+                            { label: 'Statutory Deductions',  value: inr(summary.totalDeductions),  icon: TrendingDown, color: 'text-rose-600',   bg: '' },
+                            { label: 'Net Fund Outflow',      value: inr(summary.netOutflow),       icon: TrendingUp,   color: 'text-emerald-600',bg: '' },
+                            { label: 'Govt. Payables',        value: inr(summary.govtPayables),     icon: Landmark,     color: 'text-blue-600',  bg: '' },
+                        ].map(s => {
+                            const Icon = s.icon;
+                            return (
+                                <div key={s.label} className="p-5 flex flex-col gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                                        <Icon size={15} className="text-gray-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{s.label}</p>
+                                        <p className={`text-[18px] font-bold ${s.color} leading-none`}>{s.value}</p>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}

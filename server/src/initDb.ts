@@ -1,4 +1,4 @@
-import { pool } from './db';
+import { pool } from '.js';
 
 const schema = `
   CREATE TABLE IF NOT EXISTS employees (

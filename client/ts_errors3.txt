@@ -1,0 +1,1 @@
+﻿src/modules/auth/components/Can.tsx(22,27): error TS18048: 'user.permissions' is possibly 'undefined'.

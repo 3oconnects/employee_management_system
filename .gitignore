@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.vite/
+*.log
+package-lock.json
+build/
+.DS_Store

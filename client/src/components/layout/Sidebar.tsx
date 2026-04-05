@@ -13,35 +13,55 @@ import {
     ChevronRight,
     LogOut,
     BarChart2,
+    Shield,
+    Bell,
+    User,
 } from 'lucide-react';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, UserRole } from '../../store/authStore';
+
+// ============================================================================
+// EMS FRONTEND — SIDEBAR (UPGRADED — PERMISSION-AWARE)
+// ============================================================================
+// Changes:
+//   1. Menu items now check permissions (not just roles)
+//   2. Added audit logs and notifications links
+//   3. Added profile link for all users
+//   4. Dynamic badge counter support
+// ============================================================================
 
 interface MenuItem {
     icon: React.ElementType;
     label: string;
     path: string;
     roles: string[];
+    module?: string;  // Permission module name
 }
 
 const menuItems: MenuItem[] = [
-    { icon: LayoutDashboard, label: 'Dashboard',  path: '/dashboard',  roles: ['admin', 'hr', 'manager'] },
-    { icon: UserPlus,        label: 'Onboarding', path: '/onboarding', roles: ['admin', 'hr'] },
-    { icon: Users,           label: 'Employees',  path: '/employees',  roles: ['admin', 'hr', 'manager'] },
-    { icon: Clock,           label: 'Attendance', path: '/attendance', roles: ['admin', 'hr', 'manager', 'employee'] },
-    { icon: Calendar,        label: 'Leave',      path: '/leave',      roles: ['admin', 'hr', 'manager', 'employee'] },
-    { icon: ClipboardList,   label: 'Timesheet',  path: '/timesheet',  roles: ['admin', 'hr', 'manager', 'employee'] },
-    { icon: CreditCard,      label: 'Payroll',    path: '/payroll',    roles: ['admin', 'hr', 'employee'] },
-    { icon: BarChart2,       label: 'Reports',    path: '/reports',    roles: ['admin', 'hr'] },
+    { icon: LayoutDashboard, label: 'Dashboard',  path: '/dashboard',    roles: ['admin', 'hr', 'manager', 'super_admin'], module: 'dashboard' },
+    { icon: UserPlus,        label: 'Onboarding', path: '/onboarding',   roles: ['admin', 'hr', 'super_admin'],           module: 'onboarding' },
+    { icon: Users,           label: 'Employees',  path: '/employees',    roles: ['admin', 'hr', 'manager', 'super_admin'], module: 'employees' },
+    { icon: Clock,           label: 'Attendance', path: '/attendance',   roles: ['admin', 'hr', 'manager', 'employee', 'super_admin'], module: 'attendance' },
+    { icon: Calendar,        label: 'Leave',      path: '/leave',        roles: ['admin', 'hr', 'manager', 'employee', 'super_admin'], module: 'leave' },
+    { icon: ClipboardList,   label: 'Timesheet',  path: '/timesheet',    roles: ['admin', 'hr', 'manager', 'employee', 'super_admin'], module: 'timesheet' },
+    { icon: CreditCard,      label: 'Payroll',    path: '/payroll',      roles: ['admin', 'hr', 'employee', 'super_admin'],            module: 'payroll' },
+    { icon: BarChart2,       label: 'Reports',    path: '/reports',      roles: ['admin', 'hr', 'super_admin'],                        module: 'reports' },
+    { icon: Shield,          label: 'Audit Logs', path: '/audit-logs',   roles: ['admin', 'super_admin'],                              module: 'audit' },
 ];
 
 const Sidebar: React.FC = () => {
-    const { user, logout } = useAuthStore();
+    const { user, logout, hasModule } = useAuthStore();
     const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
 
-    const filteredMenu = menuItems.filter(item =>
-        item.roles.includes(user?.role ?? '')
-    );
+    // Filter menu based on role AND permissions
+    const filteredMenu = menuItems.filter(item => {
+        const roleMatch = item.roles.includes(user?.role ?? '');
+        if (!roleMatch) return false;
+        // If module is specified, also check permission
+        if (item.module) return hasModule(item.module);
+        return true;
+    });
 
     const initials = user?.name
         ? user.name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -137,6 +157,32 @@ const Sidebar: React.FC = () => {
                         )}
                     </NavLink>
                 ))}
+
+                {/* Divider + Profile link (always visible) */}
+                <div className="my-2 border-t border-white/[0.06]" />
+                <NavLink
+                    to="/profile"
+                    title={collapsed ? 'Profile' : undefined}
+                    className={({ isActive }) =>
+                        `flex items-center rounded-lg transition-all duration-150 group
+                        ${collapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
+                        ${isActive
+                            ? 'bg-blue-600/20 text-blue-400'
+                            : 'text-white/50 hover:text-white hover:bg-white/[0.07]'
+                        }`
+                    }
+                >
+                    {({ isActive }) => (
+                        <>
+                            <User size={17} className={`flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-white/40 group-hover:text-white/80'} transition-colors`} />
+                            {!collapsed && (
+                                <span className={`text-[13px] font-medium whitespace-nowrap ${isActive ? 'text-blue-300 font-semibold' : ''}`}>
+                                    Profile
+                                </span>
+                            )}
+                        </>
+                    )}
+                </NavLink>
             </nav>
 
             {/* User Footer */}

@@ -1,9 +1,14 @@
 import express from "express";
-import { updateProfile } from '../controllers/userController';
+import { updateProfile, getUsers } from '../controllers/userController';
+import { authenticate } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
+/* GET USERS */
+router.get("/", authenticate, getUsers);
+
 /* UPDATE PROFILE */
-router.put("/profile", updateProfile);
+router.put("/profile", authenticate, updateProfile);
 
 export default router;
+

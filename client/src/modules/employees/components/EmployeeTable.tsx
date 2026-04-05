@@ -12,8 +12,10 @@ import {
     Building2,
     CheckCircle2,
     X,
-    Pencil
+    Pencil,
+    Eye
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../../../services/api';
 import debounce from 'lodash/debounce';
 
@@ -238,11 +240,19 @@ const EmployeeTable: React.FC = () => {
                                     <tr key={emp.id} className="hover:bg-indigo-50/30 transition-all group">
                                         <td className="px-6 py-5">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-[13px] font-black text-gray-600 border border-gray-200 group-hover:bg-white group-hover:border-indigo-100 group-hover:text-indigo-600 transition-all">
+                                                <Link 
+                                                    to={`/profile/${emp.id}`}
+                                                    className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-[13px] font-black text-gray-600 border border-gray-200 group-hover:bg-white group-hover:border-indigo-100 group-hover:text-indigo-600 transition-all hover:shadow-md active:scale-95"
+                                                >
                                                     {emp.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                                </div>
+                                                </Link>
                                                 <div>
-                                                    <p className="text-[13.5px] font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase tracking-tight">{emp.name}</p>
+                                                    <Link 
+                                                        to={`/profile/${emp.id}`}
+                                                        className="block text-[13.5px] font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase tracking-tight hover:underline underline-offset-4 decoration-indigo-200"
+                                                    >
+                                                        {emp.name}
+                                                    </Link>
                                                     <div className="flex items-center gap-1.5 text-[11.5px] text-gray-400 font-medium">
                                                         <Mail size={11} />
                                                         {emp.email || `${emp.id}@company.com`}
@@ -277,6 +287,13 @@ const EmployeeTable: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-5 text-right">
                                             <div className="flex items-center justify-end gap-2 text-gray-400">
+                                                <Link 
+                                                    to={`/profile/${emp.id}`}
+                                                    className="p-2 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                    title="View Profile"
+                                                >
+                                                    <Eye size={14} />
+                                                </Link>
                                                 <button 
                                                     onClick={() => openEditModal(emp)}
                                                     className="p-2 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"

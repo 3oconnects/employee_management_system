@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../db/connection';
+import { NotificationService } from '../services/notificationService';
+import { AuditService } from '../services/auditService';
 
 export const getLeaveTypes = async (req: Request, res: Response) => {
     try {
@@ -18,6 +20,18 @@ export const applyLeave = async (req: Request, res: Response) => {
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
             [userId, leave_type_id, start_date, end_date, reason || null]
         );
+
+        // Trigger notification to admins/HR/managers
+        const userRes = await query('SELECT name, tenant_id FROM users WHERE id = $1', [userId]);
+        const ltRes = await query('SELECT name FROM leave_types WHERE id = $1', [leave_type_id]);
+        if (userRes.rows[0] && ltRes.rows[0]) {
+            NotificationService.onLeaveApplied(
+                userRes.rows[0].tenant_id || 'tenant_default',
+                userRes.rows[0].name,
+                ltRes.rows[0].name
+            );
+        }
+
         res.status(201).json({ ...result.rows[0], message: 'Leave application submitted.' });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
@@ -56,6 +70,20 @@ export const approveLeave = async (req: Request, res: Response) => {
             [action, approved_by || null, req.params.id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Leave request not found.' });
+
+        // Notify the applicant
+        const leaveRow = result.rows[0];
+        const ltRes = await query('SELECT name FROM leave_types WHERE id = $1', [leaveRow.leave_type_id]);
+        const userRes = await query('SELECT tenant_id FROM users WHERE id = $1', [leaveRow.user_id]);
+        const tenantId = userRes.rows[0]?.tenant_id || 'tenant_default';
+        const leaveTypeName = ltRes.rows[0]?.name || 'Leave';
+
+        if (action === 'approved') {
+            NotificationService.onLeaveApproved(tenantId, leaveRow.user_id, leaveTypeName);
+        } else if (action === 'rejected') {
+            NotificationService.onLeaveRejected(tenantId, leaveRow.user_id, leaveTypeName);
+        }
+
         res.json({ ...result.rows[0], message: `Leave request ${action}.` });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

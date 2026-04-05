@@ -1,0 +1,582 @@
+// ============================================================================
+// EMS BACKEND — ANALYTICS SERVICE (Zoho-Level Dashboard Data)
+// ============================================================================
+// Provides REAL business intelligence queries for all 4 dashboard roles.
+// Every function returns live, computed data — no mocks.
+// ============================================================================
+
+import { pool } from '../config/db';
+
+const T = 'tenant_default'; // Default tenant for now
+
+// ─── TYPES ──────────────────────────────────────────────────────────────────
+
+interface AdminDashboardData {
+    totalEmployees: number;
+    activeEmployees: number;
+    inactiveEmployees: number;
+    newHiresThisMonth: number;
+    exitedThisMonth: number;
+    totalPayrollCost: number;
+    avgSalary: number;
+    pendingLeaves: number;
+    pendingTimesheets: number;
+    todayPresent: number;
+    onLeaveToday: number;
+    avgAttendanceRate: number;
+    attritionRate: number;
+    genderDistribution: { male: number; female: number; other: number };
+    departmentDistribution: { name: string; count: number; percentage: number }[];
+    employmentTypeBreakdown: { type: string; count: number }[];
+    monthlyHiringTrend: { month: string; hires: number; exits: number }[];
+    payrollTrend: { month: string; amount: number }[];
+    recentActivities: any[];
+    upcomingHolidays: any[];
+    headcountGrowth: number;
+}
+
+// ─── ADMIN / HR DASHBOARD ───────────────────────────────────────────────────
+
+export class AnalyticsService {
+
+    /**
+     * Complete admin dashboard — 15+ real metrics from DB
+     */
+    static async getAdminDashboard(): Promise<AdminDashboardData> {
+        const [
+            empStats,
+            newHires,
+            exited,
+            payrollStats,
+            pendingLeaves,
+            pendingTimesheets,
+            todayAttendance,
+            onLeaveToday,
+            genderDist,
+            deptDist,
+            empTypeDist,
+            hiringTrend,
+            payrollTrend,
+            recentActivity,
+            holidays,
+            last30Attendance,
+            prevMonthCount,
+        ] = await Promise.all([
+            // 1. Employee counts
+            pool.query(`
+                SELECT
+                    COUNT(*) FILTER (WHERE status = 'active' AND deleted_at IS NULL) AS active,
+                    COUNT(*) FILTER (WHERE status != 'active' OR deleted_at IS NOT NULL) AS inactive,
+                    COUNT(*) AS total
+                FROM employees
+            `),
+            // 2. New hires this month
+            pool.query(`
+                SELECT COUNT(*) AS count FROM employees
+                WHERE join_date >= DATE_TRUNC('month', CURRENT_DATE)
+                AND deleted_at IS NULL
+            `),
+            // 3. Exits this month
+            pool.query(`
+                SELECT COUNT(*) AS count FROM employees
+                WHERE exit_date >= DATE_TRUNC('month', CURRENT_DATE)
+                AND exit_date IS NOT NULL
+            `),
+            // 4. Payroll
+            pool.query(`
+                SELECT
+                    COALESCE(SUM(annual_ctc), 0) AS total_ctc,
+                    COALESCE(AVG(annual_ctc), 0) AS avg_ctc,
+                    COUNT(*) AS enrolled
+                FROM payroll_profiles
+            `),
+            // 5. Pending leave requests
+            pool.query(`
+                SELECT COUNT(*) AS count FROM leave_requests
+                WHERE status = 'pending' AND deleted_at IS NULL
+            `),
+            // 6. Pending timesheets
+            pool.query(`
+                SELECT COUNT(*) AS count FROM timesheets
+                WHERE status = 'submitted'
+            `),
+            // 7. Today's attendance
+            pool.query(`
+                SELECT COUNT(DISTINCT user_id) AS count FROM attendance
+                WHERE check_in::date = CURRENT_DATE
+            `),
+            // 8. On leave today
+            pool.query(`
+                SELECT COUNT(DISTINCT user_id) AS count FROM leave_requests
+                WHERE status = 'approved'
+                AND CURRENT_DATE BETWEEN start_date AND end_date
+            `),
+            // 9. Gender distribution
+            pool.query(`
+                SELECT
+                    COUNT(*) FILTER (WHERE LOWER(gender) = 'male') AS male,
+                    COUNT(*) FILTER (WHERE LOWER(gender) = 'female') AS female,
+                    COUNT(*) FILTER (WHERE LOWER(gender) NOT IN ('male', 'female') OR gender IS NULL) AS other
+                FROM employees WHERE status = 'active'
+            `),
+            // 10. Department distribution
+            pool.query(`
+                SELECT
+                    COALESCE(department, 'Unassigned') AS name,
+                    COUNT(*) AS count
+                FROM employees
+                WHERE status = 'active' AND deleted_at IS NULL
+                GROUP BY department
+                ORDER BY count DESC
+            `),
+            // 11. Employment type breakdown
+            pool.query(`
+                SELECT
+                    COALESCE(employment_type, 'full_time') AS type,
+                    COUNT(*) AS count
+                FROM employees
+                WHERE status = 'active'
+                GROUP BY employment_type
+            `),
+            // 12. Monthly hiring trend (last 6 months)
+            pool.query(`
+                WITH months AS (
+                    SELECT generate_series(
+                        DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 months'),
+                        DATE_TRUNC('month', CURRENT_DATE),
+                        '1 month'
+                    )::date AS month
+                )
+                SELECT
+                    TO_CHAR(m.month, 'Mon YYYY') AS month,
+                    COALESCE(COUNT(e.id) FILTER (WHERE e.join_date >= m.month AND e.join_date < m.month + INTERVAL '1 month'), 0) AS hires,
+                    COALESCE(COUNT(e.id) FILTER (WHERE e.exit_date >= m.month AND e.exit_date < m.month + INTERVAL '1 month'), 0) AS exits
+                FROM months m
+                LEFT JOIN employees e ON (
+                    (e.join_date >= m.month AND e.join_date < m.month + INTERVAL '1 month')
+                    OR (e.exit_date >= m.month AND e.exit_date < m.month + INTERVAL '1 month')
+                )
+                GROUP BY m.month
+                ORDER BY m.month
+            `),
+            // 13. Payroll trend (last 6 months)
+            pool.query(`
+                SELECT
+                    TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') AS month,
+                    COALESCE(SUM(net_salary), 0) AS amount
+                FROM payroll_history
+                WHERE created_at >= CURRENT_DATE - INTERVAL '6 months'
+                GROUP BY DATE_TRUNC('month', created_at)
+                ORDER BY DATE_TRUNC('month', created_at)
+            `),
+            // 14. Recent activity (audit log last 10)
+            pool.query(`
+                SELECT al.*, u.name AS user_name
+                FROM audit_logs al
+                LEFT JOIN users u ON u.id = al.user_id
+                ORDER BY al.created_at DESC
+                LIMIT 10
+            `),
+            // 15. Upcoming holidays
+            pool.query(`
+                SELECT name, date, type FROM holidays
+                WHERE date >= CURRENT_DATE
+                ORDER BY date
+                LIMIT 5
+            `),
+            // 16. Avg attendance (last 30 days)
+            pool.query(`
+                SELECT
+                    COUNT(DISTINCT check_in::date) AS working_days,
+                    COUNT(DISTINCT user_id || '-' || check_in::date) AS total_checkins
+                FROM attendance
+                WHERE check_in >= CURRENT_DATE - INTERVAL '30 days'
+            `),
+            // 17. Previous month headcount (for growth %)
+            pool.query(`
+                SELECT COUNT(*) AS count FROM employees
+                WHERE join_date < DATE_TRUNC('month', CURRENT_DATE)
+                AND (exit_date IS NULL OR exit_date >= DATE_TRUNC('month', CURRENT_DATE))
+                AND deleted_at IS NULL
+            `),
+        ]);
+
+        const emp = empStats.rows[0];
+        const active = parseInt(emp.active);
+        const total = parseInt(emp.total);
+        const payroll = payrollStats.rows[0];
+        const totalCtc = parseFloat(payroll.total_ctc);
+        const avgCtc = parseFloat(payroll.avg_ctc);
+        const prevCount = parseInt(prevMonthCount.rows[0].count) || 1;
+        const att30 = last30Attendance.rows[0];
+        const workingDays = parseInt(att30.working_days) || 1;
+        const totalCheckins = parseInt(att30.total_checkins) || 0;
+
+        // Department distribution with percentages
+        const totalDeptEmp = deptDist.rows.reduce((s: number, r: any) => s + parseInt(r.count), 0);
+        const departments = deptDist.rows.map((r: any) => ({
+            name: r.name,
+            count: parseInt(r.count),
+            percentage: totalDeptEmp > 0 ? Math.round((parseInt(r.count) / totalDeptEmp) * 100) : 0,
+        }));
+
+        // Attrition rate (annualized)
+        const exitedCount = parseInt(exited.rows[0].count);
+        const avgHeadcount = (active + prevCount) / 2 || 1;
+        const monthlyAttrition = exitedCount / avgHeadcount;
+        const annualizedAttrition = Math.round(monthlyAttrition * 12 * 100 * 10) / 10;
+
+        return {
+            totalEmployees: total,
+            activeEmployees: active,
+            inactiveEmployees: parseInt(emp.inactive),
+            newHiresThisMonth: parseInt(newHires.rows[0].count),
+            exitedThisMonth: exitedCount,
+            totalPayrollCost: Math.round(totalCtc / 12),
+            avgSalary: Math.round(avgCtc / 12),
+            pendingLeaves: parseInt(pendingLeaves.rows[0].count),
+            pendingTimesheets: parseInt(pendingTimesheets.rows[0].count),
+            todayPresent: parseInt(todayAttendance.rows[0].count),
+            onLeaveToday: parseInt(onLeaveToday.rows[0].count),
+            avgAttendanceRate: Math.round((totalCheckins / (active * workingDays)) * 100) || 0,
+            attritionRate: annualizedAttrition,
+            genderDistribution: {
+                male: parseInt(genderDist.rows[0].male),
+                female: parseInt(genderDist.rows[0].female),
+                other: parseInt(genderDist.rows[0].other),
+            },
+            departmentDistribution: departments,
+            employmentTypeBreakdown: empTypeDist.rows.map((r: any) => ({
+                type: r.type,
+                count: parseInt(r.count),
+            })),
+            monthlyHiringTrend: hiringTrend.rows.map((r: any) => ({
+                month: r.month,
+                hires: parseInt(r.hires),
+                exits: parseInt(r.exits),
+            })),
+            payrollTrend: payrollTrend.rows.map((r: any) => ({
+                month: r.month,
+                amount: parseFloat(r.amount),
+            })),
+            recentActivities: recentActivity.rows,
+            upcomingHolidays: holidays.rows,
+            headcountGrowth: Math.round(((active - prevCount) / prevCount) * 100 * 10) / 10,
+        };
+    }
+
+    // ─── MANAGER DASHBOARD ──────────────────────────────────────────────────
+
+    /**
+     * Get dashboard data scoped to a manager's team
+     */
+    static async getManagerDashboard(userId: number) {
+        const [
+            teamMembers,
+            teamAttendance,
+            pendingLeaves,
+            lateCheckins,
+            timesheetStatus,
+        ] = await Promise.all([
+            // Team members
+            pool.query(`
+                SELECT e.id, e.name, e.department, e.position, e.status, e.email,
+                       u.id AS user_id
+                FROM employees e
+                LEFT JOIN users u ON u.email = e.email
+                WHERE e.reporting_manager_id = $1
+                AND e.status = 'active'
+                AND e.deleted_at IS NULL
+            `, [userId]),
+            // Team attendance today
+            pool.query(`
+                SELECT
+                    u.name,
+                    a.check_in,
+                    a.check_out,
+                    CASE
+                        WHEN a.check_in IS NULL THEN 'absent'
+                        WHEN EXTRACT(HOUR FROM a.check_in) >= 10 THEN 'late'
+                        ELSE 'on_time'
+                    END AS att_status
+                FROM employees e
+                JOIN users u ON u.email = e.email
+                LEFT JOIN attendance a ON a.user_id = u.id AND a.check_in::date = CURRENT_DATE
+                WHERE e.reporting_manager_id = $1
+                AND e.status = 'active'
+            `, [userId]),
+            // Pending leaves for team
+            pool.query(`
+                SELECT lr.*, u.name AS applicant_name, lt.name AS leave_type
+                FROM leave_requests lr
+                JOIN users u ON u.id = lr.user_id
+                JOIN leave_types lt ON lt.id = lr.leave_type_id
+                WHERE lr.status = 'pending'
+                AND lr.user_id IN (
+                    SELECT u2.id FROM employees e
+                    JOIN users u2 ON u2.email = e.email
+                    WHERE e.reporting_manager_id = $1
+                )
+                ORDER BY lr.created_at DESC
+            `, [userId]),
+            // Late check-ins today
+            pool.query(`
+                SELECT u.name, a.check_in,
+                    EXTRACT(HOUR FROM a.check_in) AS hour,
+                    EXTRACT(MINUTE FROM a.check_in) AS minute
+                FROM attendance a
+                JOIN users u ON u.id = a.user_id
+                JOIN employees e ON e.email = u.email
+                WHERE e.reporting_manager_id = $1
+                AND a.check_in::date = CURRENT_DATE
+                AND EXTRACT(HOUR FROM a.check_in) >= 10
+            `, [userId]),
+            // Timesheet completion
+            pool.query(`
+                SELECT
+                    COUNT(*) FILTER (WHERE t.status = 'submitted') AS submitted,
+                    COUNT(*) FILTER (WHERE t.status = 'approved') AS approved,
+                    COUNT(*) FILTER (WHERE t.status = 'draft' OR t.status IS NULL) AS pending
+                FROM employees e
+                JOIN users u ON u.email = e.email
+                LEFT JOIN timesheets t ON t.user_id = u.id
+                    AND t.week_start >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE e.reporting_manager_id = $1
+                AND e.status = 'active'
+            `, [userId]),
+        ]);
+
+        const team = teamMembers.rows;
+        const att = teamAttendance.rows;
+        const present = att.filter((a: any) => a.check_in !== null).length;
+        const late = lateCheckins.rows.length;
+        const absent = team.length - present;
+
+        return {
+            teamSize: team.length,
+            teamMembers: team,
+            todayPresent: present,
+            todayAbsent: absent,
+            todayLate: late,
+            attendanceRate: team.length > 0 ? Math.round((present / team.length) * 100) : 0,
+            teamAttendance: att,
+            pendingLeaves: pendingLeaves.rows,
+            pendingLeaveCount: pendingLeaves.rows.length,
+            lateCheckins: lateCheckins.rows,
+            timesheetStatus: timesheetStatus.rows[0] || { submitted: 0, approved: 0, pending: 0 },
+        };
+    }
+
+    // ─── EMPLOYEE DASHBOARD ─────────────────────────────────────────────────
+
+    /**
+     * Get personal dashboard data for an employee
+     */
+    static async getEmployeeDashboard(userId: number) {
+        const [
+            attendanceToday,
+            monthlySummary,
+            leaveBalances,
+            upcomingHolidays,
+            recentPayslip,
+            notifications,
+            weeklyHours,
+        ] = await Promise.all([
+            // Today's attendance
+            pool.query(`
+                SELECT
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM attendance WHERE user_id = $1 AND check_in::date = CURRENT_DATE AND check_out IS NULL
+                    ) THEN 'IN'
+                    WHEN EXISTS (
+                        SELECT 1 FROM attendance WHERE user_id = $1 AND check_in::date = CURRENT_DATE
+                    ) THEN 'COMPLETED'
+                    ELSE 'OUT'
+                    END AS status,
+                    (SELECT check_in FROM attendance WHERE user_id = $1 AND check_in::date = CURRENT_DATE AND check_out IS NULL ORDER BY check_in DESC LIMIT 1) AS check_in,
+                    (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(check_out, NOW()) - check_in)) / 3600), 0)
+                     FROM attendance WHERE user_id = $1 AND check_in::date = CURRENT_DATE) AS total_hours
+            `, [userId]),
+            // Monthly summary
+            pool.query(`
+                SELECT
+                    COUNT(DISTINCT check_in::date) AS present_days,
+                    COALESCE(AVG(EXTRACT(EPOCH FROM (check_out - check_in)) / 3600) FILTER (WHERE check_out IS NOT NULL), 0) AS avg_hours,
+                    COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM check_in) >= 10) AS late_days
+                FROM attendance
+                WHERE user_id = $1
+                AND EXTRACT(MONTH FROM check_in) = EXTRACT(MONTH FROM CURRENT_DATE)
+                AND EXTRACT(YEAR FROM check_in) = EXTRACT(YEAR FROM CURRENT_DATE)
+            `, [userId]),
+            // Leave balances
+            pool.query(`
+                SELECT
+                    lt.id AS leave_type_id,
+                    lt.name,
+                    lt.annual_quota,
+                    COALESCE(COUNT(lr.id) FILTER (WHERE lr.status = 'approved'), 0) AS used,
+                    lt.annual_quota - COALESCE(COUNT(lr.id) FILTER (WHERE lr.status = 'approved'), 0) AS available
+                FROM leave_types lt
+                LEFT JOIN leave_requests lr ON lr.leave_type_id = lt.id AND lr.user_id = $1
+                    AND EXTRACT(YEAR FROM lr.start_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+                GROUP BY lt.id, lt.name, lt.annual_quota
+                ORDER BY lt.name
+            `, [userId]),
+            // Upcoming holidays
+            pool.query(`
+                SELECT name, date, type FROM holidays
+                WHERE date >= CURRENT_DATE
+                ORDER BY date LIMIT 5
+            `),
+            // Recent payslip
+            pool.query(`
+                SELECT ph.*, pr.month, pr.year
+                FROM payroll_history ph
+                JOIN payroll_runs pr ON pr.id = ph.run_id
+                WHERE ph.employee_id = (
+                    SELECT e.id FROM employees e JOIN users u ON u.email = e.email WHERE u.id = $1 LIMIT 1
+                )
+                ORDER BY ph.created_at DESC
+                LIMIT 1
+            `, [userId]),
+            // Notifications
+            pool.query(`
+                SELECT * FROM notifications
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                LIMIT 5
+            `, [userId]),
+            // Weekly hours (last 7 days)
+            pool.query(`
+                SELECT
+                    TO_CHAR(check_in::date, 'Dy') AS day,
+                    check_in::date AS date,
+                    COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(check_out, check_in) - check_in)) / 3600), 0) AS hours
+                FROM attendance
+                WHERE user_id = $1
+                AND check_in::date >= CURRENT_DATE - INTERVAL '6 days'
+                GROUP BY check_in::date
+                ORDER BY check_in::date
+            `, [userId]),
+        ]);
+
+        const att = attendanceToday.rows[0];
+        const monthly = monthlySummary.rows[0];
+
+        return {
+            attendance: {
+                status: att?.status || 'OUT',
+                checkIn: att?.check_in,
+                totalHoursToday: parseFloat(att?.total_hours || '0').toFixed(2),
+            },
+            monthlySummary: {
+                presentDays: parseInt(monthly?.present_days || '0'),
+                avgHours: parseFloat(monthly?.avg_hours || '0').toFixed(1),
+                lateDays: parseInt(monthly?.late_days || '0'),
+            },
+            leaveBalances: leaveBalances.rows.map((r: any) => ({
+                leave_type_id: r.leave_type_id,
+                name: r.name,
+                annual_quota: r.annual_quota,
+                used: parseInt(r.used),
+                available: parseInt(r.available),
+            })),
+            upcomingHolidays: upcomingHolidays.rows,
+            recentPayslip: recentPayslip.rows[0] || null,
+            notifications: notifications.rows,
+            weeklyHours: weeklyHours.rows.map((r: any) => ({
+                day: r.day,
+                date: r.date,
+                hours: parseFloat(r.hours).toFixed(1),
+            })),
+        };
+    }
+
+    // ─── TEAM VISIBILITY ────────────────────────────────────────────────────
+
+    /**
+     * Get employees under a specific manager (team visibility)
+     */
+    static async getTeamEmployees(managerId: number, tenantId: string = T) {
+        const result = await pool.query(`
+            SELECT
+                e.id, e.name, e.department, e.position, e.status,
+                e.email, e.phone, e.join_date, e.employment_type,
+                u.id AS user_id, u.role,
+                (SELECT check_in FROM attendance a WHERE a.user_id = u.id AND a.check_in::date = CURRENT_DATE ORDER BY check_in DESC LIMIT 1) AS today_check_in,
+                (SELECT status FROM leave_requests lr WHERE lr.user_id = u.id AND lr.status = 'approved' AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date LIMIT 1) AS on_leave
+            FROM employees e
+            LEFT JOIN users u ON u.email = e.email
+            WHERE e.reporting_manager_id = $1
+            AND e.status = 'active'
+            AND e.deleted_at IS NULL
+            ORDER BY e.name
+        `, [managerId]);
+        return result.rows;
+    }
+
+    // ─── EMPLOYEE PROFILE ───────────────────────────────────────────────────
+
+    /**
+     * Get full employee profile with all sections
+     */
+    static async getEmployeeProfile(employeeId: string) {
+        const [
+            employee,
+            payroll,
+            documents,
+            emergencyContacts,
+            reviews,
+            attendanceSummary,
+            leaveBalances,
+        ] = await Promise.all([
+            pool.query(`
+                SELECT e.*,
+                    d.name AS department_name, d.code AS department_code,
+                    mgr.name AS manager_name, mgr.email AS manager_email
+                FROM employees e
+                LEFT JOIN departments d ON d.id = e.department_id
+                LEFT JOIN users mgr_u ON mgr_u.id = e.reporting_manager_id
+                LEFT JOIN employees mgr ON mgr.email = mgr_u.email
+                WHERE e.id = $1
+            `, [employeeId]),
+            pool.query('SELECT * FROM payroll_profiles WHERE employee_id = $1', [employeeId]),
+            pool.query('SELECT * FROM employee_documents WHERE employee_id = $1 ORDER BY created_at DESC', [employeeId]),
+            pool.query('SELECT * FROM employee_emergency_contacts WHERE employee_id = $1 ORDER BY is_primary DESC', [employeeId]),
+            pool.query('SELECT * FROM performance_reviews WHERE employee_id = $1 ORDER BY created_at DESC LIMIT 5', [employeeId]),
+            pool.query(`
+                SELECT
+                    COUNT(DISTINCT check_in::date) AS present_days,
+                    COALESCE(AVG(EXTRACT(EPOCH FROM (check_out - check_in)) / 3600) FILTER (WHERE check_out IS NOT NULL), 0) AS avg_hours,
+                    COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM check_in) >= 10) AS late_arrivals
+                FROM attendance a
+                JOIN users u ON u.id = a.user_id
+                JOIN employees e ON e.email = u.email
+                WHERE e.id = $1
+                AND a.check_in >= DATE_TRUNC('month', CURRENT_DATE)
+            `, [employeeId]),
+            pool.query(`
+                SELECT
+                    lt.name,
+                    lt.annual_quota,
+                    COALESCE(COUNT(lr.id) FILTER (WHERE lr.status = 'approved'), 0) AS used,
+                    lt.annual_quota - COALESCE(COUNT(lr.id) FILTER (WHERE lr.status = 'approved'), 0) AS available
+                FROM leave_types lt
+                LEFT JOIN leave_requests lr ON lr.leave_type_id = lt.id
+                    AND lr.user_id = (SELECT u.id FROM users u JOIN employees e ON e.email = u.email WHERE e.id = $1 LIMIT 1)
+                    AND EXTRACT(YEAR FROM lr.start_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+                GROUP BY lt.id, lt.name, lt.annual_quota
+            `, [employeeId]),
+        ]);
+
+        return {
+            employee: employee.rows[0] || null,
+            compensation: payroll.rows[0] || null,
+            documents: documents.rows,
+            emergencyContacts: emergencyContacts.rows,
+            performanceReviews: reviews.rows,
+            attendanceSummary: attendanceSummary.rows[0] || { present_days: 0, avg_hours: 0, late_arrivals: 0 },
+            leaveBalances: leaveBalances.rows,
+        };
+    }
+}

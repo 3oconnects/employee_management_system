@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { pool } from '../config/db';
+import { NotificationService } from '../services/notificationService';
 
 export const getPayrollEmployees = async (req: Request, res: Response) => {
     try {
@@ -255,6 +256,10 @@ export const processPayroll = async (req: Request, res: Response) => {
         }
 
         await pool.query('COMMIT');
+
+        // Notify all employees that payslips are available
+        NotificationService.onPayrollProcessed('tenant_default', String(month), String(year));
+
         res.json({ success: true, message: `Payroll cycle ${month}/${year} processed successfully.`, runId });
     } catch (err: any) {
         await pool.query('ROLLBACK');

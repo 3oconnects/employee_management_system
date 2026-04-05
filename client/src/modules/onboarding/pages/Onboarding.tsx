@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ChevronDown,
     Plus,
@@ -11,12 +11,65 @@ import {
     Upload,
     Eye,
     ArrowUpDown,
-    Filter
+    Filter,
+    Loader2
 } from 'lucide-react';
+import api from '../../../services/api';
 
 const Onboarding: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [candidates, setCandidates] = useState([]);
+    const [candidates, setCandidates] = useState<any[]>([]);
+    
+    // Form State
+    const [form, setForm] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        department: 'Engineering'
+    });
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const fetchCandidates = async () => {
+        try {
+            const { data } = await api.get('/employees', { params: { status: 'onboarding' } });
+            setCandidates(data.items || []);
+        } catch { /* ignore */ }
+    };
+
+    useEffect(() => {
+        fetchCandidates();
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await api.post('/employees', {
+                name: `${form.firstName} ${form.lastName}`.trim(),
+                email: form.email,
+                department: form.department,
+                joinDate: new Date().toISOString().split('T')[0],
+                annualCTC: 0,
+                bankAccountNumber: 'PENDING',
+                taxRegime: 'New',
+                status: 'onboarding'
+            });
+            setIsModalOpen(false);
+            setForm({ firstName: '', lastName: '', email: '', phone: '', department: 'Engineering' });
+            setPhotoFile(null);
+            setPhotoPreview(null);
+            fetchCandidates();
+        } catch (err: any) {
+            const serverMsg = err.response?.data?.message || err.response?.data?.error;
+            const debugObj = err.response?.data?.missing ? JSON.stringify(err.response.data.missing) : '';
+            alert(`${serverMsg || err.message || 'Failed to add candidate'} ${debugObj}`);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-[#f4f7f9] font-sans">
@@ -90,11 +143,39 @@ const Onboarding: React.FC = () => {
                         </table>
                     </div>
 
-                    {/* Empty State */}
-                    <div className="flex-1 flex flex-col items-center justify-center p-20 bg-white">
-                        <div className="w-64 h-48 bg-[url('https://img.freepik.com/premium-vector/vector-illustration-empty-state-search-no-records-found-isolated-white-background_675567-4225.jpg?w=826')] bg-contain bg-no-repeat bg-center opacity-70 mb-6"></div>
-                        <p className="text-[15px] font-bold text-slate-800 tracking-tight">No records found</p>
-                    </div>
+                    {/* Empty State or Table Rows */}
+                    {candidates.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-20 bg-white">
+                            <div className="w-64 h-48 bg-[url('https://img.freepik.com/premium-vector/vector-illustration-empty-state-search-no-records-found-isolated-white-background_675567-4225.jpg?w=826')] bg-contain bg-no-repeat bg-center opacity-70 mb-6"></div>
+                            <p className="text-[15px] font-bold text-slate-800 tracking-tight">No records found</p>
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-auto bg-white">
+                            <table className="w-full text-left border-collapse min-w-[1200px]">
+                                <tbody className="divide-y divide-slate-100">
+                                    {candidates.map((c: any) => (
+                                        <tr key={c.id} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="p-3 w-10 border-r border-slate-100 text-center"><MoreHorizontal size={14} className="text-slate-300 group-hover:text-slate-500 cursor-pointer" /></td>
+                                            <td className="p-3 w-10 border-r border-slate-100 text-center">
+                                                <input type="checkbox" className="rounded border-slate-300 cursor-pointer" />
+                                            </td>
+                                            <td className="px-4 py-3 text-[13px] font-semibold text-slate-800 border-r border-slate-100">{c.name.split(' ')[0]}</td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">{c.name.split(' ').slice(1).join(' ')}</td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">{c.email}</td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">—</td>
+                                            <td className="px-4 py-3 border-r border-slate-100">
+                                                <span className="px-2 py-1 text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-600 rounded">Pending</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">{c.department}</td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">Direct</td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">—</td>
+                                            <td className="px-4 py-3 text-[13px] font-medium text-slate-600 border-r border-slate-100">—</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -122,10 +203,11 @@ const Onboarding: React.FC = () => {
                         </div>
 
                         {/* Modal Body */}
-                        <div className="flex-1 overflow-y-auto p-8 bg-[#F4F7F9]">
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-10">
-                                <div className="space-y-6">
-                                    <h3 className="text-[13px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3">Candidate Details</h3>
+                        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+                            <div className="flex-1 overflow-y-auto p-8 bg-[#F4F7F9]">
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-10">
+                                    <div className="space-y-6">
+                                        <h3 className="text-[13px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3">Candidate Details</h3>
 
                                     <div className="grid grid-cols-2 gap-x-12 gap-y-6">
                                         {/* Left Side */}
@@ -134,7 +216,13 @@ const Onboarding: React.FC = () => {
                                                 <label className="w-32 text-[12px] font-bold text-slate-600 flex items-center">
                                                     Email ID <span className="text-rose-500 ml-1 font-black">*</span>
                                                 </label>
-                                                <input type="text" className="flex-1 bg-white border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                                                <input 
+                                                    type="email" 
+                                                    required 
+                                                    value={form.email}
+                                                    onChange={e => setForm({...form, email: e.target.value})}
+                                                    className="flex-1 bg-white border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                                                />
                                             </div>
 
                                             <div className="flex items-start space-x-4">
@@ -147,7 +235,12 @@ const Onboarding: React.FC = () => {
                                                         <span className="text-[12px] font-medium text-slate-600">+91</span>
                                                         <ChevronDown size={12} className="text-slate-400" />
                                                     </div>
-                                                    <input type="text" className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" />
+                                                    <input 
+                                                        type="text" 
+                                                        value={form.phone}
+                                                        onChange={e => setForm({...form, phone: e.target.value})}
+                                                        className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none" 
+                                                    />
                                                 </div>
                                             </div>
 
@@ -168,15 +261,43 @@ const Onboarding: React.FC = () => {
 
                                             <div className="flex items-start space-x-4">
                                                 <label className="w-32 text-[12px] font-bold text-slate-600 pt-2">Photo</label>
-                                                <div className="flex-1 border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50/50 hover:bg-slate-50 hover:border-blue-300 transition-all flex flex-col items-center cursor-pointer group">
-                                                    <div className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-400 group-hover:text-blue-500 mb-3 border border-slate-100 transition-all group-hover:scale-110">
-                                                        <Upload size={18} />
-                                                    </div>
-                                                    <p className="text-[11px] text-slate-500 font-medium">
-                                                        Upload from <span className="text-blue-600 hover:underline">Desktop</span> / <span className="text-blue-600 hover:underline">Zoho WorkDrive</span>
-                                                    </p>
-                                                    <p className="text-[10px] text-sky-600 mt-2 font-black tracking-widest uppercase active:scale-95 transition-all">Others</p>
-                                                    <p className="text-[10px] text-slate-400 mt-4 uppercase font-bold tracking-wider">Files supported: JPG, PNG, GIF, JPEG  •  Max. size is 5 MB</p>
+                                                <div 
+                                                    className="flex-1 border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50/50 hover:bg-slate-50 hover:border-blue-300 transition-all flex flex-col items-center cursor-pointer group relative overflow-hidden"
+                                                    onClick={() => document.getElementById('candidate-photo')?.click()}
+                                                >
+                                                    <input 
+                                                        type="file" 
+                                                        id="candidate-photo" 
+                                                        className="hidden" 
+                                                        accept="image/jpeg, image/png, image/gif"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                setPhotoFile(file);
+                                                                setPhotoPreview(URL.createObjectURL(file));
+                                                            }
+                                                        }}
+                                                    />
+                                                    {photoPreview ? (
+                                                        <div className="absolute inset-0 w-full h-full bg-slate-100 flex items-center justify-center">
+                                                            <img src={photoPreview} alt="Preview" className="w-full h-full object-contain" />
+                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center">
+                                                                <Upload size={24} className="text-white mb-2" />
+                                                                <span className="text-white text-[11px] font-bold uppercase tracking-wider">Change Photo</span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-slate-400 group-hover:text-blue-500 mb-3 border border-slate-100 transition-all group-hover:scale-110">
+                                                                <Upload size={18} />
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-500 font-medium">
+                                                                Upload from <span className="text-blue-600 hover:underline">Desktop</span> / <span className="text-blue-600 hover:underline">Zoho WorkDrive</span>
+                                                            </p>
+                                                            <p className="text-[10px] text-sky-600 mt-2 font-black tracking-widest uppercase active:scale-95 transition-all">Others</p>
+                                                            <p className="text-[10px] text-slate-400 mt-4 uppercase font-bold tracking-wider">Files supported: JPG, PNG, GIF, JPEG  •  Max. size is 5 MB</p>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -187,14 +308,26 @@ const Onboarding: React.FC = () => {
                                                 <label className="w-32 text-[12px] font-bold text-slate-600 flex items-center">
                                                     First name <span className="text-rose-500 ml-1 font-black">*</span>
                                                 </label>
-                                                <input type="text" className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" />
+                                                <input 
+                                                    type="text" 
+                                                    required 
+                                                    value={form.firstName}
+                                                    onChange={e => setForm({...form, firstName: e.target.value})}
+                                                    className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                                                />
                                             </div>
 
                                             <div className="flex items-center space-x-4">
                                                 <label className="w-32 text-[12px] font-bold text-slate-600 flex items-center">
                                                     Last name <span className="text-rose-500 ml-1 font-black">*</span>
                                                 </label>
-                                                <input type="text" className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" />
+                                                <input 
+                                                    type="text" 
+                                                    required 
+                                                    value={form.lastName}
+                                                    onChange={e => setForm({...form, lastName: e.target.value})}
+                                                    className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                                                />
                                             </div>
 
                                             <div className="flex items-center space-x-4 pt-12">
@@ -202,23 +335,31 @@ const Onboarding: React.FC = () => {
                                                 <input type="text" className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-[13px] mt-8 bg-slate-50/30 outline-none" />
                                             </div>
                                         </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="px-8 py-4 bg-white border-t border-slate-100 flex items-center space-x-3 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-                            <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-[12px] font-bold transition-all shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95">Submit</button>
-                            <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-[12px] font-bold transition-all shadow-lg shadow-blue-500/20 hover:scale-105 active:scale-95">Submit and New</button>
-                            <button className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2 rounded text-[12px] font-bold transition-all hover:border-slate-300">Save Draft</button>
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2 rounded text-[12px] font-bold transition-all hover:border-slate-300"
-                            >
-                                Cancel
-                            </button>
-                        </div>
+                            
+                            {/* Modal Footer */}
+                            <div className="px-8 py-4 bg-white border-t border-slate-100 flex items-center space-x-3 shadow-[0_-4px_20px_rgba(0,0,0,0.03)] shrink-0">
+                                <button 
+                                    type="submit"
+                                    disabled={loading}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded text-[12px] font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading && <Loader2 size={14} className="animate-spin" />}
+                                    Submit
+                                </button>
+                                <button type="button" className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2 rounded text-[12px] font-bold transition-all hover:border-slate-300">Save Draft</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-2 rounded text-[12px] font-bold transition-all hover:border-slate-300"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

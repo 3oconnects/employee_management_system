@@ -333,15 +333,115 @@ const Timesheets: React.FC = () => {
           </div>
         )}
 
-        {/* Other tabs handled with Coming Soon style if not detailed yet */}
-        {activeTab !== 'my' && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-20 flex flex-col items-center text-center gap-6">
-            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 animate-pulse"><FileText size={32} /></div>
-            <div>
-              <h3 className="text-[16px] font-black text-gray-900 uppercase tracking-tight">{activeTab === 'history' ? 'Archive Vault' : 'Team Oversight'} Under Population</h3>
-              <p className="text-[13px] text-gray-400 mt-2 max-w-xs mx-auto">This analytic view is currently integrating with the core backend services to provide live database reports.</p>
+        {/* History Tab */}
+        {activeTab === 'history' && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h3 className="text-[14px] font-bold text-gray-800">Timesheet History</h3>
+                <span className="px-2 py-0.5 bg-gray-100 rounded-full text-[10px] font-black text-gray-500 uppercase">{history.length} entries</span>
+              </div>
+              <div className="flex items-center gap-1 p-1 bg-gray-50 rounded-xl border border-gray-100">
+                {['all', 'draft', 'submitted', 'approved', 'rejected'].map(f => (
+                  <button key={f} onClick={() => setHistFilter(f)}
+                    className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${histFilter === f ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
-            <button onClick={()=>setActiveTab('my')} className="px-6 py-2.5 bg-gray-900 text-white rounded-xl text-[12px] font-black uppercase tracking-widest active:scale-95 transition-all">Back to Live View</button>
+            {histLoading ? (
+              <div className="flex items-center justify-center py-20 gap-3">
+                <FileText size={20} className="text-blue-400 animate-pulse" />
+                <span className="text-[12px] font-bold text-gray-400 uppercase tracking-widest">Loading history...</span>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <FileText size={32} className="text-gray-200" />
+                <p className="text-[13px] font-bold text-gray-500">No timesheet history found</p>
+                <p className="text-[11px] text-gray-400">Submit your first timesheet to see it here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50/50 text-[10.5px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                      <th className="px-6 py-4">Week</th>
+                      <th className="px-6 py-4">Total Hours</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Remarks</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {history.filter(h => histFilter === 'all' || h.status === histFilter).map(h => (
+                      <tr key={h.id} className="hover:bg-blue-50/20 transition-all">
+                        <td className="px-6 py-4">
+                          <p className="text-[13px] font-bold text-gray-800">{fmtWeekRange(h.week_start, h.week_end)}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-[14px] font-black text-blue-600">{parseFloat(h.total_hours || '0').toFixed(1)}h</p>
+                        </td>
+                        <td className="px-6 py-4"><StatusBadge s={h.status} /></td>
+                        <td className="px-6 py-4">
+                          <p className="text-[12px] text-gray-400 font-medium">{h.remarks || '—'}</p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Approvals Tab */}
+        {activeTab === 'approvals' && isManager && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h3 className="text-[14px] font-bold text-gray-800">Pending Team Approvals</h3>
+                {pending.length > 0 && (
+                  <span className="px-2 py-0.5 bg-amber-100 rounded-full text-[10px] font-black text-amber-600 uppercase">{pending.length} pending</span>
+                )}
+              </div>
+            </div>
+            {appLoading ? (
+              <div className="flex items-center justify-center py-20 gap-3">
+                <Users size={20} className="text-blue-400 animate-pulse" />
+                <span className="text-[12px] font-bold text-gray-400 uppercase tracking-widest">Loading submissions...</span>
+              </div>
+            ) : pending.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <CheckCircle2 size={32} className="text-emerald-300" />
+                <p className="text-[13px] font-bold text-gray-500">All caught up!</p>
+                <p className="text-[11px] text-gray-400">No timesheets awaiting approval.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50/50 text-[10.5px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                      <th className="px-6 py-4">Employee</th>
+                      <th className="px-6 py-4">Week</th>
+                      <th className="px-6 py-4">Hours</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {pending.map((p: any) => (
+                      <TimesheetApprovalRow
+                        key={p.id}
+                        p={p}
+                        userId={userId}
+                        fmtWeekRange={fmtWeekRange}
+                        StatusBadge={StatusBadge}
+                        onDone={() => setPending(prev => prev.filter(x => x.id !== p.id))}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -349,4 +449,49 @@ const Timesheets: React.FC = () => {
   );
 };
 
+// Extracted row component to use hooks properly
+const TimesheetApprovalRow = ({ p, userId, fmtWeekRange, StatusBadge, onDone }: any) => {
+  const [actionState, setActionState] = useState<'idle'|'loading'>('idle');
+  const doAction = async (action: 'approved' | 'rejected') => {
+    setActionState('loading');
+    try {
+      await api.put(`/timesheets/${p.id}/approve`, { action, approved_by: userId });
+      onDone();
+    } catch { /* ignore */ } finally { setActionState('idle'); }
+  };
+  return (
+    <tr className="hover:bg-blue-50/20 transition-all">
+      <td className="px-6 py-4">
+        <p className="text-[13px] font-bold text-gray-800">{p.applicant_name || p.applicant_email}</p>
+        <p className="text-[11px] text-gray-400">{p.applicant_email}</p>
+      </td>
+      <td className="px-6 py-4">
+        <p className="text-[12px] font-bold text-gray-600">{fmtWeekRange(p.week_start, p.week_end)}</p>
+      </td>
+      <td className="px-6 py-4">
+        <p className="text-[14px] font-black text-blue-600">{parseFloat(p.total_hours || '0').toFixed(1)}h</p>
+      </td>
+      <td className="px-6 py-4 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={() => doAction('approved')}
+            disabled={actionState === 'loading'}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <CheckCircle2 size={12} /> Approve
+          </button>
+          <button
+            onClick={() => doAction('rejected')}
+            disabled={actionState === 'loading'}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-rose-100 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <XCircle size={12} /> Reject
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
+
 export default Timesheets;
+

@@ -60,43 +60,58 @@ export const getTodayStatus = async (req: Request, res: Response) => {
 export const checkIn = async (req: Request, res: Response) => {
     try {
         const { userId, ipAddress } = req.body;
-        if (!userId) {
-            console.warn('Check-in failed: userId is missing from request body.');
-            return res.status(400).json({ error: 'userId is required for check-in.' });
-        }
-        console.log('Attempting check-in for userId:', userId, 'at IP:', ipAddress);
+        if (!userId) return res.status(400).json({ error: 'userId is required.' });
+
+        // Prevent multiple open sessions
+        const openCheck = await query(
+            'SELECT id FROM attendance WHERE user_id = $1 AND check_in::date = CURRENT_DATE AND check_out IS NULL',
+            [userId]
+        );
+        if (openCheck.rows.length > 0) return res.status(400).json({ error: 'Session already active.' });
+
         const result = await query(
             `INSERT INTO attendance (user_id, check_in, ip_address, status)
              VALUES ($1, NOW(), $2, 'present') RETURNING *`,
             [userId, ipAddress || null]
         );
-        console.log('Check-in successful:', result.rows[0]);
-        res.status(201).json({ ...result.rows[0], message: 'Checked in successfully.' });
+        
+        // Return same structure as getTodayStatus for frontend consistency
+        res.status(201).json({ 
+            ...result.rows[0], 
+            status: 'IN', 
+            checkIn: result.rows[0].check_in,
+            message: 'Checked in successfully.' 
+        });
     } catch (err: any) {
-        console.error('checkIn Error:', err);
         res.status(500).json({ error: err.message });
     }
 };
 
+
 export const checkOut = async (req: Request, res: Response) => {
     try {
         const { userId } = req.body;
-        if (!userId) {
-            return res.status(400).json({ error: 'userId is required for check-out.' });
-        }
+        if (!userId) return res.status(400).json({ error: 'userId is required.' });
+
         const result = await query(
             `UPDATE attendance SET check_out = NOW()
              WHERE user_id = $1 AND check_in::date = CURRENT_DATE AND check_out IS NULL
              RETURNING *`,
             [userId]
         );
-        if (result.rows.length === 0) return res.status(404).json({ error: 'No open check-in found for today.' });
-        res.json({ ...result.rows[0], message: 'Checked out successfully.' });
+        if (result.rows.length === 0) return res.status(404).json({ error: 'No open shift found.' });
+        
+        res.json({ 
+            ...result.rows[0], 
+            status: 'OUT', 
+            checkIn: null,
+            message: 'Shift ended successfully.' 
+        });
     } catch (err: any) {
-        console.error('checkOut Error:', err);
         res.status(500).json({ error: err.message });
     }
 };
+
 
 export const getHistory = async (req: Request, res: Response) => {
     try {

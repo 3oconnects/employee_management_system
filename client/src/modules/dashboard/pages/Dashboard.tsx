@@ -37,8 +37,9 @@ import Profile from '../../profile/pages/Profile';
 /* ─── Types ─────────────────────────────────────────────── */
 interface AttendanceState {
     status: 'OUT' | 'IN' | 'COMPLETED';
-    checkInTime?: string;
+    checkIn?: string;
 }
+
 
 /* ─── Helpers ────────────────────────────────────────────── */
 function getGreeting() {
@@ -112,8 +113,8 @@ const Dashboard: React.FC = () => {
     }, [user?.id]);
 
     useEffect(() => {
-        if (!isIn || !attendance?.checkInTime) { setElapsed(0); return; }
-        const base = new Date(attendance.checkInTime).getTime();
+        if (!isIn || !attendance?.checkIn) { setElapsed(0); return; }
+        const base = new Date(attendance.checkIn).getTime();
         const tick = () => setElapsed(Date.now() - base);
         tick();
         const id = setInterval(tick, 1000);
@@ -126,7 +127,7 @@ const Dashboard: React.FC = () => {
         try {
             const { data } = await api.post('/attendance/check-in', { userId: user.id });
             setAttendance(data);
-        } catch { alert('Check-in failed'); }
+        } catch { alert('Check-in already active or failed'); }
         finally { setCheckingIn(false); }
     };
 
@@ -139,6 +140,7 @@ const Dashboard: React.FC = () => {
         } catch { alert('Check-out failed'); }
         finally { setCheckingIn(false); }
     };
+
 
     if (loading) return (
         <div className="p-8 space-y-8 animate-pulse">

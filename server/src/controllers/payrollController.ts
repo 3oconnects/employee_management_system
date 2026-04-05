@@ -73,7 +73,7 @@ export const updatePayrollProfile = async (req: Request, res: Response) => {
         const basic = Number(updates.basicSalary || updates.salary_structure?.basic_salary || 0);
         const hra = Number(updates.hra || updates.salary_structure?.hra || 0);
         const allowances = Number(updates.allowances || updates.salary_structure?.allowances || 0);
-        const annual_ctc = updates.annualCTC || 0;
+        const annual_ctc = Number(updates.annualCTC || 0);
         const bank_account = updates.bankAccountNumber || 'Not Linked';
         const tax_regime = updates.taxRegime || 'New';
 
@@ -89,6 +89,7 @@ export const updatePayrollProfile = async (req: Request, res: Response) => {
                 [basic, hra, allowances, bank_account, tax_regime, annual_ctc, id]
             );
         }
+
 
         res.json({ success: true, message: 'Salary structure updated.' });
     } catch (err: any) {
@@ -134,23 +135,26 @@ export const getLiveSummary = async (req: Request, res: Response) => {
         let govtPayables = 0;
 
         result.rows.forEach(p => {
-            const basic = Number(p.basic_salary || 0);
-            const hra = Number(p.hra || 0);
-            const allowance = Number(p.allowances || 0);
-            const bonus = Number(p.bonus || 0);
-            const overtime = Number(p.overtime || 0);
+            const annual_ctc = Number(p.annual_ctc) || 0;
+            const basic = Number(p.basic_salary) || 0;
+            const hra = Number(p.hra) || 0;
+            const allowance = Number(p.allowances) || 0;
+            const bonus = Number(p.bonus) || 0;
+            const overtime = Number(p.overtime) || 0;
 
             const gross = basic + hra + allowance + bonus + overtime;
             const pf = Math.round(basic * 0.12);
-            const pt = Number(p.annual_ctc) > 180000 ? 200 : 0;
-            // Simple TDS mock: 10% for simplicity if above 10L
-            const tds = Number(p.annual_ctc) > 1000000 ? (gross * 0.15) : (Number(p.annual_ctc) > 500000 ? gross * 0.05 : 0);
+            const pt = annual_ctc > 180000 ? 200 : 0;
+            const tds = annual_ctc > 1000000 ? (gross * 0.15) : (annual_ctc > 500000 ? gross * 0.05 : 0);
             
-            totalGross += gross;
-            totalDeductions += (pf + pt + tds);
-            netOutflow += (gross - (pf + pt + tds));
-            govtPayables += (pf + pt + tds);
+            const totalDeduction = pf + pt + tds;
+            
+            totalGross += isNaN(gross) ? 0 : gross;
+            totalDeductions += isNaN(totalDeduction) ? 0 : totalDeduction;
+            netOutflow += isNaN(gross - totalDeduction) ? 0 : (gross - totalDeduction);
+            govtPayables += isNaN(totalDeduction) ? 0 : totalDeduction;
         });
+
 
         res.json({
             totalGross,
@@ -196,5 +200,65 @@ export const getTaxSummary = async (req: Request, res: Response) => {
         });
     } catch (err: any) {
         res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+export const processPayroll = async (req: Request, res: Response) => {
+    const { month, year } = req.body;
+    const runId = `RUN-${year}-${month}-${Date.now()}`;
+    
+    try {
+        await pool.query('BEGIN');
+
+        // 1. Create a payroll run record
+        await pool.query(
+            'INSERT INTO payroll_runs (id, month, year) VALUES ($1, $2, $3)',
+            [runId, String(month), String(year)]
+        );
+
+        // 2. Fetch all profiles to process
+        const profiles = await pool.query('SELECT * FROM payroll_profiles');
+        
+        for (const p of profiles.rows) {
+            const basic = Number(p.basic_salary || 0);
+            const hra = Number(p.hra || 0);
+            const allowance = Number(p.allowances || 0);
+            const bonus = Number(p.bonus || 0);
+            const overtime = Number(p.overtime || 0);
+            const annual_ctc = Number(p.annual_ctc || 0);
+
+            const gross = basic + hra + allowance + bonus + overtime;
+            const pf = Math.round(basic * 0.12);
+            const pt = annual_ctc > 180000 ? 200 : 0;
+            const tds = annual_ctc > 1000000 ? (gross * 0.15) : (annual_ctc > 500000 ? gross * 0.05 : 0);
+            const esi = annual_ctc < 252000 ? Math.round(gross * 0.0075) : 0;
+
+            const totalDeductions = pf + pt + tds + esi;
+            const net = gross - totalDeductions;
+
+            // Insert into payroll_entries
+            await pool.query(
+                `INSERT INTO payroll_entries 
+                 (payroll_run_id, employee_id, month, year, gross_salary, pf_employee, esi_employee, professional_tax, tds, total_deductions, net_salary)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                [runId, p.employee_id, String(month), String(year), gross, pf, esi, pt, tds, totalDeductions, net]
+            );
+
+            // Sync with payroll_history for employee portal
+            await pool.query(
+                `INSERT INTO payroll_history (employee_id, name, month, year, net_salary, status)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (employee_id, month, year) DO UPDATE 
+                 SET net_salary = EXCLUDED.net_salary, status = 'paid'`,
+                [p.employee_id, p.name, String(month), String(year), net, 'paid']
+            );
+        }
+
+        await pool.query('COMMIT');
+        res.json({ success: true, message: `Payroll cycle ${month}/${year} processed successfully.`, runId });
+    } catch (err: any) {
+        await pool.query('ROLLBACK');
+        console.error('Payroll processing error:', err);
+        res.status(500).json({ success: false, message: 'Processing failed: ' + err.message });
     }
 };

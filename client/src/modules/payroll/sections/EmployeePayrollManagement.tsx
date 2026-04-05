@@ -91,13 +91,15 @@ const EmployeePayrollManagement = () => {
                 role: emp.role || 'Member',
                 status: emp.status || 'active',
                 hasProfile: emp.hasProfile || false,
-                annualCTC: emp.annual_ctc || emp.annualCTC || 0,
-                monthlyGross: (emp.annual_ctc || emp.annualCTC || 0) / 12,
-                netSalary: emp.net_salary || 0,
+                annualCTC: isNaN(Number(emp.annual_ctc || emp.annualCTC)) ? 0 : Number(emp.annual_ctc || emp.annualCTC || 0),
+                monthlyGross: (Number(emp.annual_ctc || emp.annualCTC || 0) / 12) || 0,
+                netSalary: Number(emp.net_salary || 0) || 0,
                 taxRegime: emp.tax_regime || emp.taxRegime || 'New',
                 bankAccount: emp.bank_account_number || emp.bank_account || '',
                 lastProcessed: emp.last_processed || ''
+
             }));
+
             
             setProfiles(mappedProfiles);
         } catch (err: any) {
@@ -127,7 +129,8 @@ const EmployeePayrollManagement = () => {
         total: profiles.length,
         active: profiles.filter(p => p.hasProfile).length,
         missing: profiles.filter(p => !p.hasProfile).length,
-        totalCTC: profiles.reduce((sum, p) => sum + p.annualCTC, 0)
+        totalCTC: profiles.reduce((sum, p) => sum + (Number(p.annualCTC) || 0), 0)
+
     }), [profiles]);
 
     const handleOpenSettings = (employee: any) => {
@@ -347,9 +350,9 @@ const SalaryStructureModal = ({ employee, onClose, onSuccess }: any) => {
     const handleUpdate = async () => {
         setSaving(true);
         try {
-            await api.put(`/payroll/profile/${employee.id}`, {
-                annual_ctc: ctc,
-                tax_regime: regime
+            await api.put(`/payroll/employees/${employee.id}`, {
+                annualCTC: ctc,
+                taxRegime: regime
             });
             onSuccess();
             onClose();
@@ -427,10 +430,10 @@ const CreateProfileModal = ({ employee, onClose, onSuccess }: any) => {
         if(!ctc) return;
         setSaving(true);
         try {
-            await api.post(`/payroll/profile`, {
+            await api.post('/payroll/profiles', {
                 employee_id: employee.id,
-                annual_ctc: Number(ctc),
-                tax_regime: 'New'
+                annualCTC: Number(ctc),
+                taxRegime: 'New'
             });
             onSuccess();
             onClose();

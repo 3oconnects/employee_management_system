@@ -33,20 +33,25 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { id: user.id, role: user.role },
       JWT_SECRET,
       { expiresIn: "1d" }
     );
 
+    // Also return as 'token' for backward compat with any direct fetch calls
     res.json({
-      token,
+      accessToken,
+      token: accessToken,
       user: {
         id: user.id,
         employee_id: user.employee_id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        phone: user.phone || '',
+        address: user.address || '',
+        emergency: user.emergency || ''
       }
     });
 
@@ -58,6 +63,27 @@ router.post("/login", async (req, res) => {
 
   }
 
+});
+
+/* REFRESH - Re-issues token using existing Authorization header */
+router.post("/refresh", async (req, res) => {
+  // Since we're using long-lived JWTs for simplicity, just re-verify and re-issue
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const newToken = jwt.sign(
+      { id: decoded.id, role: decoded.role },
+      JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+    res.json({ accessToken: newToken });
+  } catch {
+    res.status(401).json({ message: "Invalid token" });
+  }
 });
 
 export default router;

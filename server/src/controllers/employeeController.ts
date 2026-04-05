@@ -6,17 +6,26 @@ export const getEmployees = async (req: Request, res: Response) => {
     const offset = (Number(page) - 1) * Number(limit);
 
     try {
-        let sql = 'SELECT * FROM employees';
-        let countSql = 'SELECT COUNT(*) FROM employees';
+        let sql = 'SELECT * FROM employees WHERE 1=1';
+        let countSql = 'SELECT COUNT(*) FROM employees WHERE 1=1';
         const params: any[] = [];
+        let pIndex = 1;
 
         if (search) {
-            sql += ' WHERE name ILIKE $1 OR id ILIKE $1 OR department ILIKE $1';
-            countSql += ' WHERE name ILIKE $1 OR id ILIKE $1 OR department ILIKE $1';
+            sql += ` AND (name ILIKE $${pIndex} OR id ILIKE $${pIndex} OR department ILIKE $${pIndex})`;
+            countSql += ` AND (name ILIKE $${pIndex} OR id ILIKE $${pIndex} OR department ILIKE $${pIndex})`;
             params.push(`%${search}%`);
+            pIndex++;
+        }
+        
+        if (req.query.status) {
+            sql += ` AND status = $${pIndex}`;
+            countSql += ` AND status = $${pIndex}`;
+            params.push(req.query.status);
+            pIndex++;
         }
 
-        sql += ` ORDER BY id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        sql += ` ORDER BY id LIMIT $${pIndex} OFFSET $${pIndex + 1}`;
         const finalParams = [...params, Number(limit), offset];
 
         const result = await pool.query(sql, finalParams);
@@ -35,11 +44,19 @@ export const getEmployees = async (req: Request, res: Response) => {
 };
 
 export const createEmployee = async (req: Request, res: Response) => {
-    const { name, email, annualCTC, department, taxRegime, bankAccountNumber, joinDate } = req.body;
+    const { name, email, annualCTC, department, taxRegime, bankAccountNumber, joinDate, status } = req.body;
 
-    if (!name || !annualCTC || !department || !taxRegime || !bankAccountNumber || !joinDate) {
-        return res.status(400).json({ success: false, message: 'Missing required configuration fields.' });
+    console.log('CREATE EMPLOYEE PAYLOAD:', req.body);
+    if (!name || annualCTC == null || !department || !taxRegime || !bankAccountNumber || !joinDate) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Missing required configuration fields.', 
+            debugPayload: req.body,
+            missing: { name: !!name, ctc: annualCTC != null, dept: !!department, tax: !!taxRegime, bank: !!bankAccountNumber, join: !!joinDate }
+        });
     }
+
+    const empStatus = status || 'active';
 
     try {
         const countRes = await pool.query('SELECT COUNT(*) FROM employees');
@@ -53,8 +70,8 @@ export const createEmployee = async (req: Request, res: Response) => {
         const bonus = monthlyGross * 0.05;
 
         await pool.query(
-            'INSERT INTO employees (id, name, position, department, join_date, email) VALUES ($1, $2, $3, $4, $5, $6)',
-            [newId, name, department + ' Staff', department, joinDate, email]
+            'INSERT INTO employees (id, name, position, department, join_date, email, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [newId, name, department + ' Staff', department, joinDate, email, empStatus]
         );
 
         if (email) {
@@ -116,4 +133,52 @@ export const bulkUpload = async (req: Request, res: Response) => {
         }
     }
     res.json({ inserted, skipped });
+};
+
+export const updateEmployee = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { name, email, department, position, status, join_date } = req.body;
+
+    try {
+        const check = await pool.query('SELECT * FROM employees WHERE id = $1', [id]);
+        if (check.rows.length === 0) return res.status(404).json({ success: false, message: 'Employee not found.' });
+
+        await pool.query('BEGIN');
+
+        // 1. Update employees table
+        await pool.query(
+            `UPDATE employees 
+             SET name = COALESCE($1, name), 
+                 email = COALESCE($2, email), 
+                 department = COALESCE($3, department), 
+                 position = COALESCE($4, position), 
+                 status = COALESCE($5, status), 
+                 join_date = COALESCE($6, join_date)
+             WHERE id = $7`,
+            [name, email, department, position, status, join_date, id]
+        );
+
+        // 2. Sync with payroll_profiles (name and department)
+        await pool.query(
+            `UPDATE payroll_profiles 
+             SET name = COALESCE($1, name), 
+                 department = COALESCE($2, department),
+                 role = COALESCE($3, role)
+             WHERE employee_id = $4`,
+            [name, department, position, id]
+        );
+
+        // 3. Sync with users (if email exists and is changing)
+        if (email && email !== check.rows[0].email) {
+            await pool.query('UPDATE users SET email = $1, name = $2 WHERE email = $3', [email, name || check.rows[0].name, check.rows[0].email]);
+        } else if (name && name !== check.rows[0].name) {
+             await pool.query('UPDATE users SET name = $1 WHERE email = $2', [name, check.rows[0].email || email]);
+        }
+
+        await pool.query('COMMIT');
+        res.json({ success: true, message: 'Employee updated successfully.' });
+    } catch (err: any) {
+        await pool.query('ROLLBACK');
+        res.status(500).json({ success: false, message: 'Update failed: ' + err.message });
+    }
 };

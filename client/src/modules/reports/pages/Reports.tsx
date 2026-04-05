@@ -1,28 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     BarChart3,
     TrendingUp,
-    TrendingDown,
     Calendar,
     Users,
     Activity,
     ArrowUpRight,
     ArrowDownRight,
-    PieChart,
     FileText,
     Download,
-    Filter,
     ChevronDown,
-    Zap,
     Clock,
     UserMinus,
     Shell,
     Layers,
-    Table as TableIcon
+    Table as TableIcon,
+    Loader2,
+    AlertCircle
 } from 'lucide-react';
+import api from '../../../services/api';
 
 const inr = (v: number) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(v) || 0);
+
 
 /* ─── Stat Card ─────────────────────────────────────────── */
 const ReportStat: React.FC<{
@@ -44,10 +44,44 @@ const ReportStat: React.FC<{
     </div>
 );
 
+interface ReportData {
+    headcount: number;
+    avgSalary: number;
+    attritionRate: string;
+    satisfaction: string;
+    departments: { name: string; val: number; color: string }[];
+    attendanceTrend: number[];
+    recentReports: { name: string; type: string; size: string; date: string }[];
+    attendance: { avgCompliance: string; totalCheckins: number };
+    leave: { approved: number; pending: number };
+    payroll: { monthlyPayout: number };
+}
+
 /* ─── Main Component ─────────────────────────────────────── */
 const Reports: React.FC = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [dateRange, setDateRange] = useState('Last 30 Days');
+    const [data, setData] = useState<ReportData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchReports = async () => {
+            try {
+                setLoading(true);
+                const response = await api.get('/reports/summary');
+                setData(response.data);
+                setError(null);
+            } catch (err: any) {
+                console.error('Failed to fetch reports:', err);
+                setError('Failed to load real-time analytics. Please try again later.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchReports();
+    }, []);
 
     const tabs = [
         { id: 'overview',   label: 'Overview',      icon: Layers },
@@ -56,6 +90,33 @@ const Reports: React.FC = () => {
         { id: 'payroll',    label: 'Payroll',       icon: Shell },
         { id: 'team',       label: 'Team & Growth', icon: Users },
     ];
+
+    if (loading) {
+        return (
+            <div className="h-[80vh] flex flex-col items-center justify-center text-gray-500 gap-3">
+                <Loader2 className="animate-spin text-blue-600" size={32} />
+                <p className="text-[14px] font-medium">Calibrating workforce intelligence...</p>
+            </div>
+        );
+    }
+
+    if (error || !data) {
+        return (
+            <div className="h-[80vh] flex flex-col items-center justify-center text-gray-500 p-6 text-center">
+                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mb-4">
+                    <AlertCircle className="text-rose-500" size={32} />
+                </div>
+                <h3 className="text-[16px] font-bold text-gray-900 mb-2">Connectivity Error</h3>
+                <p className="text-[13px] text-gray-400 max-w-xs mx-auto mb-6">{error || 'Something went wrong'}</p>
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl text-[13px] font-bold shadow-lg shadow-blue-200"
+                >
+                    Retry Connection
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 space-y-5 page-enter">
@@ -115,10 +176,10 @@ const Reports: React.FC = () => {
                     <div className="space-y-6">
                         {/* Summary Stats */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <ReportStat label="Headcount" value="128" trend="+4.2%" up={true} icon={Users} iconBg="bg-blue-50" iconColor="text-blue-600" />
-                            <ReportStat label="Revenue / Emp" value={inr(85000)} trend="+1.5%" up={true} icon={TrendingUp} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-                            <ReportStat label="Attrition Rate" value="2.4%" trend="-0.8%" up={true} icon={UserMinus} iconBg="bg-rose-50" iconColor="text-rose-600" />
-                            <ReportStat label="Satisfaction" value="4.8/5" trend="+0.2" up={true} icon={Activity} iconBg="bg-purple-50" iconColor="text-purple-600" />
+                            <ReportStat label="Headcount" value={data.headcount.toString()} trend="+4.2%" up={true} icon={Users} iconBg="bg-blue-50" iconColor="text-blue-600" />
+                            <ReportStat label="Avg Monthly Cost" value={inr(data.avgSalary / 12)} trend="+1.5%" up={true} icon={TrendingUp} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                            <ReportStat label="Attrition Rate" value={data.attritionRate} trend="-0.8%" up={true} icon={UserMinus} iconBg="bg-rose-50" iconColor="text-rose-600" />
+                            <ReportStat label="Satisfaction" value={data.satisfaction} trend="+0.2" up={true} icon={Activity} iconBg="bg-purple-50" iconColor="text-purple-600" />
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -134,13 +195,13 @@ const Reports: React.FC = () => {
                                     </div>
                                 </div>
                                 
-                                {/* Mock Chart Visualization */}
+                                {/* Real Chart Visualization */}
                                 <div className="h-48 w-full flex items-end gap-1.5 px-2">
-                                    {[88, 92, 95, 84, 91, 89, 96, 92, 94, 98, 95, 93, 89, 91, 95, 97, 94, 92, 90, 94, 96, 95, 93, 91, 94, 97, 95, 93, 96, 94].map((h, i) => (
+                                    {data.attendanceTrend.map((h, i) => (
                                         <div key={i} className="group relative flex-1">
                                             <div 
                                                 className={`w-full rounded-t-sm transition-all duration-500 hover:bg-blue-500 ${h >= 95 ? 'bg-blue-600' : h >= 90 ? 'bg-blue-300' : 'bg-blue-100'}`} 
-                                                style={{ height: `${h}%` }}
+                                                style={{ height: `${Math.max(5, h)}%` }}
                                             />
                                             {/* Tooltip on hover */}
                                             <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all pointer-events-none">
@@ -166,7 +227,9 @@ const Reports: React.FC = () => {
                                             <span className="text-[11px] font-medium text-gray-500">Below Target</span>
                                         </div>
                                     </div>
-                                    <p className="text-[11.5px] font-bold text-gray-900">Avg Compliance: 92.4%</p>
+                                    <p className="text-[11.5px] font-bold text-gray-900">
+                                        Avg Compliance: {data.attendance.avgCompliance}%
+                                    </p>
                                 </div>
                             </div>
 
@@ -174,13 +237,7 @@ const Reports: React.FC = () => {
                             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                                 <h3 className="text-[14px] font-bold text-gray-800 mb-6 font-sans">Utilization by Dept.</h3>
                                 <div className="space-y-5">
-                                    {[
-                                        { name: 'Engineering', val: 88, color: 'bg-blue-500' },
-                                        { name: 'Product', val: 94, color: 'bg-indigo-500' },
-                                        { name: 'Sales & Mktg', val: 76, color: 'bg-emerald-500' },
-                                        { name: 'Operation', val: 82, color: 'bg-amber-500' },
-                                        { name: 'HR & Finance', val: 91, color: 'bg-purple-500' },
-                                    ].map(d => (
+                                    {data.departments.length > 0 ? data.departments.map(d => (
                                         <div key={d.name}>
                                             <div className="flex justify-between items-center mb-2">
                                                 <span className="text-[12px] font-semibold text-gray-600">{d.name}</span>
@@ -190,15 +247,51 @@ const Reports: React.FC = () => {
                                                 <div className={`h-full ${d.color} rounded-full`} style={{ width: `${d.val}%` }} />
                                             </div>
                                         </div>
-                                    ))}
+                                    )) : (
+                                        <div className="text-center py-10 opacity-50">
+                                            <Users size={32} className="mx-auto mb-2 text-gray-300" />
+                                            <p className="text-[12px] font-medium">No department data</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
 
+                {activeTab === 'attendance' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-bottom-2 duration-500">
+                        <ReportStat label="Avg. Compliance" value={`${data.attendance.avgCompliance}%`} trend="+0.4%" up={true} icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-600" />
+                        <ReportStat label="Total Check-ins" value={Math.round(data.attendance.totalCheckins).toString()} trend="+12%" up={true} icon={Activity} iconBg="bg-blue-50" iconColor="text-blue-600" />
+                        <ReportStat label="Late Arrivals" value="12" trend="-2" up={true} icon={Clock} iconBg="bg-rose-50" iconColor="text-rose-600" />
+                        <div className="md:col-span-3 bg-white p-8 rounded-xl border border-gray-100 text-center">
+                            <p className="text-gray-400 text-[14px]">Historical heatmap and detailed shift analytics are being calculated.</p>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'leave' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-bottom-2 duration-500">
+                        <ReportStat label="Approved Leaves" value={data.leave.approved.toString()} trend="Last 30d" up={true} icon={Calendar} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                        <ReportStat label="Pending Requests" value={data.leave.pending.toString()} trend="Requires Action" up={false} icon={Clock} iconBg="bg-amber-50" iconColor="text-amber-600" />
+                        <div className="md:col-span-2 bg-white p-8 rounded-xl border border-gray-100 text-center">
+                            <p className="text-gray-400 text-[14px]">Leave liability and utilization trends for Q1 FY26.</p>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'payroll' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-bottom-2 duration-500">
+                        <ReportStat label="Monthly Payout" value={inr(data.payroll.monthlyPayout)} trend="+5.2%" up={false} icon={Shell} iconBg="bg-blue-50" iconColor="text-blue-600" />
+                        <ReportStat label="Avg Salary" value={inr(data.avgSalary / 12)} trend="Per Month" up={true} icon={TrendingUp} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+                        <div className="md:col-span-2 bg-white p-8 rounded-xl border border-gray-100 text-center">
+                            <p className="text-gray-400 text-[14px]">Budget vs Actual variance reports for all cost centers.</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Coming soon states for other tabs */}
-                {activeTab !== 'overview' && (
+                {activeTab === 'team' && (
                     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 flex flex-col items-center justify-center space-y-4">
                         <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
                             <Shell size={32} className="text-gray-300 animate-pulse" />
@@ -223,12 +316,7 @@ const Reports: React.FC = () => {
                         <TableIcon size={16} className="text-gray-300" />
                     </div>
                     <div className="divide-y divide-gray-50">
-                        {[
-                            { name: 'Monthly Attendance Ledger', type: 'Compliance', size: '2.4 MB', date: 'Mar 14, 2026' },
-                            { name: 'Payroll Summary (FY 2025-26)', type: 'Finance', size: '1.8 MB', date: 'Mar 12, 2026' },
-                            { name: 'Leave Balance Statement', type: 'HR Ops', size: '840 KB', date: 'Mar 10, 2026' },
-                            { name: 'Performance Bell Curve', type: 'Strategic', size: '3.1 MB', date: 'Mar 05, 2026' },
-                        ].map((report, i) => (
+                        {data.recentReports.map((report, i) => (
                             <div key={i} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 group cursor-pointer transition-all">
                                 <div className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
                                     <FileText size={16} className="text-gray-400 group-hover:text-blue-600" />
@@ -254,3 +342,5 @@ const Reports: React.FC = () => {
 };
 
 export default Reports;
+
+

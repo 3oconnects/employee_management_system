@@ -15,10 +15,11 @@ export const updateUserProfile = async (
          email=$2,
          phone=$3,
          address=$4,
-         emergency_contact=$5
+         emergency=$5,
+         updated_at=NOW()
      WHERE id=$6
-     RETURNING id,name,email,role,phone,address,emergency_contact`,
-    [name, email, phone, address, emergency, id]
+     RETURNING id,name,email,role,phone,address,emergency`,
+    [name, email, phone || null, address || null, emergency || null, id]
   );
 
   return result.rows[0];

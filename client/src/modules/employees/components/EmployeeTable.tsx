@@ -5,16 +5,14 @@ import {
     UserPlus, 
     MoreVertical, 
     Mail, 
-    Phone, 
-    MapPin, 
-    Filter,
     ChevronLeft,
     ChevronRight,
     Loader2,
-    Shield,
     Briefcase,
     Building2,
-    CheckCircle2
+    CheckCircle2,
+    X,
+    Pencil
 } from 'lucide-react';
 import api from '../../../services/api';
 import debounce from 'lodash/debounce';
@@ -49,7 +47,7 @@ const EmployeeTable: React.FC = () => {
             });
             setEmployees(data.items || []);
             setTotalPages(data.totalPages || 1);
-            setTotalItems(data.total || 0);
+            setTotalItems(data.totalItems || 0);
         } catch (error) {
             console.error('Failed to fetch employees', error);
         } finally {
@@ -75,6 +73,89 @@ const EmployeeTable: React.FC = () => {
         fetchEmployees(searchTerm, page);
     }, [page]);
 
+    // Modal States: Add
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addForm, setAddForm] = useState({ 
+        name: '', email: '', department: '', joinDate: '', 
+        annualCTC: '', bankAccountNumber: '', taxRegime: 'New' 
+    });
+    const [addLoading, setAddLoading] = useState(false);
+    const [addError, setAddError] = useState('');
+
+    // Modal States: Edit
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editEmployeeId, setEditEmployeeId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState({ 
+        name: '', email: '', department: '', position: '', 
+        status: '', joinDate: '' 
+    });
+    const [editLoading, setEditLoading] = useState(false);
+    const [editError, setEditError] = useState('');
+
+    const handleAddEmployee = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAddLoading(true);
+        setAddError('');
+        try {
+            await api.post('/employees', {
+                name: addForm.name,
+                email: addForm.email,
+                department: addForm.department,
+                joinDate: addForm.joinDate,
+                annualCTC: Number(addForm.annualCTC),
+                bankAccountNumber: addForm.bankAccountNumber,
+                taxRegime: addForm.taxRegime,
+            });
+            setShowAddModal(false);
+            setAddForm({ 
+                name: '', email: '', department: '', joinDate: '', 
+                annualCTC: '', bankAccountNumber: '', taxRegime: 'New' 
+            });
+            setPage(1);
+            fetchEmployees(searchTerm, 1);
+        } catch (err: any) {
+            setAddError(err.response?.data?.message || err.message || 'Failed to add employee');
+        } finally {
+            setAddLoading(false);
+        }
+    };
+
+    const openEditModal = (emp: Employee) => {
+        setEditEmployeeId(emp.id);
+        setEditForm({
+            name: emp.name,
+            email: emp.email,
+            department: emp.department,
+            position: emp.position,
+            status: emp.status || 'active',
+            joinDate: emp.join_date ? new Date(emp.join_date).toISOString().slice(0, 10) : ''
+        });
+        setShowEditModal(true);
+    };
+
+    const handleUpdateEmployee = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editEmployeeId) return;
+        setEditLoading(true);
+        setEditError('');
+        try {
+            await api.put(`/employees/${editEmployeeId}`, {
+                name: editForm.name,
+                email: editForm.email,
+                department: editForm.department,
+                position: editForm.position,
+                status: editForm.status,
+                join_date: editForm.joinDate
+            });
+            setShowEditModal(false);
+            fetchEmployees(searchTerm, page);
+        } catch (err: any) {
+            setEditError(err.response?.data?.message || err.message || 'Update failed');
+        } finally {
+            setEditLoading(false);
+        }
+    };
+
     return (
         <div className="p-6 space-y-6 page-enter">
             
@@ -93,11 +174,10 @@ const EmployeeTable: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 w-full md:w-auto">
-                    <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-[12px] font-bold text-gray-600 hover:bg-gray-50 transition-all shadow-sm active:scale-95">
-                        <Filter size={14} />
-                        Filter
-                    </button>
-                    <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[12px] font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
+                    <button 
+                        onClick={() => setShowAddModal(true)}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[12px] font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95"
+                    >
                         <UserPlus size={14} />
                         Add Member
                     </button>
@@ -196,11 +276,15 @@ const EmployeeTable: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-5 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button className="p-2 text-gray-300 hover:text-indigo-600 hover:bg-white rounded-lg transition-all border border-transparent hover:border-indigo-100 shadow-sm shadow-transparent hover:shadow-indigo-100/20">
-                                                    <Shield size={14} />
+                                            <div className="flex items-center justify-end gap-2 text-gray-400">
+                                                <button 
+                                                    onClick={() => openEditModal(emp)}
+                                                    className="p-2 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                    title="Edit Member"
+                                                >
+                                                    <Pencil size={14} />
                                                 </button>
-                                                <button className="p-2 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
+                                                <button className="p-2 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all">
                                                     <MoreVertical size={14} />
                                                 </button>
                                             </div>
@@ -238,6 +322,117 @@ const EmployeeTable: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* ── Add Employee Modal ──────────────────────── */}
+            {showAddModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+                        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-[17px] font-black text-gray-900 uppercase tracking-tight">Add New Member</h3>
+                                <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Onboard a new team member</p>
+                            </div>
+                            <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><X size={20}/></button>
+                        </div>
+                        <form onSubmit={handleAddEmployee} className="p-8 space-y-5">
+                            {addError && <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl px-4 py-3 text-[12px] font-semibold">{addError}</div>}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5 col-span-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Name</label>
+                                    <input required type="text" value={addForm.name} onChange={e => setAddForm(f=>({...f, name: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Address</label>
+                                    <input required type="email" value={addForm.email} onChange={e => setAddForm(f=>({...f, email: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Join Date</label>
+                                    <input required type="date" value={addForm.joinDate} onChange={e => setAddForm(f=>({...f, joinDate: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Department</label>
+                                    <select required value={addForm.department} onChange={e => setAddForm(f=>({...f, department: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                                        <option value="">Select Department</option>
+                                        {['Engineering','Product','Sales','Marketing','HR','Finance','Operations','Design'].map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Annual CTC</label>
+                                    <input required type="number" value={addForm.annualCTC} onChange={e => setAddForm(f=>({...f, annualCTC: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bank Account</label>
+                                    <input required type="text" value={addForm.bankAccountNumber} onChange={e => setAddForm(f=>({...f, bankAccountNumber: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-500 rounded-xl text-[12px] font-bold uppercase tracking-widest active:scale-95 transition-all">Cancel</button>
+                                <button type="submit" disabled={addLoading} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[12px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                                    {addLoading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                                    {addLoading ? 'Creating...' : 'Create Member'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Edit Employee Modal ─────────────────────── */}
+            {showEditModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+                        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-[17px] font-black text-gray-900 uppercase tracking-tight">Edit Member Profile</h3>
+                                <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Modifying ID: {editEmployeeId}</p>
+                            </div>
+                            <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><X size={20}/></button>
+                        </div>
+                        <form onSubmit={handleUpdateEmployee} className="p-8 space-y-5">
+                            {editError && <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl px-4 py-3 text-[12px] font-semibold">{editError}</div>}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5 col-span-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Full Name</label>
+                                    <input required type="text" value={editForm.name} onChange={e => setEditForm(f=>({...f, name: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Email Address</label>
+                                    <input type="email" value={editForm.email} onChange={e => setEditForm(f=>({...f, email: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Join Date</label>
+                                    <input type="date" value={editForm.joinDate} onChange={e => setEditForm(f=>({...f, joinDate: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Department</label>
+                                    <select required value={editForm.department} onChange={e => setEditForm(f=>({...f, department: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                                        {['Engineering','Product','Sales','Marketing','HR','Finance','Operations','Design'].map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position / Role</label>
+                                    <input required type="text" value={editForm.position} onChange={e => setEditForm(f=>({...f, position: e.target.value}))} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Employment Status</label>
+                                <div className="flex gap-3">
+                                    {['active', 'onboarding', 'terminated'].map(s => (
+                                        <button key={s} type="button" onClick={() => setEditForm(f=>({...f, status: s}))} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${editForm.status === s ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-400 border-gray-100 hover:bg-white'}`}>{s}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-500 rounded-xl text-[12px] font-bold uppercase tracking-widest active:scale-90 transition-all">Discard</button>
+                                <button type="submit" disabled={editLoading} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[12px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                                    {editLoading ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />}
+                                    {editLoading ? 'Saving...' : 'Update Member'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

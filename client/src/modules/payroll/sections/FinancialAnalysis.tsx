@@ -72,9 +72,11 @@ const FinancialAnalysis: React.FC = () => {
         })();
     }, []);
 
-    const totalEmployees  = employees.length;
-    const totalPayroll    = summary.netOutflow || 0;
-    const avgSalary       = totalEmployees > 0 ? totalPayroll / totalEmployees : 0;
+    const enrolledEmployees = employees.filter(e => e.hasProfile).length;
+    const totalEmployees    = employees.length;
+    const totalPayroll      = Number(summary.netOutflow) || 0;
+    const avgSalary         = enrolledEmployees > 0 ? totalPayroll / enrolledEmployees : 0;
+
 
     const departments = ['Engineering', 'Sales', 'HR', 'Marketing', 'Finance', 'Operations'];
     const deptDist = departments.map(name => ({
@@ -109,13 +111,14 @@ const FinancialAnalysis: React.FC = () => {
                 </div>
             )}
 
-            {/* ── Stat cards ─────────────────────────────── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <Stat label="Net Payroll Outflow"    value={inr(summary.netOutflow)}    sub={`${totalEmployees} recipients`} icon={IndianRupee} iconBg="bg-blue-50"   iconColor="text-blue-600"   up={true} />
-                <Stat label="Active Profiles"         value={String(totalEmployees)}     sub="Payroll enrolled"               icon={Users}       iconBg="bg-purple-50" iconColor="text-purple-600" up={true} />
-                <Stat label="Government Payables"     value={inr(summary.govtPayables)}  sub="Tax & PF obligations"           icon={ShieldCheck} iconBg="bg-emerald-50"iconColor="text-emerald-600"up={true} />
+                <Stat label="Net Payroll Outflow"    value={inr(Number(summary.netOutflow) || 0)}    sub={`${enrolledEmployees} recipients`} icon={IndianRupee} iconBg="bg-blue-50"   iconColor="text-blue-600"   up={true} />
+                <Stat label="Enrolled Profiles"       value={String(enrolledEmployees)}  sub={`of ${totalEmployees} total`}          icon={Users}       iconBg="bg-purple-50" iconColor="text-purple-600" up={true} />
+                <Stat label="Government Payables"     value={inr(Number(summary.govtPayables) || 0)}  sub="Tax & PF obligations"           icon={ShieldCheck} iconBg="bg-emerald-50"iconColor="text-emerald-600"up={true} />
                 <Stat label="Pending Approvals"       value={String(pendingCount)}        sub={pendingCount > 0 ? 'Action required' : 'All clear'} icon={Clock} iconBg="bg-amber-50" iconColor="text-amber-600" up={pendingCount > 0} />
             </div>
+
+
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 

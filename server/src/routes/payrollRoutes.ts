@@ -7,14 +7,21 @@ import {
     getPendingApprovals,
     getLiveSummary,
     getPayrollDeadlines,
-    getTaxSummary
+    getTaxSummary,
+    processPayroll
 } from '../controllers/payrollController';
 import { pool } from '../config/db';
+import { generatePayslipPDF, getPayslipPDFBuffer } from '../utils/pdfGenerator';
+import AdmZip from 'adm-zip';
 
 const router = express.Router();
 
 router.get('/employees', getPayrollEmployees);
-router.post('/profiles', updatePayrollProfile); 
+router.post('/profiles', async (req, res) => {
+    // Proxy to updatePayrollProfile, setting id from body
+    (req.params as any).id = req.body.employee_id || req.body.id;
+    return updatePayrollProfile(req, res);
+});
 router.put('/employees/:id', updatePayrollProfile);
 
 router.get('/activity', getPayrollActivity);
@@ -35,23 +42,93 @@ router.get('/history/:empId', async (req, res) => {
 router.get('/payslip/:empId/monthly', async (req, res) => {
     const { empId } = req.params;
     const { month, year } = req.query;
-    res.status(200).send("Payslip download logic not fully implemented in mock/backend yet, but route is ready.");
-});
-router.post('/generate', async (req, res) => {
-    const { month, year } = req.body;
+    
     try {
-        // Mock generation logic: Insert into history for all employees with profiles
-        await pool.query(`
-            INSERT INTO payroll_history (employee_id, name, month, year, net_salary, status)
-            SELECT employee_id, name, $1, $2, (basic_salary + hra + allowances), 'paid'
-            FROM payroll_profiles
-            ON CONFLICT DO NOTHING
-        `, [month, year]);
-        res.json({ success: true, message: 'Payroll generated successfully for ' + month + '/' + year });
+        const empResult = await pool.query('SELECT * FROM employees WHERE id = $1', [empId]);
+        const payResult = await pool.query(
+            'SELECT * FROM payroll_entries WHERE employee_id = $1 AND month = $2 AND year = $3 LIMIT 1',
+            [empId, String(month), String(year)]
+        );
+
+        if (empResult.rows.length === 0 || payResult.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Payroll record not found for this period.' });
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Payslip_${empId}_${month}_${year}.pdf`);
+        
+        generatePayslipPDF(empResult.rows[0], payResult.rows[0], res);
     } catch (err: any) {
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: 'PDF Generation failed: ' + err.message });
     }
 });
+
+router.get('/documents/bulk-payslips', async (req, res) => {
+    const { month, year } = req.query;
+    
+    try {
+        const payEntries = await pool.query(
+            'SELECT pe.*, e.name, e.department FROM payroll_entries pe JOIN employees e ON pe.employee_id = e.id WHERE pe.month = $1 AND pe.year = $2',
+            [String(month), String(year)]
+        );
+
+        if (payEntries.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'No payroll records found for this period.' });
+        }
+
+        const zip = new AdmZip();
+        
+        for (const entry of payEntries.rows) {
+            const pdfBuffer = await getPayslipPDFBuffer(
+                { id: entry.employee_id, name: entry.name, department: entry.department },
+                entry
+            );
+            const fileName = `${entry.name.replace(/\s+/g, '_')}_${month}_${year}_Payslip.pdf`;
+            zip.addFile(fileName, pdfBuffer);
+        }
+
+        const zipBuffer = zip.toBuffer();
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename=Bulk_Payslips_${month}_${year}.zip`);
+        res.send(zipBuffer);
+    } catch (err: any) {
+        console.error("Bulk Export Error:", err);
+        res.status(500).json({ success: false, message: 'Bulk Export failed: ' + err.message });
+    }
+});
+
+router.get('/payslip/:empId/yearly', async (req, res) => {
+    const { empId } = req.params;
+    const { year } = req.query;
+    
+    try {
+        const empResult = await pool.query('SELECT * FROM employees WHERE id = $1', [empId]);
+        const payEntries = await pool.query(
+            'SELECT * FROM payroll_entries WHERE employee_id = $1 AND year = $2',
+            [empId, String(year)]
+        );
+
+        if (payEntries.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'No payroll records found for this year.' });
+        }
+
+        const zip = new AdmZip();
+        for (const entry of payEntries.rows) {
+            const pdfBuffer = await getPayslipPDFBuffer(empResult.rows[0], entry);
+            const fileName = `Payslip_${entry.month}_${year}.pdf`;
+            zip.addFile(fileName, pdfBuffer);
+        }
+
+        const zipBuffer = zip.toBuffer();
+        res.setHeader('Content-Type', 'application/zip');
+        res.send(zipBuffer);
+    } catch (err: any) {
+        res.status(500).json({ success: false, message: 'Yearly export failed.' });
+    }
+});
+
+router.post('/run', processPayroll);
+
 router.get('/runs', getPayrollRuns);
 
 export default router;

@@ -17,7 +17,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Search,
-    Filter
+    Filter,
+    Loader2
 } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
@@ -59,6 +60,8 @@ const Attendance: React.FC = () => {
     const [actionLoading,  setActionLoading]    = useState(false);
 
     const now   = new Date();
+    const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
+    const [viewYear, setViewYear]   = useState(now.getFullYear());
     const month = now.getMonth() + 1;
     const year  = now.getFullYear();
 
@@ -69,7 +72,7 @@ const Attendance: React.FC = () => {
     };
 
     const fetchHistory = async () => {
-        const { data } = await api.get('/attendance/history', { params: { userId, month, year } });
+        const { data } = await api.get('/attendance/history', { params: { userId, month: viewMonth, year: viewYear } });
         setHistory(data.items || []);
     };
 
@@ -87,6 +90,7 @@ const Attendance: React.FC = () => {
     };
 
     useEffect(() => { loadAll(); }, [userId]);
+    useEffect(() => { fetchHistory(); }, [viewMonth, viewYear, userId]);
 
     useEffect(() => {
         if (attendance?.status !== 'IN' || !attendance?.checkInTime) { setElapsed(0); return; }
@@ -127,12 +131,12 @@ const Attendance: React.FC = () => {
     };
 
     const calDays = (() => {
-        const total = new Date(year, month, 0).getDate();
+        const total = new Date(viewYear, viewMonth, 0).getDate();
         const records: Record<number, string> = {};
         history.forEach(r => { records[new Date(r.check_in).getDate()] = r.status; });
         return Array.from({ length: total }, (_, i) => {
             const d = i + 1;
-            const weekday = new Date(year, month - 1, d).getDay();
+            const weekday = new Date(viewYear, viewMonth - 1, d).getDay();
             return { day: d, status: (weekday === 0 || weekday === 6) ? 'weekend' : records[d] || 'absent' };
         });
     })();
@@ -149,7 +153,7 @@ const Attendance: React.FC = () => {
         </div>
     );
 
-    const monthLabel = new Date(year, month-1).toLocaleString('default', { month: 'long', year: 'numeric' });
+    const monthLabel = new Date(viewYear, viewMonth-1).toLocaleString('default', { month: 'long', year: 'numeric' });
 
     return (
         <div className="p-6 space-y-8 page-enter">
@@ -299,8 +303,22 @@ const Attendance: React.FC = () => {
                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{monthLabel}</p>
                         </div>
                         <div className="flex gap-2">
-                            <button className="p-2 bg-gray-50 rounded-xl text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 transition-all"><ChevronLeft size={16}/></button>
-                            <button className="p-2 bg-gray-50 rounded-xl text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 transition-all"><ChevronRight size={16}/></button>
+                            <button
+                                onClick={() => {
+                                    const d = new Date(viewYear, viewMonth - 2, 1);
+                                    setViewMonth(d.getMonth() + 1);
+                                    setViewYear(d.getFullYear());
+                                }}
+                                className="p-2 bg-gray-50 rounded-xl text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 transition-all"
+                            ><ChevronLeft size={16}/></button>
+                            <button
+                                onClick={() => {
+                                    const d = new Date(viewYear, viewMonth, 1);
+                                    setViewMonth(d.getMonth() + 1);
+                                    setViewYear(d.getFullYear());
+                                }}
+                                className="p-2 bg-gray-50 rounded-xl text-gray-400 hover:text-gray-900 border border-transparent hover:border-gray-200 transition-all"
+                            ><ChevronRight size={16}/></button>
                         </div>
                     </div>
 
@@ -308,7 +326,7 @@ const Attendance: React.FC = () => {
                         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
                             <div key={d} className="text-center text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] pb-4">{d}</div>
                         ))}
-                        {Array.from({ length: new Date(year, month-1, 1).getDay() }).map((_,i) => <div key={i}></div>)}
+                        {Array.from({ length: new Date(viewYear, viewMonth-1, 1).getDay() }).map((_,i) => <div key={i}></div>)}
                         {calDays.map(d => (
                             <div
                                 key={d.day}

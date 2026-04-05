@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuthStore } from "../../../store/authStore";
+import api from "../../../services/api";
 
 const PersonalInfo: React.FC = () => {
 
@@ -42,27 +43,13 @@ const PersonalInfo: React.FC = () => {
 
     try {
 
-      const res = await fetch(
-        "http://localhost:4000/api/v1/users/profile",
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            id: user?.id,
-            ...form
-          })
-        }
-      );
+      const { data } = await api.put("/users/profile", {
+        id: user?.id,
+        ...form
+      });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message);
-      }
-
-      setAuth(data.user, localStorage.getItem("token") || "");
+      // Update the store with the updated user, preserving the current token
+      setAuth(data.user, useAuthStore.getState().accessToken || '');
 
       alert("Profile updated successfully");
 
@@ -70,7 +57,7 @@ const PersonalInfo: React.FC = () => {
 
     } catch (error: any) {
 
-      alert(error.message || "Failed to update profile");
+      alert(error.response?.data?.message || error.message || "Failed to update profile");
 
     }
 

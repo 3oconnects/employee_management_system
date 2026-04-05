@@ -94,3 +94,37 @@ export const approveTimesheet = async (req: Request, res: Response) => {
         res.status(500).json({ error: err.message });
     }
 };
+export const getTimesheetHistory = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) return res.status(400).json({ error: 'userId required.' });
+        const result = await query(
+            `SELECT t.*, json_agg(te.* ORDER BY te.created_at) FILTER (WHERE te.id IS NOT NULL) AS entries
+             FROM timesheets t
+             LEFT JOIN timesheet_entries te ON te.timesheet_id = t.id
+             WHERE t.user_id = $1
+             GROUP BY t.id
+             ORDER BY t.week_start DESC
+             LIMIT 20`,
+            [userId]
+        );
+        res.json({ items: result.rows, total: result.rowCount });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getPendingTimesheets = async (req: Request, res: Response) => {
+    try {
+        const result = await query(
+            `SELECT t.*, u.name as applicant_name, u.email as applicant_email
+             FROM timesheets t
+             JOIN users u ON u.id = t.user_id
+             WHERE t.status = 'submitted'
+             ORDER BY t.updated_at DESC`
+        );
+        res.json({ items: result.rows, total: result.rowCount });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};

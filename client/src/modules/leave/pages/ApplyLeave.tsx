@@ -19,8 +19,9 @@ const leaveSchema = z.object({
 type LeaveForm = z.infer<typeof leaveSchema>;
 
 /* ─── Types ─────────────────────────────────────────────── */
-interface LeaveType    { id: string; name: string; }
+interface LeaveType    { id: string; name: string; annual_quota: number; }
 interface LeaveRequest { id: string; leave_type_name: string; start_date: string; end_date: string; reason: string; status: string; }
+interface LeaveBalance  { leave_type_id: string; name: string; annual_quota: number; used: number; available: number; }
 
 /* ─── Status helpers ─────────────────────────────────────── */
 const statusMeta: Record<string, { label: string; bg: string; text: string; icon: React.ElementType }> = {
@@ -48,6 +49,7 @@ const ApplyLeave: React.FC = () => {
     const { user } = useAuthStore();
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
     const [requests,   setRequests]   = useState<LeaveRequest[]>([]);
+    const [balances,   setBalances]   = useState<LeaveBalance[]>([]);
     const [activeTab,  setActiveTab]  = useState<'apply' | 'requests'>('apply');
     const [success,    setSuccess]    = useState(false);
 
@@ -55,7 +57,7 @@ const ApplyLeave: React.FC = () => {
         useForm<LeaveForm>({ resolver: zodResolver(leaveSchema) });
 
     const fetchLeaveTypes = async () => {
-        const { data } = await api.get('/leave-types');
+        const { data } = await api.get('/leave/types');
         setLeaveTypes(data.items || []);
     };
     const fetchRequests = async () => {
@@ -63,9 +65,17 @@ const ApplyLeave: React.FC = () => {
         const { data } = await api.get('/leave/requests', { params: { userId: user.id } });
         setRequests(data.items || []);
     };
+    const fetchBalances = async () => {
+        if (!user?.id) return;
+        try {
+            const { data } = await api.get('/leave/balance', { params: { userId: user.id } });
+            setBalances(data.balances || []);
+        } catch { /* ignore */ }
+    };
 
     useEffect(() => {
         fetchLeaveTypes();
+        fetchBalances();
         if (user?.id) fetchRequests();
     }, [user?.id]);
 
@@ -82,6 +92,7 @@ const ApplyLeave: React.FC = () => {
             setSuccess(true);
             reset();
             fetchRequests();
+            fetchBalances();
             setTimeout(() => setSuccess(false), 4000);
         } catch {
             alert('Failed to submit leave application.');
@@ -95,10 +106,30 @@ const ApplyLeave: React.FC = () => {
 
             {/* ── Leave balance strip ───────────────────────── */}
             <div className="grid grid-cols-3 gap-4">
-                {[
-                    { label: 'Casual Leave',  used: 3,  total: 12, color: 'text-blue-600',   bar: 'bg-blue-500',    bg: 'bg-blue-50' },
-                    { label: 'Sick Leave',    used: 1,  total: 10, color: 'text-rose-600',   bar: 'bg-rose-400',    bg: 'bg-rose-50' },
-                    { label: 'Earned Leave',  used: 0,  total: 15, color: 'text-emerald-600',bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
+                {balances.length > 0 ? balances.map(b => {
+                    const colorMap: Record<string, {color: string; bar: string; bg: string}> = {
+                        'Casual Leave':  { color: 'text-blue-600',    bar: 'bg-blue-500',    bg: 'bg-blue-50' },
+                        'Sick Leave':    { color: 'text-rose-600',    bar: 'bg-rose-400',    bg: 'bg-rose-50' },
+                        'Earned Leave':  { color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
+                    };
+                    const style = colorMap[b.name] || { color: 'text-indigo-600', bar: 'bg-indigo-500', bg: 'bg-indigo-50' };
+                    return (
+                        <div key={b.leave_type_id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 card-hover">
+                            <div className="flex items-end justify-between mb-1">
+                                <p className="text-[11.5px] font-semibold text-gray-500">{b.name}</p>
+                                <span className={`text-[10.5px] font-bold ${style.color}`}>{b.used}/{b.annual_quota} used</span>
+                            </div>
+                            <p className={`text-[30px] font-bold ${style.color} leading-none mb-2`}>{b.available}</p>
+                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className={`h-full ${style.bar} rounded-full transition-all`} style={{ width: `${b.annual_quota > 0 ? (b.used/b.annual_quota)*100 : 0}%` }}></div>
+                            </div>
+                            <p className="text-[10.5px] text-gray-400 mt-1.5">days remaining</p>
+                        </div>
+                    );
+                }) : [
+                    { label: 'Casual Leave',  used: 0, total: 12, color: 'text-blue-600',   bar: 'bg-blue-500',    bg: 'bg-blue-50' },
+                    { label: 'Sick Leave',    used: 0, total: 10, color: 'text-rose-600',   bar: 'bg-rose-400',    bg: 'bg-rose-50' },
+                    { label: 'Earned Leave',  used: 0, total: 15, color: 'text-emerald-600',bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
                 ].map(l => (
                     <div key={l.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 card-hover">
                         <div className="flex items-end justify-between mb-1">

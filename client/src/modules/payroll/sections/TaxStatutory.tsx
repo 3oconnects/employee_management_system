@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import api from '../../../services/api';
 
-const inrStr = (v: number) => `₹${Math.round(v).toLocaleString('en-IN')}`;
+const inrStr = (v: number) => `₹${Math.round(Number(v) || 0).toLocaleString('en-IN')}`;
+
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 

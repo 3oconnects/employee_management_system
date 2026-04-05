@@ -200,7 +200,8 @@ const EmployeePayroll = () => {
                                         <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
                                             {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(p.month) - 1]} {p.year}
                                         </p>
-                                        <p className="text-[20px] font-black text-gray-900 tracking-tight mt-1">₹{p.net_salary.toLocaleString()}</p>
+                                        <p className="text-[20px] font-black text-gray-900 tracking-tight mt-1">₹{(Number(p.net_salary) || 0).toLocaleString()}</p>
+
                                     </div>
                                     <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
                                         <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">ID: {p.id}</span>

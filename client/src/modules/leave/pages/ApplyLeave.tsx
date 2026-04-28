@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarDays, ClipboardList, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
+import { CalendarDays, ClipboardList, Plus, X } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
+import { LeaveBalances } from '../components/LeaveBalances';
+import { LeaveForm } from '../components/LeaveForm';
+import { LeaveRequests } from '../components/LeaveRequests';
 
 /* ─── Schema ─────────────────────────────────────────────── */
 const leaveSchema = z.object({
@@ -16,45 +20,20 @@ const leaveSchema = z.object({
     message: 'End date cannot be before start date',
     path: ['endDate'],
 });
-type LeaveForm = z.infer<typeof leaveSchema>;
-
-/* ─── Types ─────────────────────────────────────────────── */
-interface LeaveType    { id: string; name: string; annual_quota: number; }
-interface LeaveRequest { id: string; leave_type_name: string; start_date: string; end_date: string; reason: string; status: string; }
-interface LeaveBalance  { leave_type_id: string; name: string; annual_quota: number; used: number; available: number; }
-
-/* ─── Status helpers ─────────────────────────────────────── */
-const statusMeta: Record<string, { label: string; bg: string; text: string; icon: React.ElementType }> = {
-    pending:  { label: 'Pending',  bg: 'bg-amber-50',   text: 'text-amber-600',  icon: Clock },
-    approved: { label: 'Approved', bg: 'bg-emerald-50', text: 'text-emerald-600',icon: CheckCircle },
-    rejected: { label: 'Rejected', bg: 'bg-rose-50',    text: 'text-rose-600',   icon: XCircle },
-};
-function getStatus(s: string) {
-    return statusMeta[s] ?? { label: s, bg: 'bg-gray-50', text: 'text-gray-500', icon: AlertCircle };
-}
-
-/* ─── Form field wrapper ─────────────────────────────────── */
-const Field: React.FC<{ label: string; error?: string; required?: boolean; children: React.ReactNode }> = ({ label, error, required, children }) => (
-    <div className="space-y-1.5">
-        <label className="block text-[12px] font-semibold text-gray-600">
-            {label} {required && <span className="text-rose-400">*</span>}
-        </label>
-        {children}
-        {error && <p className="text-[11px] text-rose-500 font-medium">{error}</p>}
-    </div>
-);
+type LeaveFormData = z.infer<typeof leaveSchema>;
 
 /* ─── Page ───────────────────────────────────────────────── */
 const ApplyLeave: React.FC = () => {
     const { user } = useAuthStore();
-    const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
-    const [requests,   setRequests]   = useState<LeaveRequest[]>([]);
-    const [balances,   setBalances]   = useState<LeaveBalance[]>([]);
-    const [activeTab,  setActiveTab]  = useState<'apply' | 'requests'>('apply');
+    const [leaveTypes, setLeaveTypes] = useState<any[]>([]);
+    const [requests,   setRequests]   = useState<any[]>([]);
+    const [balances,   setBalances]   = useState<any[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [success,    setSuccess]    = useState(false);
+    const [editingId,  setEditingId]  = useState<string | null>(null);
 
-    const { register, handleSubmit, formState: { errors, isSubmitting }, reset } =
-        useForm<LeaveForm>({ resolver: zodResolver(leaveSchema) });
+    const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } =
+        useForm<LeaveFormData>({ resolver: zodResolver(leaveSchema) });
 
     const fetchLeaveTypes = async () => {
         const { data } = await api.get('/leave/types');
@@ -62,8 +41,12 @@ const ApplyLeave: React.FC = () => {
     };
     const fetchRequests = async () => {
         if (!user?.id) return;
-        const { data } = await api.get('/leave/requests', { params: { userId: user.id } });
-        setRequests(data.items || []);
+        try {
+            const { data } = await api.get('/leave/requests', { params: { userId: user.id } });
+            setRequests(data.items || []);
+        } catch (err) {
+            console.error("ApplyLeave: Error fetching requests:", err);
+        }
     };
     const fetchBalances = async () => {
         if (!user?.id) return;
@@ -79,209 +62,142 @@ const ApplyLeave: React.FC = () => {
         if (user?.id) fetchRequests();
     }, [user?.id]);
 
-    const onSubmit = async (data: LeaveForm) => {
-        if (!user?.id) return;
+    const handleOpenModal = () => {
+        setEditingId(null);
+        reset({ leave_type_id: '', startDate: '', endDate: '', reason: '' });
+        setIsModalOpen(true);
+    };
+
+    const handleEdit = (req: any) => {
+        setEditingId(req.id);
+        reset({
+            leave_type_id: req.leave_type_id?.toString() || '',
+            startDate: req.start_date ? new Date(req.start_date).toISOString().split('T')[0] : '',
+            endDate: req.end_date ? new Date(req.end_date).toISOString().split('T')[0] : '',
+            reason: req.reason || '',
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleCancel = async (id: string) => {
+        if (!window.confirm('Are you sure you want to cancel this leave request?')) return;
         try {
-            await api.post('/leave/apply', {
-                userId: user.id,
-                leave_type_id: data.leave_type_id,
-                start_date: data.startDate,
-                end_date: data.endDate,
-                reason: data.reason,
-            });
-            setSuccess(true);
-            reset();
+            await api.delete(`/leave/requests/${id}`);
             fetchRequests();
             fetchBalances();
-            setTimeout(() => setSuccess(false), 4000);
-        } catch {
-            alert('Failed to submit leave application.');
+        } catch (err) {
+            console.error(err);
         }
     };
 
-    const inputCls = "w-full text-[13px] text-gray-800 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none placeholder-gray-300 focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all";
+    const onSubmit = async (data: LeaveFormData) => {
+        if (!user?.id) return;
+        try {
+            if (editingId) {
+                await api.put(`/leave/requests/${editingId}`, {
+                    ...data,
+                    start_date: data.startDate,
+                    end_date: data.endDate,
+                });
+            } else {
+                await api.post('/leave/apply', {
+                    userId: user.id,
+                    leave_type_id: data.leave_type_id,
+                    start_date: data.startDate,
+                    end_date: data.endDate,
+                    reason: data.reason,
+                });
+            }
+            setSuccess(true);
+            fetchRequests();
+            fetchBalances();
+            setTimeout(() => {
+                setSuccess(false);
+                setIsModalOpen(false);
+                setEditingId(null);
+            }, 1500);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     return (
-        <div className="p-6 space-y-5 page-enter">
+        <div className="p-6 space-y-8 page-enter max-w-[1600px] mx-auto">
 
-            {/* ── Leave balance strip ───────────────────────── */}
-            <div className="grid grid-cols-3 gap-4">
-                {balances.length > 0 ? balances.map(b => {
-                    const colorMap: Record<string, {color: string; bar: string; bg: string}> = {
-                        'Casual Leave':  { color: 'text-blue-600',    bar: 'bg-blue-500',    bg: 'bg-blue-50' },
-                        'Sick Leave':    { color: 'text-rose-600',    bar: 'bg-rose-400',    bg: 'bg-rose-50' },
-                        'Earned Leave':  { color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
-                    };
-                    const style = colorMap[b.name] || { color: 'text-indigo-600', bar: 'bg-indigo-500', bg: 'bg-indigo-50' };
-                    return (
-                        <div key={b.leave_type_id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 card-hover">
-                            <div className="flex items-end justify-between mb-1">
-                                <p className="text-[11.5px] font-semibold text-gray-500">{b.name}</p>
-                                <span className={`text-[10.5px] font-bold ${style.color}`}>{b.used}/{b.annual_quota} used</span>
-                            </div>
-                            <p className={`text-[30px] font-bold ${style.color} leading-none mb-2`}>{b.available}</p>
-                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                <div className={`h-full ${style.bar} rounded-full transition-all`} style={{ width: `${b.annual_quota > 0 ? (b.used/b.annual_quota)*100 : 0}%` }}></div>
-                            </div>
-                            <p className="text-[10.5px] text-gray-400 mt-1.5">days remaining</p>
-                        </div>
-                    );
-                }) : [
-                    { label: 'Casual Leave',  used: 0, total: 12, color: 'text-blue-600',   bar: 'bg-blue-500',    bg: 'bg-blue-50' },
-                    { label: 'Sick Leave',    used: 0, total: 10, color: 'text-rose-600',   bar: 'bg-rose-400',    bg: 'bg-rose-50' },
-                    { label: 'Earned Leave',  used: 0, total: 15, color: 'text-emerald-600',bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
-                ].map(l => (
-                    <div key={l.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 card-hover">
-                        <div className="flex items-end justify-between mb-1">
-                            <p className="text-[11.5px] font-semibold text-gray-500">{l.label}</p>
-                            <span className={`text-[10.5px] font-bold ${l.color}`}>{l.used}/{l.total} used</span>
-                        </div>
-                        <p className={`text-[30px] font-bold ${l.color} leading-none mb-2`}>{l.total - l.used}</p>
-                        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-full ${l.bar} rounded-full transition-all`} style={{ width: `${(l.used/l.total)*100}%` }}></div>
-                        </div>
-                        <p className="text-[10.5px] text-gray-400 mt-1.5">days remaining</p>
+            {/* ── Page Header ──────────────────────────────── */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
+                        <CalendarDays size={20} className="text-white" />
                     </div>
-                ))}
-            </div>
+                    <div>
+                        <h2 className="text-xl font-black text-[#0F172A] tracking-tight">Time-Off Ecosystem</h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">
+                            Operational Absence Management
+                        </p>
+                    </div>
+                </div>
 
-            {/* ── Tabs ─────────────────────────────────────── */}
-            <div className="flex items-center gap-1 border-b border-gray-100">
                 <button
-                    onClick={() => setActiveTab('apply')}
-                    className={`flex items-center gap-2 px-4 py-3 text-[13px] font-semibold border-b-2 transition-all ${activeTab === 'apply' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                    onClick={handleOpenModal}
+                    className="flex items-center gap-2.5 px-6 py-3 bg-indigo-600 text-white rounded-xl text-[12px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all active:scale-95"
                 >
-                    <CalendarDays size={14} /> Apply Leave
-                </button>
-                <button
-                    onClick={() => setActiveTab('requests')}
-                    className={`flex items-center gap-2 px-4 py-3 text-[13px] font-semibold border-b-2 transition-all ${activeTab === 'requests' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
-                >
-                    <ClipboardList size={14} /> My Requests
-                    {requests.filter(r => r.status === 'pending').length > 0 && (
-                        <span className="w-4 h-4 bg-amber-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
-                            {requests.filter(r => r.status === 'pending').length}
-                        </span>
-                    )}
+                    <Plus size={16} /> Request Absence
                 </button>
             </div>
 
-            {/* ── Apply Form ───────────────────────────────── */}
-            {activeTab === 'apply' && (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-                        <div>
-                            <h2 className="text-[14px] font-bold text-gray-900">Apply for Leave</h2>
-                            <p className="text-[11.5px] text-gray-400 mt-0.5">Fill in the details below and submit for approval.</p>
-                        </div>
-                    </div>
+            {/* ── Quota Balances ───────────────────────────── */}
+            <LeaveBalances balances={balances} />
 
-                    {success && (
-                        <div className="mx-6 mt-4 flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                            <CheckCircle size={16} className="text-emerald-500" />
-                            <p className="text-[13px] font-semibold text-emerald-700">Leave application submitted successfully!</p>
-                        </div>
-                    )}
+            {/* ── Default View: Audit History ──────────────── */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2.5 px-1">
+                    <ClipboardList size={16} className="text-indigo-600" />
+                    <h3 className="text-[12px] font-black text-[#0F172A] uppercase tracking-[0.15em]">Absence Audit History</h3>
+                </div>
+                <LeaveRequests requests={requests} onEdit={handleEdit} onCancel={handleCancel} />
+            </div>
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5">
-                        <Field label="Leave Type" error={errors.leave_type_id?.message} required>
-                            <select {...register('leave_type_id')} className={inputCls}>
-                                <option value="">Select leave type…</option>
-                                {leaveTypes.map(lt => (
-                                    <option key={lt.id} value={lt.id}>{lt.name}</option>
-                                ))}
-                            </select>
-                        </Field>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <Field label="Start Date" error={errors.startDate?.message} required>
-                                <input type="date" {...register('startDate')} className={inputCls} />
-                            </Field>
-                            <Field label="End Date" error={errors.endDate?.message} required>
-                                <input type="date" {...register('endDate')} className={inputCls} />
-                            </Field>
-                        </div>
-
-                        <Field label="Reason" error={errors.reason?.message} required>
-                            <textarea
-                                rows={4}
-                                {...register('reason')}
-                                placeholder="Briefly describe the reason for your leave…"
-                                className={`${inputCls} resize-none`}
-                            />
-                        </Field>
-
-                        <div className="flex items-center gap-3 pt-1">
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-[13.5px] font-semibold rounded-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm shadow-blue-200"
+            {/* ── Request Modal (via Portal) ────────────────── */}
+            {isModalOpen && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                    <div 
+                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+                        onClick={() => setIsModalOpen(false)}
+                    />
+                    
+                    <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 ring-1 ring-slate-200/50">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-[16px] font-black text-[#0F172A] tracking-tight">
+                                    {editingId ? 'Revise Application' : 'Time-Off Application'}
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5">
+                                    {editingId ? 'Modify existing entry' : 'New Leave Submission'}
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => setIsModalOpen(false)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
                             >
-                                {isSubmitting && <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>}
-                                {isSubmitting ? 'Submitting…' : 'Submit Application'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => reset()}
-                                className="px-5 py-2.5 rounded-xl text-[13.5px] font-semibold text-gray-500 hover:bg-gray-100 transition-colors"
-                            >
-                                Reset
+                                <X size={18} />
                             </button>
                         </div>
-                    </form>
-                </div>
-            )}
 
-            {/* ── Requests Table ───────────────────────────── */}
-            {activeTab === 'requests' && (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-50">
-                        <h2 className="text-[14px] font-bold text-gray-900">My Leave Requests</h2>
-                        <p className="text-[11.5px] text-gray-400 mt-0.5">All your submitted leave applications and their status.</p>
+                        <div className="p-6 max-h-[85vh] overflow-y-auto no-scrollbar">
+                            <form onSubmit={handleSubmit(onSubmit)}>
+                                <LeaveForm 
+                                    register={register}
+                                    errors={errors}
+                                    isSubmitting={isSubmitting}
+                                    leaveTypes={leaveTypes}
+                                    success={success}
+                                />
+                            </form>
+                        </div>
                     </div>
-
-                    {requests.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-gray-300">
-                            <CalendarDays size={40} className="mb-3 opacity-40" />
-                            <p className="text-[13px] font-semibold text-gray-500">No requests yet</p>
-                            <p className="text-[11.5px] text-gray-400 mt-1">Apply for leave to see your history here.</p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-[13px]">
-                                <thead>
-                                    <tr className="border-b border-gray-100 bg-gray-50">
-                                        <th className="px-5 py-3 text-left text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider">Leave Type</th>
-                                        <th className="px-5 py-3 text-left text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider">Start</th>
-                                        <th className="px-5 py-3 text-left text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider">End</th>
-                                        <th className="px-5 py-3 text-left text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider">Reason</th>
-                                        <th className="px-5 py-3 text-left text-[10.5px] font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {requests.map(r => {
-                                        const s = getStatus(r.status);
-                                        const Icon = s.icon;
-                                        return (
-                                            <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                                <td className="px-5 py-3.5 font-semibold text-gray-800">{r.leave_type_name}</td>
-                                                <td className="px-5 py-3.5 text-gray-500">{new Date(r.start_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</td>
-                                                <td className="px-5 py-3.5 text-gray-500">{new Date(r.end_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</td>
-                                                <td className="px-5 py-3.5 text-gray-500 max-w-[200px] truncate">{r.reason}</td>
-                                                <td className="px-5 py-3.5">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-semibold ${s.bg} ${s.text}`}>
-                                                        <Icon size={10} />
-                                                        {s.label}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

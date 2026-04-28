@@ -49,9 +49,9 @@ export const getLeaveRequests = async (req: Request, res: Response) => {
         const params: any[] = [];
         let i = 1;
 
-        if (userId) { sql += ` AND lr.user_id = $${i++}`; params.push(userId); }
+        if (userId) { sql += ` AND lr.user_id = $${i++}::int`; params.push(userId); }
         if (status) { sql += ` AND lr.status = $${i++}`; params.push(status); }
-        if (leave_type_id) { sql += ` AND lr.leave_type_id = $${i++}`; params.push(leave_type_id); }
+        if (leave_type_id) { sql += ` AND lr.leave_type_id = $${i++}::int`; params.push(leave_type_id); }
 
         sql += ` ORDER BY lr.created_at DESC`;
         const result = await query(sql, params);

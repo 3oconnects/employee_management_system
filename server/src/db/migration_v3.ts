@@ -13,7 +13,7 @@
 //   9. attendance_anomalies (late check-ins, missing entries)
 // ============================================================================
 
-import { query } from './connection';
+import { migrationQuery as query } from './connection';
 
 const MIGRATION_V3 = `
 

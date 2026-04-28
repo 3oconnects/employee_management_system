@@ -1,707 +1,397 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    LogIn, LogOut as LogOutIcon, CheckCircle, CalendarDays, Users, FileText,
-    ClipboardList, Bell, TrendingUp, TrendingDown, AlertCircle, Sun, Moon, Sunset,
-    ArrowUpRight, ArrowDownRight, Clock, UserCircle, Shield, Loader2, ChevronRight,
-    Activity, CreditCard, DollarSign, UserPlus, BarChart2, Building2, Inbox, Timer,
-    UserMinus, AlertTriangle, Briefcase, Target, Eye, MapPin, Coffee
+    Sun, Moon, Sunset, Shield, Loader2, LogIn,
+    LogOut as LogOutIcon, CheckCircle2, AlertCircle,
+    RefreshCw, Zap, Clock, BadgeCheck, ChevronDown, Coffee,
+    Utensils, Briefcase, BellOff, WifiOff, Wifi, Building2
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
+import { AdminDashboard }    from '../components/AdminDashboard';
+import { ManagerDashboard }  from '../components/ManagerDashboard';
+import { EmployeeDashboard } from '../components/EmployeeDashboard';
+import MySpaceProfile        from '../components/MySpaceProfile';
+import { OrgSubNav }         from '../components/OrgSubNav';
+import type { OrgSection }   from '../components/OrgSubNav';
 
-// ============================================================================
-// ZOHO-LEVEL ROLE-BASED DASHBOARD — FULL ANALYTICS
-// ============================================================================
+/* ── Org section widgets ── */
+import AnnouncementsWidget   from '../components/widgets/AnnouncementsWidget';
+import PoliciesWidget        from '../components/widgets/PoliciesWidget';
+import EmployeeTreeWidget    from '../components/widgets/EmployeeTreeWidget';
+import DeptTreeWidget        from '../components/widgets/DeptTreeWidget';
+import DeptDirectoryWidget   from '../components/widgets/DeptDirectoryWidget';
+import BirthdayWidget        from '../components/widgets/BirthdayWidget';
+import NewHiresWidget        from '../components/widgets/NewHiresWidget';
+import OrgCalendarWidget     from '../components/widgets/OrgCalendarWidget';
 
-/* ─── Types ─────────────────────────────────────────────── */
-interface AdminStats {
-    totalEmployees: number; activeEmployees: number; inactiveEmployees: number;
-    newHiresThisMonth: number; exitedThisMonth: number;
-    totalPayrollCost: number; avgSalary: number;
-    pendingLeaves: number; pendingTimesheets: number; pendingApprovals?: number;
-    todayPresent: number; onLeaveToday: number; avgAttendanceRate: number;
-    attritionRate: number; headcountGrowth: number;
-    genderDistribution: { male: number; female: number; other: number };
-    departmentDistribution: { name: string; count: number; percentage: number }[];
-    employmentTypeBreakdown: { type: string; count: number }[];
-    monthlyHiringTrend: { month: string; hires: number; exits: number }[];
-    payrollTrend: { month: string; amount: number }[];
-    recentActivities: any[];
-    upcomingHolidays: any[];
-}
+/* ── helpers ── */
+const COLORS: Record<string,string> = {A:'#6366f1',B:'#8b5cf6',C:'#ec4899',D:'#f59e0b',E:'#10b981',F:'#3b82f6',G:'#ef4444',H:'#14b8a6',I:'#f97316',J:'#84cc16',K:'#06b6d4',L:'#a855f7',M:'#e11d48',N:'#0ea5e9',O:'#22c55e',P:'#d946ef',Q:'#fb923c',R:'#64748b',S:'#6366f1',T:'#8b5cf6',U:'#ec4899',V:'#10b981',W:'#3b82f6',X:'#f59e0b',Y:'#14b8a6',Z:'#ef4444'};
+const clr = (name?:string) => COLORS[(name?.[0]??'U').toUpperCase()]??'#6366f1';
+const ROLE_LABEL:Record<string,string> = {admin:'Administrator',super_admin:'Super Admin',hr:'HR Manager',manager:'Team Manager',employee:'Employee'};
+const STATUSES = [
+    {key:'available', label:'Available',      color:'#10b981', dot:'bg-emerald-500', pulse:true },
+    {key:'busy',      label:'Busy',           color:'#ef4444', dot:'bg-red-500',     pulse:false},
+    {key:'lunch',     label:'At Lunch',       color:'#f59e0b', dot:'bg-amber-400',   pulse:false},
+    {key:'break',     label:'On Break',       color:'#f97316', dot:'bg-orange-400',  pulse:false},
+    {key:'dnd',       label:'Do Not Disturb', color:'#8b5cf6', dot:'bg-violet-500',  pulse:false},
+    {key:'offline',   label:'Offline',        color:'#64748b', dot:'bg-slate-400',   pulse:false},
+] as const;
+type SK = typeof STATUSES[number]['key'];
 
-interface ManagerStats {
-    teamSize: number; todayPresent: number; todayAbsent: number; todayLate: number;
-    attendanceRate: number; pendingLeaveCount: number;
-    teamMembers:any[]; teamAttendance: any[]; pendingLeaves: any[];
-    lateCheckins: any[]; timesheetStatus: any;
-}
+function fmt(ms:number){const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;}
+function greeting(){const h=new Date().getHours();if(h<12)return{text:'Good Morning',Icon:Sun,cls:'text-amber-500'};if(h<17)return{text:'Good Afternoon',Icon:Sunset,cls:'text-orange-500'};return{text:'Good Evening',Icon:Moon,cls:'text-indigo-400'};}
+function LiveClock(){const[t,setT]=useState(new Date());useEffect(()=>{const id=setInterval(()=>setT(new Date()),1000);return()=>clearInterval(id);},[]);return<>{t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true})}</>;}
 
-interface EmpDashData {
-    attendance: { status: string; checkIn: string | null; totalHoursToday: string };
-    monthlySummary: { presentDays: number; avgHours: string; lateDays: number };
-    leaveBalances: { leave_type_id: number; name: string; annual_quota: number; used: number; available: number }[];
-    upcomingHolidays: any[]; recentPayslip: any; notifications: any[];
-    weeklyHours: { day: string; date: string; hours: string }[];
-}
-
-/* ─── Helpers ────────────────────────────────────────────── */
-function getGreeting() {
-    const h = new Date().getHours();
-    if (h < 12) return { text: 'Good Morning', icon: Sun, sub: 'Ready to seize the day?' };
-    if (h < 17) return { text: 'Good Afternoon', icon: Sunset, sub: 'Stay productive!' };
-    return { text: 'Good Evening', icon: Moon, sub: 'Wrapping up for the day?' };
-}
-
-function fmtClock(ms: number) {
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-function fmtCurrency(n: number) {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    if (n >= 1000) return `₹${(n / 1000).toFixed(0)}K`;
-    return `₹${n}`;
-}
-
-/* ─── Mini Bar Chart (SVG) ───────────────────────────────── */
-const MiniBarChart: React.FC<{ data: number[]; color?: string; height?: number }> = ({
-    data, color = '#3B82F6', height = 48
-}) => {
-    if (!data.length) return null;
-    const max = Math.max(...data, 1);
-    const w = 100 / data.length;
-    return (
-        <svg width="100%" height={height} viewBox={`0 0 100 ${height}`} preserveAspectRatio="none">
-            {data.map((v, i) => {
-                const barH = (v / max) * (height - 4);
-                return (
-                    <rect key={i} x={i * w + 0.5} y={height - barH} width={w - 1} height={barH}
-                        rx={1} fill={color} opacity={0.8} />
-                );
-            })}
-        </svg>
-    );
-};
-
-/* ─── Donut Chart (SVG) ──────────────────────────────────── */
-const DonutChart: React.FC<{ segments: { value: number; color: string; label: string }[]; size?: number }> = ({
-    segments, size = 120
-}) => {
-    const total = segments.reduce((s, seg) => s + seg.value, 0) || 1;
-    const r = (size - 8) / 2; const cx = size / 2; const cy = size / 2;
-    const circumference = 2 * Math.PI * r;
-    let offset = 0;
-    return (
-        <svg width={size} height={size}>
-            <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={12} />
-            {segments.map((seg, i) => {
-                const pct = seg.value / total;
-                const dash = circumference * pct;
-                const gap = circumference - dash;
-                const el = (
-                    <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={seg.color}
-                        strokeWidth={12} strokeDasharray={`${dash} ${gap}`}
-                        strokeDashoffset={-offset} strokeLinecap="round"
-                        transform={`rotate(-90 ${cx} ${cy})`}
-                        className="transition-all duration-700"
-                    />
-                );
-                offset += dash;
-                return el;
-            })}
-            <text x={cx} y={cy - 4} textAnchor="middle" className="fill-gray-900 text-lg font-black">{total}</text>
-            <text x={cx} y={cy + 12} textAnchor="middle" className="fill-gray-400 text-[8px] font-semibold uppercase">Total</text>
-        </svg>
-    );
-};
-
-/* ─── Stat Card ──────────────────────────────────────────── */
-const StatCard: React.FC<{
-    label: string; value: string | number; icon: React.ElementType;
-    color: string; bg: string; trend?: string; trendUp?: boolean; onClick?: () => void;
-    sub?: string;
-}> = ({ label, value, icon: Icon, color, bg, trend, trendUp, onClick, sub }) => (
-    <div onClick={onClick}
-        className={`bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all group ${onClick ? 'cursor-pointer' : ''}`}>
-        <div className="flex items-center justify-between mb-3">
-            <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center ${color} group-hover:scale-110 transition-transform`}>
-                <Icon size={18} />
-            </div>
-            {trend && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 ${trendUp !== false ? 'text-emerald-600 bg-emerald-50' : 'text-red-500 bg-red-50'}`}>
-                    {trendUp !== false ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                    {trend}
-                </span>
-            )}
-        </div>
-        <p className="text-2xl font-black text-gray-900 tracking-tight">{value}</p>
-        <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider mt-1">{label}</p>
-        {sub && <p className="text-[10px] text-gray-300 mt-0.5">{sub}</p>}
-    </div>
-);
-
-/* ─── Section Header ─────────────────────────────────────── */
-const SectionHeader: React.FC<{ title: string; subtitle?: string; action?: { label: string; onClick: () => void } }> = ({
-    title, subtitle, action
-}) => (
-    <div className="flex items-center justify-between mb-4">
-        <div>
-            <h3 className="text-sm font-bold text-gray-900">{title}</h3>
-            {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
-        </div>
-        {action && (
-            <button onClick={action.onClick} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
-                {action.label} <ChevronRight size={12} />
-            </button>
-        )}
-    </div>
-);
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * ██ MAIN DASHBOARD
- * ═══════════════════════════════════════════════════════════════════════════ */
-const Dashboard: React.FC = () => {
-    const { user, hasAnyRole } = useAuthStore();
+/* ═══════════════════════════════════════════════════════ */
+const Dashboard:React.FC = () => {
+    const {user,hasAnyRole} = useAuthStore();
     const navigate = useNavigate();
-    const isAdmin = hasAnyRole('admin', 'super_admin');
-    const isHR = hasAnyRole('hr');
-    const isManager = hasAnyRole('manager');
-    const isEmployee = hasAnyRole('employee');
-    const isAdminOrHR = isAdmin || isHR;
+    const [searchParams] = useSearchParams();
+    const isAdminOrHR = hasAnyRole('admin','super_admin','hr');
+    const isManager   = hasAnyRole('manager');
+    const isEmployee  = hasAnyRole('employee');
 
-    const [loading, setLoading] = useState(true);
-    const [adminData, setAdminData] = useState<AdminStats | null>(null);
-    const [mgrData, setMgrData] = useState<ManagerStats | null>(null);
-    const [empData, setEmpData] = useState<EmpDashData | null>(null);
-    const [elapsed, setElapsed] = useState(0);
-    const [checkingIn, setCheckingIn] = useState(false);
+    // Read view from URL — Topbar pill controls this
+    const tab = (searchParams.get('view') ?? 'myspace') as 'myspace' | 'org';
+    const [loading,   setLoading]   = useState(true);
+    const [adminData, setAdminData] = useState<any>(null);
+    const [mgrData,   setMgrData]   = useState<any>(null);
+    const [empData,   setEmpData]   = useState<any>(null);
+    const [att,       setAtt]       = useState<{status:string;checkIn:string|null;sessions_today?:number;total_hours_today?:string}>({status:'OUT',checkIn:null});
+    const [elapsed,   setElapsed]   = useState(0);
+    const [busy,      setBusy]      = useState(false);
+    const [err,       setErr]       = useState<string|null>(null);
+    const [status,    setStatus_]   = useState<SK>(()=>(localStorage.getItem('usr_status') as SK)?? 'available');
+    const [statusOpen,setSO]        = useState(false);
+    const [orgSection,setOrgSection] = useState<OrgSection>('overview');
+    const sRef = useRef<HTMLDivElement>(null);
 
-    const initials = user?.name?.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) ?? 'U';
-    const greeting = getGreeting();
-    const GreetIcon = greeting.icon;
+    const c   = clr(user?.name);
+    const ini = user?.name?.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2)?? 'U';
+    const g   = greeting();
+    const cur = STATUSES.find(s=>s.key===status)??STATUSES[0];
+    const today = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-    // ── Load Data ─────────────────────────────────────
-    useEffect(() => {
-        if (!user?.id) return;
-        const load = async () => {
-            try {
-                if (isAdminOrHR) {
-                    const { data } = await api.get('/reports/dashboard');
-                    setAdminData(data);
-                } else if (isManager) {
-                    const { data } = await api.get('/reports/dashboard/manager', { params: { userId: user.id } });
-                    setMgrData(data);
-                } else if (isEmployee) {
-                    const { data } = await api.get('/reports/dashboard/employee', { params: { userId: user.id } });
-                    setEmpData(data);
-                }
-            } catch (err) { console.error('Dashboard load error:', err); }
-            finally { setLoading(false); }
-        };
-        load();
-    }, [user?.id]);
+    useEffect(()=>{
+        const h=(e:MouseEvent)=>{if(sRef.current&&!sRef.current.contains(e.target as Node))setSO(false);};
+        document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);
+    },[]);
 
-    // ── Live Clock for employee ───────────────────────
-    useEffect(() => {
-        const checkIn = empData?.attendance?.checkIn || (adminData ? null : null);
-        const isIn = empData?.attendance?.status === 'IN';
-        if (!isIn || !checkIn) { setElapsed(0); return; }
-        const base = new Date(checkIn).getTime();
-        const tick = () => setElapsed(Date.now() - base);
-        tick();
-        const id = setInterval(tick, 1000);
-        return () => clearInterval(id);
-    }, [empData]);
+    const setStatus=(k:SK)=>{setStatus_(k);localStorage.setItem('usr_status',k);setSO(false);};
 
-    // ── Attendance Actions ────────────────────────────
-    const handleCheckIn = async () => {
-        if (!user?.id || checkingIn) return;
-        setCheckingIn(true);
-        try {
-            await api.post('/attendance/check-in', { userId: user.id });
-            // Refresh employee data
-            const { data } = await api.get('/reports/dashboard/employee', { params: { userId: user.id } });
-            setEmpData(data);
-        } catch {} finally { setCheckingIn(false); }
+    const fetchAtt = async()=>{
+        if(!user?.id)return;
+        try{const{data}=await api.get('/attendance/today',{params:{userId:user.id}});
+            setAtt({status:data.status??'OUT',checkIn:data.checkIn??null,sessions_today:data.sessions_today,total_hours_today:data.total_hours_today});}
+        catch(e:any){console.warn('Att:',e?.response?.data||e?.message);}
     };
 
-    const handleCheckOut = async () => {
-        if (!user?.id || checkingIn) return;
-        setCheckingIn(true);
-        try {
-            await api.post('/attendance/check-out', { userId: user.id });
-            const { data } = await api.get('/reports/dashboard/employee', { params: { userId: user.id } });
-            setEmpData(data);
-        } catch {} finally { setCheckingIn(false); }
+    const loadData = async()=>{
+        if(!user?.id)return;
+        setLoading(true);setErr(null);
+        try{
+            let dp:Promise<any>;
+            if(isAdminOrHR)     dp=api.get('/reports/dashboard').then(r=>setAdminData(r.data));
+            else if(isManager)  dp=api.get('/reports/dashboard/manager',{params:{userId:user.id}}).then(r=>setMgrData(r.data));
+            else                dp=api.get('/reports/dashboard/employee',{params:{userId:user.id}}).then(r=>setEmpData(r.data));
+            await Promise.all([fetchAtt(),dp]);
+        }catch(e:any){setErr(e?.response?.data?.message||e?.message||'Failed');}
+        finally{setLoading(false);}
     };
 
-    if (loading) return (
+    useEffect(()=>{loadData();},[user?.id]);
+
+    useEffect(()=>{
+        if(att.status!=='IN'||!att.checkIn){setElapsed(0);return;}
+        const base=new Date(att.checkIn).getTime();
+        const tick=()=>setElapsed(Date.now()-base);tick();
+        const id=setInterval(tick,1000);return()=>clearInterval(id);
+    },[att]);
+
+    const doCheckIn=async()=>{
+        if(!user?.id||busy)return;setBusy(true);
+        try{const{data}=await api.post('/attendance/check-in',{userId:user.id});
+            setAtt({status:'IN',checkIn:data.checkIn??data.check_in??new Date().toISOString()});
+            setStatus('available');}
+        catch(e:any){alert(e?.response?.data?.error||'Check-in failed');}
+        finally{setBusy(false);}
+    };
+
+    const doCheckOut=async()=>{
+        if(!user?.id||busy)return;setBusy(true);
+        try{await api.post('/attendance/check-out',{userId:user.id});
+            setAtt(p=>({...p,status:'OUT',checkIn:null}));setElapsed(0);setStatus('offline');}
+        catch(e:any){alert(e?.response?.data?.error||'Check-out failed');}
+        finally{setBusy(false);}
+    };
+
+    if(loading)return(
         <div className="flex items-center justify-center h-[70vh]">
             <div className="flex flex-col items-center gap-3">
-                <Loader2 className="animate-spin text-blue-500" size={32} />
-                <p className="text-sm text-slate-400 font-medium">Loading dashboard...</p>
+                <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"/>
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Loading...</p>
             </div>
         </div>
     );
 
-    const todayStr = new Date().toLocaleDateString('en-IN', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    });
+    const isIn = att.status==='IN';
 
-    return (
-        <div className="min-h-screen bg-[#F8FAFC] pb-12">
-            <div className="max-w-[1440px] mx-auto px-6 py-6 space-y-6">
+    return(
+        <div className="min-h-screen bg-[#F4F5F8]">
 
-                {/* ── HERO HEADER ─────────────────────────────── */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white text-lg font-black shadow-lg shadow-blue-200/50 ring-4 ring-white relative">
-                            {initials}
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 border-[3px] border-white rounded-full" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-bold text-gray-900">{greeting.text}, {user?.name?.split(' ')[0]}!</h1>
-                                <GreetIcon size={20} className="text-amber-500" />
+            {/* ══ CONTENT ══════════════════════════════════════ */}
+            <div className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+
+                {/* ── MY SPACE ──────────────────────────────── */}
+                {tab==='myspace' && (
+                    <>
+                        {/* Hero: Profile card (left) + Greeting + KPIs stacked (right) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 items-stretch">
+
+                            {/* ── Left: Profile card (unchanged) ── */}
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                <div className="h-16 w-full" style={{background:`linear-gradient(135deg,${c}cc,${c}44)`}}/>
+                                <div className="px-4 pb-4 -mt-7 space-y-3">
+                                    {/* Avatar + status picker */}
+                                    <div className="flex items-end justify-between">
+                                        <div className="relative">
+                                            <div className="w-14 h-14 rounded-xl flex items-center justify-center text-[18px] font-black text-white shadow-lg ring-4 ring-white"
+                                                style={{backgroundColor:c}}>{ini}</div>
+                                            <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${cur.dot} ${cur.pulse?'animate-pulse':''}`}/>
+                                        </div>
+                                        <div className="relative mb-1" ref={sRef}>
+                                            <button onClick={()=>setSO(!statusOpen)}
+                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all hover:shadow-sm"
+                                                style={{color:cur.color,backgroundColor:`${cur.color}14`,borderColor:`${cur.color}30`}}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${cur.dot}`}/>
+                                                {cur.label}
+                                                <ChevronDown size={10} className={`transition-transform ${statusOpen?'rotate-180':''}`}/>
+                                            </button>
+                                            {statusOpen&&(
+                                                <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 w-44">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 py-1.5">Set availability</p>
+                                                    {STATUSES.map(s=>(
+                                                        <button key={s.key} onClick={()=>setStatus(s.key)}
+                                                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium hover:bg-slate-50 text-left ${status===s.key?'bg-slate-50':''}`}>
+                                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`}/>
+                                                            <span style={{color:status===s.key?s.color:'#475569'}}>{s.label}</span>
+                                                            {status===s.key&&<CheckCircle2 size={11} className="ml-auto" style={{color:s.color}}/>}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Identity */}
+                                    <div>
+                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                            <h2 className="text-[15px] font-black text-slate-900">{user?.name}</h2>
+                                            <BadgeCheck size={14} style={{color:c}}/>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 font-mono">
+                                            {user?.employee_id?`EMP-${user.employee_id}`:`ID-${user?.id}`}
+                                        </p>
+                                        <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border"
+                                            style={{color:c,backgroundColor:`${c}12`,borderColor:`${c}28`}}>
+                                            <Shield size={8}/>{ROLE_LABEL[user?.role??'']??user?.role}
+                                        </span>
+                                    </div>
+
+                                    {/* Attendance widget */}
+                                    <div className="pt-3 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-2.5">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Today's Attendance</p>
+                                            {(att.sessions_today??0)>0&&(
+                                                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                                    {att.sessions_today} session{(att.sessions_today??0)>1?'s':''} · {att.total_hours_today}h
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={`rounded-xl px-4 py-3 mb-3 flex items-center gap-3 ${isIn?'bg-emerald-50 border border-emerald-200':'bg-slate-50 border border-slate-200'}`}>
+                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isIn?'bg-emerald-100':'bg-white border border-slate-200'}`}>
+                                                {isIn?<CheckCircle2 size={16} className="text-emerald-600"/>:<Clock size={16} className="text-slate-400"/>}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                {isIn?(
+                                                    <>
+                                                        <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Clocked In</p>
+                                                        <p className="text-[20px] font-black text-emerald-700 tabular-nums font-mono leading-tight">{fmt(elapsed)}</p>
+                                                        <p className="text-[9px] text-emerald-500 mt-0.5">Since {att.checkIn?new Date(att.checkIn).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'—'}</p>
+                                                    </>
+                                                ):(
+                                                    <>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Not Checked In</p>
+                                                        <p className="text-[15px] font-bold text-slate-700 tabular-nums mt-0.5"><LiveClock/></p>
+                                                        {(att.sessions_today??0)>0&&<p className="text-[9px] text-slate-400 mt-0.5">Ready to clock back in</p>}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <button onClick={isIn?doCheckOut:doCheckIn} disabled={busy}
+                                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${busy?'opacity-50 cursor-not-allowed':''} ${isIn?'bg-rose-600 text-white hover:bg-rose-500 shadow-md shadow-rose-500/20':'text-white shadow-md'}`}
+                                            style={!isIn?{backgroundColor:c,boxShadow:`0 4px 16px ${c}35`}:undefined}>
+                                            {busy?<Loader2 size={14} className="animate-spin"/>:isIn?<LogOutIcon size={14}/>:<LogIn size={14}/>}
+                                            {busy?'Processing…':isIn?'Check Out':'Check In'}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                            <p className="text-xs text-gray-400 font-medium mt-0.5">{greeting.sub}</p>
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                            <Shield size={10} />
-                            <span>{user?.role?.replace('_', ' ')}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 font-medium">{todayStr}</p>
-                    </div>
-                </div>
 
-                {/* ═══ ADMIN / HR DASHBOARD ═══════════════════════════════════ */}
-                {isAdminOrHR && adminData && <AdminDashboard data={adminData} navigate={navigate} />}
+                            {/* ── Right: Greeting + KPI strip stacked ── */}
+                            <div className="flex flex-col gap-3">
 
-                {/* ═══ MANAGER DASHBOARD ══════════════════════════════════════ */}
-                {isManager && !isAdminOrHR && mgrData && <ManagerDashboardView data={mgrData} navigate={navigate} userId={user!.id} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} checkingIn={checkingIn} />}
+                                {/* Greeting card — takes remaining space above KPIs */}
+                                <div className="flex-1 min-h-[160px] bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative flex flex-col">
+                                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                                        <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full opacity-[0.07]" style={{background:c,animation:'orb1 8s ease-in-out infinite'}}/>
+                                        <div className="absolute top-16 right-48 w-36 h-36 rounded-full opacity-[0.05]" style={{background:c,animation:'orb2 11s ease-in-out infinite'}}/>
+                                        <div className="absolute -bottom-8 left-8 w-52 h-52 rounded-full opacity-[0.04]" style={{background:c,animation:'orb3 14s ease-in-out infinite'}}/>
+                                    </div>
+                                    <div className="relative z-10 px-7 py-5 flex flex-col flex-1">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <g.Icon size={13} className={g.cls}/>
+                                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{today}</p>
+                                        </div>
+                                        <h1 className="text-[24px] font-black text-slate-800 leading-tight">
+                                            {g.text}, <span style={{color:c}}>{user?.name?.split(' ')[0]}</span>!
+                                        </h1>
+                                        <p className="text-[12px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
+                                            {isAdminOrHR?'Here\'s your workforce overview. Switch to Organization for team metrics.':isManager?'Here\'s your team\'s status. Switch to Organization for workforce data.':'Welcome back! Your personal workspace is here.'}
+                                        </p>
+                                        {/* Quick stat strip */}
+                                        <div className="mt-auto pt-3 border-t border-slate-100 flex items-center flex-wrap gap-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={`w-1.5 h-1.5 rounded-full ${cur.dot} ${cur.pulse?'animate-pulse':''}`}/>
+                                                <span className="text-[11px] font-semibold text-slate-600">{cur.label}</span>
+                                            </div>
+                                            <div className="w-px h-3 bg-slate-200"/>
+                                            {isIn?(
+                                                <span className="text-[11px] font-semibold text-emerald-600">● {fmt(elapsed)}</span>
+                                            ):(
+                                                <span className="text-[11px] text-slate-400">Not checked in</span>
+                                            )}
+                                            <div className="w-px h-3 bg-slate-200"/>
+                                            <span className="text-[11px] text-slate-400">
+                                                {new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                {/* ═══ EMPLOYEE DASHBOARD ═════════════════════════════════════ */}
-                {isEmployee && !isManager && !isAdminOrHR && empData && <EmployeeDashboardView data={empData} navigate={navigate} elapsed={elapsed} onCheckIn={handleCheckIn} onCheckOut={handleCheckOut} checkingIn={checkingIn} />}
-            </div>
-        </div>
-    );
-};
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * ██ ADMIN DASHBOARD COMPONENT
- * ═══════════════════════════════════════════════════════════════════════════ */
-const AdminDashboard: React.FC<{ data: AdminStats; navigate: any }> = ({ data: d, navigate }) => (
-    <>
-        {/* Row 1: Primary KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            <StatCard label="Active Employees" value={d.activeEmployees} icon={Users}
-                color="text-blue-600" bg="bg-blue-50"
-                trend={d.headcountGrowth > 0 ? `+${d.headcountGrowth}%` : `${d.headcountGrowth}%`}
-                trendUp={d.headcountGrowth >= 0}
-                onClick={() => navigate('/employees')} />
-            <StatCard label="Monthly Payroll" value={fmtCurrency(d.totalPayrollCost)} icon={DollarSign}
-                color="text-emerald-600" bg="bg-emerald-50"
-                onClick={() => navigate('/payroll')} />
-            <StatCard label="Present Today" value={d.todayPresent} icon={CheckCircle}
-                color="text-green-600" bg="bg-green-50"
-                sub={`${d.onLeaveToday} on leave`} onClick={() => navigate('/attendance')} />
-            <StatCard label="Pending Approvals" value={d.pendingLeaves + d.pendingTimesheets} icon={ClipboardList}
-                color="text-amber-600" bg="bg-amber-50"
-                sub={`${d.pendingLeaves} leaves · ${d.pendingTimesheets} timesheets`}
-                onClick={() => navigate('/leave')} />
-            <StatCard label="New Hires" value={d.newHiresThisMonth} icon={UserPlus}
-                color="text-violet-600" bg="bg-violet-50" sub="This month"
-                onClick={() => navigate('/onboarding')} />
-        </div>
-
-        {/* Row 2: Secondary KPI Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Avg Salary" value={fmtCurrency(d.avgSalary)} icon={CreditCard}
-                color="text-indigo-600" bg="bg-indigo-50" sub="Monthly" />
-            <StatCard label="Attrition Rate" value={`${d.attritionRate}%`} icon={UserMinus}
-                color={d.attritionRate > 5 ? 'text-red-600' : 'text-emerald-600'}
-                bg={d.attritionRate > 5 ? 'bg-red-50' : 'bg-emerald-50'}
-                trendUp={d.attritionRate <= 5} trend={d.attritionRate <= 5 ? 'Healthy' : 'Monitor'} />
-            <StatCard label="Attendance Rate" value={`${d.avgAttendanceRate}%`} icon={Target}
-                color="text-sky-600" bg="bg-sky-50" sub="30-day avg" />
-            <StatCard label="Exits This Month" value={d.exitedThisMonth} icon={AlertTriangle}
-                color="text-rose-600" bg="bg-rose-50" />
-        </div>
-
-        {/* Row 3: Charts + Activity */}
-        <div className="grid grid-cols-12 gap-6">
-            {/* Department Distribution */}
-            <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <SectionHeader title="Department Distribution" subtitle="Active employees" />
-                <div className="flex items-center gap-6">
-                    <DonutChart segments={d.departmentDistribution.slice(0, 6).map((dept, i) => ({
-                        value: dept.count,
-                        color: ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'][i % 6],
-                        label: dept.name,
-                    }))} />
-                    <div className="flex-1 space-y-2">
-                        {d.departmentDistribution.slice(0, 5).map((dept, i) => (
-                            <div key={dept.name} className="flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444'][i % 5] }} />
-                                <span className="text-[11px] text-gray-600 flex-1">{dept.name}</span>
-                                <span className="text-[11px] font-bold text-gray-800">{dept.count}</span>
-                                <span className="text-[10px] text-gray-400">{dept.percentage}%</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Hiring Trend */}
-            <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <SectionHeader title="Hiring vs Exits" subtitle="Last 6 months" />
-                <div className="mt-4">
-                    <MiniBarChart data={d.monthlyHiringTrend.map(m => m.hires)} color="#3B82F6" height={56} />
-                    <div className="flex items-center gap-4 mt-3">
-                        {d.monthlyHiringTrend.map(m => (
-                            <div key={m.month} className="flex-1 text-center">
-                                <p className="text-[9px] text-gray-400 font-medium">{m.month.split(' ')[0]}</p>
-                                <p className="text-[11px] font-bold text-blue-600">{m.hires}</p>
-                                {m.exits > 0 && <p className="text-[10px] text-red-400">-{m.exits}</p>}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-50">
-                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-[10px] text-gray-500">Hires</span></div>
-                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-400" /><span className="text-[10px] text-gray-500">Exits</span></div>
-                </div>
-            </div>
-
-            {/* Upcoming Holidays + Gender */}
-            <div className="col-span-12 lg:col-span-4 space-y-5">
-                {/* Holidays */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                    <SectionHeader title="Upcoming Holidays" />
-                    {d.upcomingHolidays.length > 0 ? d.upcomingHolidays.slice(0, 4).map((h: any) => (
-                        <div key={h.name} className="flex items-center gap-3 py-2">
-                            <div className="w-10 h-10 bg-amber-50 rounded-xl flex flex-col items-center justify-center">
-                                <span className="text-[10px] font-bold text-amber-600">{new Date(h.date).toLocaleDateString('en-IN', { month: 'short' })}</span>
-                                <span className="text-sm font-black text-amber-700 leading-none">{new Date(h.date).getDate()}</span>
-                            </div>
-                            <div>
-                                <p className="text-[13px] font-semibold text-gray-800">{h.name}</p>
-                                <p className="text-[10px] text-gray-400">{new Date(h.date).toLocaleDateString('en-IN', { weekday: 'long' })}</p>
-                            </div>
-                        </div>
-                    )) : <p className="text-sm text-gray-400 py-4">No upcoming holidays</p>}
-                </div>
-
-                {/* Gender Split */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Gender Split</p>
-                    <div className="flex items-center gap-3">
-                        {[
-                            { label: 'Male', val: d.genderDistribution.male, color: 'bg-blue-500' },
-                            { label: 'Female', val: d.genderDistribution.female, color: 'bg-pink-500' },
-                            { label: 'Other', val: d.genderDistribution.other, color: 'bg-gray-400' },
-                        ].map(g => (
-                            <div key={g.label} className="flex-1 text-center">
-                                <p className="text-lg font-black text-gray-900">{g.val}</p>
-                                <div className={`h-1.5 rounded-full ${g.color} mt-1`} style={{ width: `${Math.max(10, (g.val / Math.max(d.activeEmployees, 1)) * 100)}%`, margin: '0 auto' }} />
-                                <p className="text-[10px] text-gray-400 mt-1">{g.label}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* Row 4: Quick Actions + Recent Activity */}
-        <div className="grid grid-cols-12 gap-6">
-            <div className="col-span-12 lg:col-span-4 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <SectionHeader title="Quick Actions" />
-                {[
-                    { icon: UserPlus, label: 'Add Employee', path: '/onboarding', color: 'text-blue-500', bg: 'bg-blue-50' },
-                    { icon: DollarSign, label: 'Run Payroll', path: '/payroll', color: 'text-emerald-500', bg: 'bg-emerald-50' },
-                    { icon: BarChart2, label: 'View Reports', path: '/reports', color: 'text-violet-500', bg: 'bg-violet-50' },
-                    { icon: CalendarDays, label: 'Leave Approvals', path: '/leave', color: 'text-amber-500', bg: 'bg-amber-50' },
-                    { icon: Users, label: 'Employee Directory', path: '/employees', color: 'text-sky-500', bg: 'bg-sky-50' },
-                ].map(a => (
-                    <button key={a.label} onClick={() => navigate(a.path)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-all group">
-                        <div className={`w-8 h-8 ${a.bg} ${a.color} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                            <a.icon size={14} />
-                        </div>
-                        <span className="text-[13px] font-semibold text-gray-600">{a.label}</span>
-                        <ChevronRight size={12} className="ml-auto text-gray-300" />
-                    </button>
-                ))}
-            </div>
-
-            <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-50">
-                    <SectionHeader title="Recent Activity" subtitle="Latest system events"
-                        action={{ label: 'Audit Logs', onClick: () => navigate('/audit-logs') }} />
-                </div>
-                <div className="divide-y divide-gray-50/50">
-                    {d.recentActivities.length > 0 ? d.recentActivities.slice(0, 6).map((act: any, i: number) => (
-                        <div key={act.id || i} className="flex items-start gap-3 px-5 py-3.5 hover:bg-gray-50/80">
-                            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <Activity size={14} className="text-blue-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[13px] font-semibold text-gray-800">{act.action}</p>
-                                <p className="text-[11px] text-gray-400">{act.entity_type} {act.entity_id ? `#${act.entity_id}` : ''} · {act.user_name || 'System'}</p>
-                            </div>
-                            <span className="text-[10px] text-gray-300 flex-shrink-0">{new Date(act.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                    )) : (
-                        <div className="py-12 text-center text-sm text-gray-400">No recent activity</div>
-                    )}
-                </div>
-            </div>
-        </div>
-    </>
-);
-
-/* ═══════════════════════════════════════════════════════════════════════════
- * ██ MANAGER DASHBOARD COMPONENT
- * ═══════════════════════════════════════════════════════════════════════════ */
-const ManagerDashboardView: React.FC<{
-    data: ManagerStats; navigate: any; userId: number;
-    onCheckIn: () => void; onCheckOut: () => void; checkingIn: boolean;
-}> = ({ data: d, navigate, onCheckIn, onCheckOut, checkingIn }) => (
-    <>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <StatCard label="Team Size" value={d.teamSize} icon={Users} color="text-blue-600" bg="bg-blue-50" />
-            <StatCard label="Present Today" value={d.todayPresent} icon={CheckCircle} color="text-emerald-600" bg="bg-emerald-50"
-                sub={`${d.attendanceRate}% attendance`} />
-            <StatCard label="Absent Today" value={d.todayAbsent} icon={UserMinus} color="text-red-600" bg="bg-red-50" />
-            <StatCard label="Late Today" value={d.todayLate} icon={AlertTriangle} color="text-amber-600" bg="bg-amber-50" />
-            <StatCard label="Pending Leaves" value={d.pendingLeaveCount} icon={CalendarDays} color="text-violet-600" bg="bg-violet-50"
-                onClick={() => navigate('/leave')} />
-        </div>
-
-        <div className="grid grid-cols-12 gap-6">
-            {/* Team Attendance Status */}
-            <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-50">
-                    <SectionHeader title="Team Attendance Today" subtitle={`${d.todayPresent}/${d.teamSize} present`} />
-                </div>
-                <div className="divide-y divide-gray-50">
-                    {d.teamAttendance.map((member: any, i: number) => (
-                        <div key={i} className="flex items-center gap-3 px-5 py-3">
-                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-[10px] font-bold text-gray-600">
-                                {member.name?.split(' ').map((p: string) => p[0]).join('').slice(0, 2)}
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-[13px] font-semibold text-gray-800">{member.name}</p>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                                member.att_status === 'on_time' ? 'bg-emerald-50 text-emerald-600' :
-                                member.att_status === 'late' ? 'bg-amber-50 text-amber-600' :
-                                'bg-red-50 text-red-500'
-                            }`}>
-                                {member.att_status === 'on_time' ? '● Present' :
-                                 member.att_status === 'late' ? '⚡ Late' : '○ Absent'}
-                            </span>
-                            {member.check_in && (
-                                <span className="text-[10px] text-gray-400">{new Date(member.check_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                            )}
-                        </div>
-                    ))}
-                    {d.teamAttendance.length === 0 && (
-                        <div className="py-8 text-center text-sm text-gray-400">No team members assigned.</div>
-                    )}
-                </div>
-            </div>
-
-            {/* Pending Leaves + Actions */}
-            <div className="col-span-12 lg:col-span-4 space-y-5">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                    <SectionHeader title="Pending Leave Requests" action={{ label: 'View All', onClick: () => navigate('/leave') }} />
-                    {d.pendingLeaves.slice(0, 4).map((lr: any) => (
-                        <div key={lr.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                            <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
-                                <CalendarDays size={14} className="text-amber-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[12px] font-semibold text-gray-800 truncate">{lr.applicant_name}</p>
-                                <p className="text-[10px] text-gray-400">{lr.leave_type}</p>
+                                {/* KPI strip — 4 equal cards, proper height */}
+                                <div className="grid grid-cols-4 gap-3">
+                                    {[
+                                        {label:'Sessions Today', value: String(att.sessions_today??0),         sub:'Check-ins',    color:'#6366f1', big:true},
+                                        {label:'Hours Today',    value: String(att.total_hours_today??'0.00'), sub:'Accumulated',  color:'#10b981', big:true},
+                                        {label:'Role',           value: ROLE_LABEL[user?.role??'']??user?.role??'—', sub:'Access level', color:c, big:false},
+                                        {label:'Status',         value: cur.label, sub:'Availability',             color:cur.color,  big:false},
+                                    ].map((k,i)=>(
+                                        <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-4 flex flex-col justify-between min-h-[84px]">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{k.label}</p>
+                                            <div>
+                                                <p className={`font-black text-slate-800 truncate leading-none ${k.big?'text-[24px]':'text-[15px]'}`}
+                                                    style={!k.big?{color:k.color}:{}}>{k.value}</p>
+                                                <p className="text-[10px] text-slate-400 mt-1">{k.sub}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    ))}
-                    {d.pendingLeaves.length === 0 && <p className="text-sm text-gray-400 py-4 text-center">No pending requests</p>}
-                </div>
 
-                <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                    <SectionHeader title="Timesheet Status" />
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                        {[
-                            { label: 'Submitted', val: d.timesheetStatus?.submitted || 0, color: 'text-blue-600 bg-blue-50' },
-                            { label: 'Approved', val: d.timesheetStatus?.approved || 0, color: 'text-emerald-600 bg-emerald-50' },
-                            { label: 'Pending', val: d.timesheetStatus?.pending || 0, color: 'text-amber-600 bg-amber-50' },
-                        ].map(s => (
-                            <div key={s.label} className={`text-center py-3 rounded-xl ${s.color.split(' ')[1]}`}>
-                                <p className={`text-xl font-black ${s.color.split(' ')[0]}`}>{s.val}</p>
-                                <p className="text-[9px] uppercase font-bold tracking-wider text-gray-500 mt-1">{s.label}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </>
-);
+                        {/* Employee personal dashboard */}
+                        {isEmployee&&!isManager&&!isAdminOrHR&&empData&&(
+                            <EmployeeDashboard data={empData} navigate={navigate} elapsed={elapsed} checkingIn={busy} onCheckIn={doCheckIn} onCheckOut={doCheckOut}/>
+                        )}
 
-/* ═══════════════════════════════════════════════════════════════════════════
- * ██ EMPLOYEE DASHBOARD COMPONENT
- * ═══════════════════════════════════════════════════════════════════════════ */
-const EmployeeDashboardView: React.FC<{
-    data: EmpDashData; navigate: any; elapsed: number;
-    onCheckIn: () => void; onCheckOut: () => void; checkingIn: boolean;
-}> = ({ data: d, navigate, elapsed, onCheckIn, onCheckOut, checkingIn }) => {
-    const isIn = d.attendance.status === 'IN';
-    const isDone = d.attendance.status === 'COMPLETED';
+                        {/* ── My Profile inline ─────────── */}
+                        <MySpaceProfile />
+                    </>
+                )}
 
-    return (
-        <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard label="Present Days" value={d.monthlySummary.presentDays} icon={CheckCircle}
-                    color="text-emerald-600" bg="bg-emerald-50" sub="This month" />
-                <StatCard label="Avg Hours" value={`${d.monthlySummary.avgHours}h`} icon={Clock}
-                    color="text-blue-600" bg="bg-blue-50" sub="Daily average" />
-                <StatCard label="Late Days" value={d.monthlySummary.lateDays} icon={AlertTriangle}
-                    color={d.monthlySummary.lateDays > 3 ? 'text-red-600' : 'text-amber-600'}
-                    bg={d.monthlySummary.lateDays > 3 ? 'bg-red-50' : 'bg-amber-50'} sub="This month" />
-                <StatCard label="Today" value={`${d.attendance.totalHoursToday}h`} icon={Timer}
-                    color="text-violet-600" bg="bg-violet-50"
-                    sub={isIn ? '● Clocked In' : isDone ? '✓ Done' : 'Not started'} />
-            </div>
-
-            <div className="grid grid-cols-12 gap-6">
-                {/* Attendance Clock */}
-                <div className="col-span-12 lg:col-span-4 space-y-5">
-                    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                        <SectionHeader title="Today's Attendance" />
-                        <div className="flex flex-col items-center py-4">
-                            <div className={`w-36 h-36 rounded-full border-4 flex flex-col items-center justify-center transition-all ${isIn ? 'border-blue-500 bg-blue-50 shadow-[0_0_30px_-10px_rgba(59,130,246,0.3)]' : 'border-gray-100 bg-gray-50'}`}>
-                                <p className={`text-3xl font-mono font-black tabular-nums ${isIn ? 'text-blue-600' : 'text-gray-200'}`}>
-                                    {isIn ? fmtClock(elapsed) : '00:00:00'}
-                                </p>
-                                <p className={`text-[9px] font-bold uppercase tracking-widest mt-1 ${isIn ? 'text-blue-400' : 'text-gray-300'}`}>
-                                    {isIn ? 'Live' : isDone ? 'Complete' : 'Idle'}
-                                </p>
-                            </div>
-                        </div>
-                        {!isDone ? (
-                            <button onClick={isIn ? onCheckOut : onCheckIn} disabled={checkingIn}
-                                className={`w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                                    isIn ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-blue-600 text-white shadow-lg shadow-blue-200/50'
-                                }`}>
-                                {checkingIn ? <Loader2 size={16} className="animate-spin" /> : isIn ? <LogOutIcon size={16} /> : <LogIn size={16} />}
-                                {isIn ? 'Clock Out' : 'Clock In'}
+                {/* ── ORGANIZATION ──────────────────────────── */}
+                {tab==='org' && (
+                    <>
+                        {/* Org sub-navigation — unique floating pill bar */}
+                        <div className="flex items-center gap-3">
+                            <OrgSubNav active={orgSection} onChange={setOrgSection}/>
+                            <button onClick={loadData}
+                                className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600 transition-all bg-white flex-shrink-0">
+                                <RefreshCw size={12}/> Refresh
                             </button>
-                        ) : (
-                            <div className="w-full py-3 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold">
-                                <CheckCircle size={16} /> Day Complete
+                        </div>
+
+                        {err&&(
+                            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 flex items-start gap-4">
+                                <AlertCircle size={18} className="text-rose-600 flex-shrink-0 mt-0.5"/>
+                                <div>
+                                    <p className="text-[13px] font-bold text-rose-900">Failed to load</p>
+                                    <p className="text-[12px] text-rose-600 mt-0.5">{err}</p>
+                                    <button onClick={loadData} className="mt-3 flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-[12px] font-bold rounded-xl hover:bg-rose-500">
+                                        <RefreshCw size={12}/> Retry
+                                    </button>
+                                </div>
                             </div>
                         )}
-                    </div>
 
-                    {/* Weekly Hours */}
-                    {d.weeklyHours.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                            <SectionHeader title="Weekly Hours" />
-                            <MiniBarChart data={d.weeklyHours.map(w => parseFloat(w.hours))} color="#3B82F6" height={48} />
-                            <div className="flex mt-2">
-                                {d.weeklyHours.map(w => (
-                                    <div key={w.date} className="flex-1 text-center">
-                                        <p className="text-[9px] text-gray-400">{w.day}</p>
-                                        <p className="text-[10px] font-bold text-gray-600">{w.hours}h</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                        {!err&&(
+                            <>
+                                {/* Overview = existing admin/manager dashboards */}
+                                {orgSection === 'overview' && (
+                                    <>
+                                        {isAdminOrHR&&adminData&&<AdminDashboard data={adminData} navigate={navigate} section={orgSection}/>}
+                                        {isManager&&!isAdminOrHR&&mgrData&&<ManagerDashboard data={mgrData} navigate={navigate} section={orgSection}/>}
+                                        {isEmployee&&!isManager&&!isAdminOrHR&&(
+                                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center">
+                                                <Building2 size={32} className="mx-auto text-slate-300 mb-3"/>
+                                                <p className="text-[14px] font-bold text-slate-600">Organization data is available to managers and admins.</p>
+                                                <p className="text-[12px] text-slate-400 mt-1">Contact your administrator if you need access.</p>
+                                            </div>
+                                        )}
+                                        {!loading&&!err&&(
+                                            (isAdminOrHR&&!adminData)||(isManager&&!isAdminOrHR&&!mgrData)
+                                        )&&(
+                                            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-4">
+                                                <Zap size={18} className="text-amber-600 flex-shrink-0 mt-0.5"/>
+                                                <div>
+                                                    <p className="text-[13px] font-bold text-amber-900">No data returned</p>
+                                                    <p className="text-[12px] text-amber-700 mt-0.5">The database may still be initializing.</p>
+                                                    <button onClick={loadData} className="mt-3 flex items-center gap-2 px-4 py-2 bg-amber-600 text-white text-[12px] font-bold rounded-xl">
+                                                        <RefreshCw size={12}/> Retry
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
 
-                {/* Right: Leave + Holidays + Actions */}
-                <div className="col-span-12 lg:col-span-8 space-y-5">
-                    {/* Leave Balances */}
-                    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                        <SectionHeader title="Leave Balances" action={{ label: 'Apply Leave', onClick: () => navigate('/leave') }} />
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {d.leaveBalances.map(lb => (
-                                <div key={lb.leave_type_id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                                    <p className="text-[11px] text-gray-500 font-medium">{lb.name}</p>
-                                    <div className="flex items-end gap-1 mt-1">
-                                        <span className="text-2xl font-black text-gray-900">{lb.available}</span>
-                                        <span className="text-xs text-gray-400 mb-0.5">/ {lb.annual_quota}</span>
+                                {/* Section-specific widgets */}
+                                {orgSection !== 'overview' && (
+                                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                                        {orgSection === 'announcements'  && <AnnouncementsWidget/>}
+                                        {orgSection === 'policies'       && <PoliciesWidget/>}
+                                        {orgSection === 'employee-tree'  && <EmployeeTreeWidget/>}
+                                        {orgSection === 'dept-tree'      && <DeptTreeWidget/>}
+                                        {orgSection === 'dept-directory' && <DeptDirectoryWidget/>}
+                                        {orgSection === 'birthdays'      && <BirthdayWidget/>}
+                                        {orgSection === 'new-hires'      && <NewHiresWidget/>}
+                                        {orgSection === 'calendar'       && <OrgCalendarWidget/>}
                                     </div>
-                                    <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                        <div className={`h-full rounded-full ${lb.available > lb.annual_quota * 0.3 ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                                            style={{ width: `${(lb.available / Math.max(lb.annual_quota, 1)) * 100}%` }} />
-                                    </div>
-                                    <p className="text-[10px] text-gray-400 mt-1">{lb.used} used</p>
-                                </div>
-                            ))}
-                            {d.leaveBalances.length === 0 && (
-                                <p className="text-sm text-gray-400 col-span-3 text-center py-4">No leave data</p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Upcoming Holidays */}
-                    {d.upcomingHolidays.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                            <SectionHeader title="Upcoming Holidays" />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {d.upcomingHolidays.slice(0, 4).map((h: any) => (
-                                    <div key={h.name} className="flex items-center gap-3 p-3 bg-amber-50/40 rounded-xl border border-amber-100/50">
-                                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex flex-col items-center justify-center">
-                                            <span className="text-[10px] font-bold text-amber-700">{new Date(h.date).toLocaleDateString('en-IN', { month: 'short' })}</span>
-                                            <span className="text-sm font-black text-amber-800 leading-none">{new Date(h.date).getDate()}</span>
-                                        </div>
-                                        <div>
-                                            <p className="text-[13px] font-semibold text-gray-800">{h.name}</p>
-                                            <p className="text-[10px] text-gray-400">{new Date(h.date).toLocaleDateString('en-IN', { weekday: 'long' })}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Quick Module Links */}
-                    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                        <SectionHeader title="Quick Access" />
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {[
-                                { icon: Clock, label: 'Attendance History', path: '/attendance', bg: 'bg-blue-50', color: 'text-blue-600' },
-                                { icon: CalendarDays, label: 'Apply Leave', path: '/leave', bg: 'bg-emerald-50', color: 'text-emerald-600' },
-                                { icon: ClipboardList, label: 'My Timesheet', path: '/timesheet', bg: 'bg-violet-50', color: 'text-violet-600' },
-                                { icon: CreditCard, label: 'View Payslip', path: '/payroll', bg: 'bg-amber-50', color: 'text-amber-600' },
-                                { icon: UserCircle, label: 'My Profile', path: '/profile', bg: 'bg-rose-50', color: 'text-rose-600' },
-                                { icon: Building2, label: 'Company Info', path: '/dashboard', bg: 'bg-gray-50', color: 'text-gray-600' },
-                            ].map(a => (
-                                <button key={a.label} onClick={() => navigate(a.path)}
-                                    className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition-all group text-left">
-                                    <div className={`w-9 h-9 ${a.bg} ${a.color} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                                        <a.icon size={16} />
-                                    </div>
-                                    <span className="text-[13px] font-semibold text-gray-700">{a.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                                )}
+                            </>
+                        )}
+                    </>
+                )}
             </div>
-        </>
+
+            <style>{`
+                @keyframes orb1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-20px,15px) scale(1.05)}66%{transform:translate(10px,-10px) scale(.97)}}
+                @keyframes orb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(15px,20px) scale(1.08)}}
+                @keyframes orb3{0%,100%{transform:translate(0,0)}40%{transform:translate(-15px,-20px) scale(1.04)}80%{transform:translate(10px,10px) scale(.96)}}
+            `}</style>
+        </div>
     );
 };
 

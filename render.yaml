@@ -1,0 +1,48 @@
+services:
+  # ─── BACKEND SERVICE (Node.js/Express) ────────────────
+  - type: web
+    name: ems-api
+    env: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ems-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_SSL
+        value: true
+
+  # ─── FRONTEND SERVICE (Static Site) ───────────────────
+  - type: web
+    name: ems-client
+    env: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: ems-api
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+# ─── DATABASE (PostgreSQL) ──────────────────────────────
+databases:
+  - name: ems-db
+    plan: free
+    databaseName: ems_db
+    user: ems_user

@@ -21,6 +21,7 @@ dotenv.config();
 
 // Unified DB reference
 import { pool } from './config/db';
+import { initDb } from './initDb';
 import { initializeDatabase } from './db/schema';
 import { runMigrationV3 } from './db/migration_v3';
 
@@ -55,6 +56,8 @@ app.use(cors({
         'http://127.0.0.1:5173',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
+        'https://velda-nonraiseable-joshingly.ngrok-free.dev',
+        'https://henlike-heterogeneously-rex.ngrok-free.dev',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -114,44 +117,48 @@ app.use(globalErrorHandler);
 // ─── SERVER START ───────────────────────────────────────────────────────────
 
 const start = async () => {
-    try {
-        // Initialize DB schema (multi-tenant v2)
-        await initializeDatabase();
-        await runMigrationV3();
+    // ── Start HTTP server immediately ────────────────────────────────────────
+    activeServer = app.listen(port, () => {
+        console.log(`\n🚀 EMS Server v2.0 running at http://localhost:${port}`);
+        console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`   API Base:    http://localhost:${port}/api/v1\n`);
+    });
 
-        const server = app.listen(port, () => {
-            console.log(`\n🚀 EMS Server v2.0 running at http://localhost:${port}`);
-            console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`   API Base:    http://localhost:${port}/api/v1\n`);
-        });
-
-        // Verify DB connectivity
-        const res = await pool.query('SELECT NOW()');
-        console.log('✅ PostgreSQL connected:', res.rows[0].now);
-
-        // Graceful shutdown
-        const shutdown = async (signal: string) => {
-            console.log(`\n🛑 ${signal} received. Shutting down gracefully...`);
-            server.close(async () => {
+    // ── Graceful shutdown ────────────────────────────────────────────────────
+    const shutdown = async (signal: string) => {
+        console.log(`\n🛑 ${signal} received. Shutting down gracefully...`);
+        if (activeServer) {
+            activeServer.close(async () => {
                 await pool.end();
                 console.log('✅ Database pool closed.');
                 process.exit(0);
             });
+        } else {
+            await pool.end();
+            process.exit(0);
+        }
+        setTimeout(() => {
+            console.error('⚠️ Forced shutdown after timeout.');
+            process.exit(1);
+        }, 10000);
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT',  () => shutdown('SIGINT'));
 
-            // Force exit after 10 seconds
-            setTimeout(() => {
-                console.error('⚠️ Forced shutdown after timeout.');
-                process.exit(1);
-            }, 10000);
-        };
-
-        process.on('SIGTERM', () => shutdown('SIGTERM'));
-        process.on('SIGINT', () => shutdown('SIGINT'));
-
-    } catch (err) {
-        console.error('❌ Failed to start server:', err);
-        process.exit(1);
+    // ── Run schema migrations in background ──────────────────────────────────
+    try {
+        const res = await pool.query('SELECT NOW()');
+        console.log('✅ PostgreSQL connected:', res.rows[0].now);
+        
+        // Migrations
+        await initDb();
+        await initializeDatabase();
+        await runMigrationV3();
+        console.log('✅ All schema migrations completed.');
+    } catch (dbErr: any) {
+        console.warn('⚠️  Backend initialization warning:', dbErr.message);
     }
 };
 
+let activeServer: any;
 start();

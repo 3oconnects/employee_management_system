@@ -8,7 +8,11 @@ import {
     getPendingTimesheets
 } from '../controllers/timesheetController';
 
+import { authenticate } from '../middleware/authMiddleware';
+
 const router = express.Router();
+
+router.use(authenticate); // Secure all timesheet routes
 
 router.get('/week', getTimesheetByWeek);
 router.get('/pending', getPendingTimesheets);

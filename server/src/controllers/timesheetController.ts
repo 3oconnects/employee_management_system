@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import { query } from '../db/connection';
 
-export const getTimesheetByWeek = async (req: Request, res: Response) => {
+export const getTimesheetByWeek = async (req: any, res: Response) => {
     try {
         const { userId, weekStart } = req.query;
+        const tenantId = req.user?.tenantId || 'tenant_default';
+        
         if (!userId || !weekStart) return res.status(400).json({ error: 'userId and weekStart required.' });
 
         const start = new Date(weekStart as string);
@@ -15,22 +17,23 @@ export const getTimesheetByWeek = async (req: Request, res: Response) => {
             `SELECT t.*, json_agg(te.* ORDER BY te.created_at) FILTER (WHERE te.id IS NOT NULL) AS entries
              FROM timesheets t
              LEFT JOIN timesheet_entries te ON te.timesheet_id = t.id
-             WHERE t.user_id = $1 AND t.week_start = $2
+             WHERE t.user_id = $1 AND t.week_start = $2 AND t.tenant_id = $3
              GROUP BY t.id`,
-            [userId, weekStart]
+            [userId, weekStart, tenantId]
         );
 
         if (result.rows.length === 0) {
             const created = await query(
-                `INSERT INTO timesheets (user_id, week_start, week_end, status, total_hours)
-                 VALUES ($1, $2, $3, 'draft', 0) RETURNING *`,
-                [userId, weekStart, weekEnd]
+                `INSERT INTO timesheets (user_id, week_start, week_end, status, total_hours, tenant_id)
+                 VALUES ($1, $2, $3, 'draft', 0, $4) RETURNING *`,
+                [userId, weekStart, weekEnd, tenantId]
             );
             return res.status(201).json({ ...created.rows[0], entries: [] });
         }
 
         res.json(result.rows[0]);
     } catch (err: any) {
+        console.error('[TIMESHEETS] Fetch Error:', err);
         res.status(500).json({ error: err.message });
     }
 };

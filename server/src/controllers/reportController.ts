@@ -83,7 +83,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
     try {
         const [empCount, attendanceCount, leaveCount, timesheetCount] = await Promise.all([
             pool.query('SELECT COUNT(*)::int FROM employees'),
-            pool.query('SELECT COUNT(DISTINCT user_id)::int FROM attendance WHERE check_in::date = CURRENT_DATE'),
+            pool.query('SELECT COUNT(DISTINCT COALESCE(user_id::text, employee_id))::int FROM attendance WHERE COALESCE(check_in, check_in_time)::date = CURRENT_DATE'),
             pool.query("SELECT COUNT(DISTINCT user_id)::int FROM leave_requests WHERE status = 'approved' AND CURRENT_DATE BETWEEN start_date AND end_date"),
             pool.query("SELECT COUNT(DISTINCT user_id)::int FROM timesheets WHERE week_start <= CURRENT_DATE AND week_end >= CURRENT_DATE")
         ]);
@@ -113,32 +113,37 @@ export const getReportSummary = async (req: Request, res: Response) => {
         const dashData = await AnalyticsService.getAdminDashboard();
 
         // Attendance trend (last 30 days, day-by-day)
-        const trendRes = await pool.query(`
-            WITH RECURSIVE days AS (
-                SELECT CURRENT_DATE - INTERVAL '29 days' as day
-                UNION ALL
-                SELECT day + INTERVAL '1 day' FROM days WHERE day < CURRENT_DATE
-            )
-            SELECT
-                d.day::date,
-                COALESCE(COUNT(DISTINCT a.user_id), 0) as present_count
-            FROM days d
-            LEFT JOIN attendance a ON a.check_in::date = d.day::date
-            GROUP BY d.day
-            ORDER BY d.day
-        `);
+        let attendanceTrend = Array(30).fill(0);
+        try {
+            const trendRes = await pool.query(`
+                WITH RECURSIVE days AS (
+                    SELECT CURRENT_DATE - INTERVAL '29 days' as day
+                    UNION ALL
+                    SELECT day + INTERVAL '1 day' FROM days WHERE day < CURRENT_DATE
+                )
+                SELECT
+                    d.day::date,
+                    COALESCE(COUNT(DISTINCT COALESCE(a.user_id::text, a.employee_id::text)), 0) as present_count
+                FROM days d
+                LEFT JOIN attendance a ON COALESCE(a.check_in, a.check_in_time)::date = d.day::date
+                GROUP BY d.day
+                ORDER BY d.day
+            `);
 
-        const totalUsers = dashData.activeEmployees || 1;
-        const attendanceTrend = trendRes.rows.map(row =>
-            Math.round((parseInt(row.present_count) / totalUsers) * 100)
-        );
+            const totalUsers = dashData.activeEmployees || 1;
+            attendanceTrend = trendRes.rows.map(row =>
+                Math.round((parseInt(row.present_count) / totalUsers) * 100)
+            );
+        } catch (trendErr: any) {
+            console.warn('[ReportSummary] Attendance trend query failed:', trendErr.message);
+        }
 
         res.json({
             headcount: dashData.activeEmployees,
             enrolledHeadcount: dashData.totalEmployees,
-            avgSalary: dashData.avgSalary * 12, // Annual
-            attritionRate: dashData.attritionRate + '%',
-            departments: dashData.departmentDistribution.map(d => ({
+            avgSalary: (dashData.avgSalary || 0) * 12, // Annual
+            attritionRate: (dashData.attritionRate || 0) + '%',
+            departments: (dashData.departmentDistribution || []).map(d => ({
                 name: d.name,
                 val: d.percentage,
                 color: getDeptColor(d.name),
@@ -150,7 +155,7 @@ export const getReportSummary = async (req: Request, res: Response) => {
             },
             leave: {
                 pending: dashData.pendingLeaves,
-                approved: 0, // can be computed if needed
+                approved: 0,
             },
             payroll: {
                 monthlyPayout: dashData.totalPayrollCost,
@@ -165,8 +170,8 @@ export const getReportSummary = async (req: Request, res: Response) => {
             ],
         });
     } catch (err: any) {
-        console.error('Report Summary Error:', err.message);
-        res.status(500).json({ success: false, message: 'Failed to load report data' });
+        console.error('[CRITICAL] Report Summary Error:', err);
+        res.status(500).json({ success: false, message: 'Failed to load report data', error: err.message });
     }
 };
 

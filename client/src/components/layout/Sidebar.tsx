@@ -1,226 +1,228 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink } from 'react-router-dom';
 import {
-    LayoutDashboard,
-    UserPlus,
-    Users,
-    Clock,
-    Calendar,
-    FileText,
-    CreditCard,
-    ClipboardList,
-    ChevronLeft,
-    ChevronRight,
-    LogOut,
-    BarChart2,
-    Shield,
-    Bell,
-    User,
+    LayoutDashboard, UserPlus, Users, Clock, CalendarDays,
+    CreditCard, ClipboardList, BarChart2, Shield,
+    Settings, Layers, ChevronLeft, ChevronRight, ChevronDown,
+    PlusCircle, History, ListFilter
 } from 'lucide-react';
-import { useAuthStore, UserRole } from '../../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 
-// ============================================================================
-// EMS FRONTEND — SIDEBAR (UPGRADED — PERMISSION-AWARE)
-// ============================================================================
-// Changes:
-//   1. Menu items now check permissions (not just roles)
-//   2. Added audit logs and notifications links
-//   3. Added profile link for all users
-//   4. Dynamic badge counter support
-// ============================================================================
+interface SubMenuItem {
+    label: string;
+    path: string;
+    roles: string[];
+    icon?: React.ElementType;
+}
 
 interface MenuItem {
     icon: React.ElementType;
     label: string;
-    path: string;
+    path?: string;
     roles: string[];
-    module?: string;  // Permission module name
+    module?: string;
+    children?: SubMenuItem[];
 }
 
-const menuItems: MenuItem[] = [
-    { icon: LayoutDashboard, label: 'Dashboard',  path: '/dashboard',    roles: ['admin', 'hr', 'manager', 'super_admin'], module: 'dashboard' },
-    { icon: UserPlus,        label: 'Onboarding', path: '/onboarding',   roles: ['admin', 'hr', 'super_admin'],           module: 'onboarding' },
-    { icon: Users,           label: 'Employees',  path: '/employees',    roles: ['admin', 'hr', 'manager', 'super_admin'], module: 'employees' },
-    { icon: Clock,           label: 'Attendance', path: '/attendance',   roles: ['admin', 'hr', 'manager', 'employee', 'super_admin'], module: 'attendance' },
-    { icon: Calendar,        label: 'Leave',      path: '/leave',        roles: ['admin', 'hr', 'manager', 'employee', 'super_admin'], module: 'leave' },
-    { icon: ClipboardList,   label: 'Timesheet',  path: '/timesheet',    roles: ['admin', 'hr', 'manager', 'employee', 'super_admin'], module: 'timesheet' },
-    { icon: CreditCard,      label: 'Payroll',    path: '/payroll',      roles: ['admin', 'hr', 'employee', 'super_admin'],            module: 'payroll' },
-    { icon: BarChart2,       label: 'Reports',    path: '/reports',      roles: ['admin', 'hr', 'super_admin'],                        module: 'reports' },
-    { icon: Shield,          label: 'Audit Logs', path: '/audit-logs',   roles: ['admin', 'super_admin'],                              module: 'audit' },
+interface MenuSection {
+    title: string;
+    items: MenuItem[];
+}
+
+const sidebarSections: MenuSection[] = [
+    {
+        title: 'Overview',
+        items: [
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin','hr','manager','super_admin','employee'], module: 'dashboard' },
+        ]
+    },
+    {
+        title: 'Workforce',
+        items: [
+            { icon: Users,           label: 'Employees',  path: '/employees',  roles: ['admin','hr','manager','super_admin'],            module: 'employees' },
+            { icon: UserPlus,        label: 'Onboarding', path: '/onboarding', roles: ['admin','hr','super_admin'],                     module: 'onboarding' },
+        ]
+    },
+    {
+        title: 'Operations',
+        items: [
+            { icon: Clock,           label: 'Attendance', path: '/attendance', roles: ['admin','hr','manager','employee','super_admin'], module: 'attendance' },
+            { icon: CalendarDays,    label: 'Time Off',   path: '/leave',      roles: ['admin','hr','manager','employee','super_admin'], module: 'leave' },
+            { icon: ClipboardList,   label: 'Timesheets', path: '/timesheet',  roles: ['admin','hr','manager','employee','super_admin'], module: 'timesheet' },
+        ]
+    },
+    {
+        title: 'Finance & Systems',
+        items: [
+            { icon: CreditCard,      label: 'Payroll',    path: '/payroll',    roles: ['admin','hr','employee','super_admin'],           module: 'payroll' },
+            { icon: BarChart2,       label: 'Reports',    path: '/reports',    roles: ['admin','hr','super_admin'],                     module: 'reports' },
+            { icon: Shield,          label: 'Audit Log',  path: '/audit-logs', roles: ['admin','super_admin'],                          module: 'audit' },
+        ]
+    }
 ];
 
 const Sidebar: React.FC = () => {
-    const { user, logout, hasModule } = useAuthStore();
-    const [collapsed, setCollapsed] = useState(false);
-    const navigate = useNavigate();
+    const { user, hasModule } = useAuthStore();
+    const [collapsed, setCollapsed] = useState<boolean>(() => {
+        try { return localStorage.getItem('sidebar_collapsed') === 'true'; }
+        catch { return false; }
+    });
+    const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
 
-    // Filter menu based on role AND permissions
-    const filteredMenu = menuItems.filter(item => {
+    useEffect(() => {
+        localStorage.setItem('sidebar_collapsed', String(collapsed));
+    }, [collapsed]);
+
+    const toggleSubMenu = (label: string) => {
+        setOpenSubMenus(prev => ({ ...prev, [label]: !prev[label] }));
+    };
+
+    const isAuthorized = (item: { roles: string[], module?: string }) => {
         const roleMatch = item.roles.includes(user?.role ?? '');
         if (!roleMatch) return false;
-        // If module is specified, also check permission
         if (item.module) return hasModule(item.module);
         return true;
-    });
-
-    const initials = user?.name
-        ? user.name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
-        : 'U';
-
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
     };
 
     return (
         <aside
             className={`
-                flex flex-col h-screen flex-shrink-0 overflow-hidden
-                bg-[#1E2535] text-white
-                transition-[width] duration-300 ease-in-out
-                ${collapsed ? 'w-[64px]' : 'w-[220px]'}
+                flex flex-col h-screen flex-shrink-0 z-40 select-none
+                bg-[#0F172A] border-r border-indigo-500/10 shadow-[4px_0_24px_rgba(0,0,0,0.15)]
+                transition-all duration-300 ease-in-out
+                ${collapsed ? 'w-[72px]' : 'w-[256px]'}
             `}
         >
-            {/* Logo + Brand */}
-            <div className={`flex items-center h-[56px] px-4 border-b border-white/[0.06] flex-shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
-                {!collapsed && (
-                    <div className="flex items-center gap-2.5 overflow-hidden">
-                        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-600/30">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                                <circle cx="9" cy="7" r="4"/>
-                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                            </svg>
-                        </div>
-                        <span className="text-[15px] font-bold tracking-tight whitespace-nowrap text-white">PrecisionHub</span>
-                    </div>
-                )}
-                {collapsed && (
-                    <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-600/30">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                        </svg>
-                    </div>
-                )}
-                {!collapsed && (
+            {/* ── Logo + Collapse ─────────────────── */}
+            <div className={`h-[64px] flex items-center flex-shrink-0 border-b border-white/[0.05] relative
+                ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
+                {collapsed ? (
                     <button
-                        onClick={() => setCollapsed(true)}
-                        className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
-                        title="Collapse sidebar"
+                        onClick={() => setCollapsed(false)}
+                        className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition-all"
                     >
-                        <ChevronLeft size={16} />
+                        <ChevronRight size={18} className="text-white" />
                     </button>
-                )}
-            </div>
-
-            {/* Expand button when collapsed */}
-            {collapsed && (
-                <button
-                    onClick={() => setCollapsed(false)}
-                    className="mx-auto mt-3 p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-                    title="Expand sidebar"
-                >
-                    <ChevronRight size={16} />
-                </button>
-            )}
-
-            {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto no-scrollbar py-3 px-2 space-y-0.5">
-                {filteredMenu.map(item => (
-                    <NavLink
-                        key={item.path}
-                        to={item.path}
-                        title={collapsed ? item.label : undefined}
-                        className={({ isActive }) =>
-                            `flex items-center rounded-lg transition-all duration-150 group
-                            ${collapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
-                            ${isActive
-                                ? 'bg-blue-600/20 text-blue-400'
-                                : 'text-white/50 hover:text-white hover:bg-white/[0.07]'
-                            }`
-                        }
-                    >
-                        {({ isActive }) => (
-                            <>
-                                <item.icon size={17} className={`flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-white/40 group-hover:text-white/80'} transition-colors`} />
-                                {!collapsed && (
-                                    <span className={`text-[13px] font-medium whitespace-nowrap ${isActive ? 'text-blue-300 font-semibold' : ''}`}>
-                                        {item.label}
-                                    </span>
-                                )}
-                                {!collapsed && isActive && (
-                                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></div>
-                                )}
-                            </>
-                        )}
-                    </NavLink>
-                ))}
-
-                {/* Divider + Profile link (always visible) */}
-                <div className="my-2 border-t border-white/[0.06]" />
-                <NavLink
-                    to="/profile"
-                    title={collapsed ? 'Profile' : undefined}
-                    className={({ isActive }) =>
-                        `flex items-center rounded-lg transition-all duration-150 group
-                        ${collapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
-                        ${isActive
-                            ? 'bg-blue-600/20 text-blue-400'
-                            : 'text-white/50 hover:text-white hover:bg-white/[0.07]'
-                        }`
-                    }
-                >
-                    {({ isActive }) => (
-                        <>
-                            <User size={17} className={`flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-white/40 group-hover:text-white/80'} transition-colors`} />
-                            {!collapsed && (
-                                <span className={`text-[13px] font-medium whitespace-nowrap ${isActive ? 'text-blue-300 font-semibold' : ''}`}>
-                                    Profile
-                                </span>
-                            )}
-                        </>
-                    )}
-                </NavLink>
-            </nav>
-
-            {/* User Footer */}
-            <div className={`flex-shrink-0 border-t border-white/[0.06] p-3 ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
-                {!collapsed ? (
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 shadow">
-                            {initials}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-semibold text-white truncate leading-tight">{user?.name}</p>
-                            <p className="text-[10px] text-white/40 capitalize leading-tight mt-0.5">{user?.role}</p>
-                        </div>
-                        <button
-                            onClick={handleLogout}
-                            title="Sign out"
-                            className="p-1.5 rounded-lg text-white/30 hover:text-rose-400 hover:bg-white/10 transition-colors flex-shrink-0"
-                        >
-                            <LogOut size={14} />
-                        </button>
-                    </div>
                 ) : (
                     <>
-                        <div
-                            className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-[11px] font-bold text-white shadow"
-                            title={user?.name}
-                        >
-                            {initials}
+                        <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-600/30">
+                            <Layers size={18} className="text-white" />
+                        </div>
+                        <div className="ml-3.5 flex-1 min-w-0">
+                            <p className="text-[15px] font-black text-white leading-none tracking-tight">AURA</p>
+                            <p className="text-[9px] font-bold text-indigo-400/60 uppercase tracking-[0.2em] mt-1">Personnel Hub</p>
                         </div>
                         <button
-                            onClick={handleLogout}
-                            title="Sign out"
-                            className="p-1.5 rounded-lg text-white/30 hover:text-rose-400 hover:bg-white/10 transition-colors"
+                            onClick={() => setCollapsed(true)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-white/20 hover:text-white/60 hover:bg-white/[0.06] transition-all"
                         >
-                            <LogOut size={14} />
+                            <ChevronLeft size={16} />
                         </button>
                     </>
                 )}
+            </div>
+
+            {/* ── Navigation ────────────────────────── */}
+            <nav className="flex-1 overflow-y-auto no-scrollbar px-3 py-4 space-y-6">
+                {sidebarSections.map(section => {
+                    const visibleItems = section.items.filter(isAuthorized);
+                    if (visibleItems.length === 0) return null;
+
+                    return (
+                        <div key={section.title} className="space-y-1">
+                            {!collapsed && (
+                                <p className="px-3 text-[10px] font-black text-white/20 uppercase tracking-[0.25em] mb-3">
+                                    {section.title}
+                                </p>
+                            )}
+                            {visibleItems.map(item => (
+                                <div key={item.label}>
+                                    {item.children ? (
+                                        <>
+                                            <button
+                                                onClick={() => toggleSubMenu(item.label)}
+                                                className={`
+                                                    w-full flex items-center rounded-xl transition-all duration-150 group
+                                                    ${collapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
+                                                    ${openSubMenus[item.label] ? 'text-white/90 bg-white/[0.04]' : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'}
+                                                `}
+                                            >
+                                                <item.icon size={18} className="flex-shrink-0" />
+                                                {!collapsed && (
+                                                    <>
+                                                        <span className="text-[13px] font-semibold flex-1 text-left tracking-tight">{item.label}</span>
+                                                        <ChevronDown size={14} className={`transition-transform duration-200 ${openSubMenus[item.label] ? 'rotate-180' : ''}`} />
+                                                    </>
+                                                )}
+                                            </button>
+                                            {openSubMenus[item.label] && !collapsed && (
+                                                <div className="ml-9 mt-1 space-y-1 border-l border-white/[0.05]">
+                                                    {item.children.filter(isAuthorized).map(sub => (
+                                                        <NavLink
+                                                            key={sub.path}
+                                                            to={sub.path}
+                                                            className={({ isActive }) => `
+                                                                flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium transition-all
+                                                                ${isActive ? 'text-indigo-400' : 'text-white/30 hover:text-white/70'}
+                                                            `}
+                                                        >
+                                                            {sub.icon && <sub.icon size={12} />}
+                                                            {sub.label}
+                                                        </NavLink>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <NavLink
+                                            to={item.path!}
+                                            title={collapsed ? item.label : undefined}
+                                            className={({ isActive }) => `
+                                                relative flex items-center rounded-xl transition-all duration-150 group
+                                                ${collapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
+                                                ${isActive
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                                                    : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'}
+                                            `}
+                                        >
+                                            <item.icon size={18} className="flex-shrink-0" />
+                                            {!collapsed && (
+                                                <span className="text-[13px] font-semibold tracking-tight whitespace-nowrap">
+                                                    {item.label}
+                                                </span>
+                                            )}
+                                            {collapsed && (
+                                                <span className="pointer-events-none absolute left-[60px] z-50 bg-slate-800 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap border border-white/10 shadow-xl opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150">
+                                                    {item.label}
+                                                </span>
+                                            )}
+                                        </NavLink>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })}
+            </nav>
+
+            {/* ── Settings ─────────────────────────── */}
+            <div className="px-3 py-3 border-t border-white/[0.05]">
+                <button
+                    title={collapsed ? 'Settings' : undefined}
+                    className={`
+                        relative w-full flex items-center rounded-xl transition-all duration-150 group
+                        ${collapsed ? 'justify-center p-3.5' : 'gap-3 px-3 py-2.5'}
+                        text-white/20 hover:bg-white/[0.06] hover:text-white/50
+                    `}
+                >
+                    <Settings size={18} className="flex-shrink-0" />
+                    {!collapsed && <span className="text-[13px] font-semibold">Settings</span>}
+                    {collapsed && (
+                        <span className="pointer-events-none absolute left-[60px] z-50 bg-slate-800 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap border border-white/10 shadow-xl opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150">
+                            Settings
+                        </span>
+                    )}
+                </button>
             </div>
         </aside>
     );

@@ -12,7 +12,7 @@
 // ============================================================================
 
 import bcrypt from 'bcryptjs';
-import { query } from './connection';
+import { migrationQuery as query } from './connection';
 
 // ─── SCHEMA: TENANT & RBAC TABLES ──────────────────────────────────────────
 
@@ -83,6 +83,23 @@ const CORE_SCHEMA = `
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
     -- ╔══════════════════════════════════════════════════════════════╗
+    -- ║  NOTIFICATIONS                                              ║
+    -- ╚══════════════════════════════════════════════════════════════╝
+    CREATE TABLE IF NOT EXISTS notifications (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        tenant_id   TEXT    REFERENCES tenants(id) ON DELETE CASCADE,
+        type        TEXT    NOT NULL DEFAULT 'info',
+        title       TEXT    NOT NULL,
+        message     TEXT,
+        is_read     BOOLEAN NOT NULL DEFAULT false,
+        link        TEXT,
+        created_at  TIMESTAMP DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, tenant_id, is_read);
+
+
+    -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  EMPLOYEES — Core HR data (upgraded)                       ║
     -- ╚══════════════════════════════════════════════════════════════╝
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
@@ -91,6 +108,44 @@ const CORE_SCHEMA = `
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+
+    -- Education fields (simple, for quick reference)
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS highest_degree TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS field_of_study TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS institution TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS graduation_year TEXT;
+
+    -- Proper relational tables for education & experience (replaces JSONB approach)
+    CREATE TABLE IF NOT EXISTS employee_education (
+        id          SERIAL PRIMARY KEY,
+        employee_id TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        degree      TEXT,
+        field       TEXT,
+        institution TEXT,
+        year        TEXT,
+        grade       TEXT,
+        created_at  TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS employee_experience (
+        id          SERIAL PRIMARY KEY,
+        employee_id TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        job_title   TEXT,
+        company     TEXT,
+        start_date  DATE,
+        end_date    DATE,
+        is_current  BOOLEAN DEFAULT false,
+        description TEXT,
+        created_at  TIMESTAMP DEFAULT NOW()
+    );
+
+
+    -- Internship fields (only relevant when employment_type = 'intern')
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_start_date DATE;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_end_date DATE;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_stipend NUMERIC;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_supervisor TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_college TEXT;
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  PAYROLL_PROFILES (upgraded)                                ║

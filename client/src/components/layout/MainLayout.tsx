@@ -17,14 +17,16 @@ const PageSkeleton: React.FC = () => (
 
 const MainLayout: React.FC = () => {
     return (
-        <div className="flex h-screen bg-[#F3F4F8] overflow-hidden">
+        <div className="flex h-screen bg-[#F4F5F8] overflow-hidden">
             <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative shadow-[-8px_0_32px_rgba(0,0,0,0.02)]">
                 <Topbar />
-                <main className="flex-1 overflow-y-auto overflow-x-hidden">
-                    <Suspense fallback={<PageSkeleton />}>
-                        <Outlet />
-                    </Suspense>
+                <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F8FAFC]">
+                    <div className="min-h-full">
+                        <Suspense fallback={<PageSkeleton />}>
+                            <Outlet />
+                        </Suspense>
+                    </div>
                 </main>
             </div>
         </div>

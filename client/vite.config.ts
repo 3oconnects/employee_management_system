@@ -11,6 +11,13 @@ export default defineConfig({
         },
     },
     server: {
-        allowedHosts: ['velda-nonraiseable-joshingly.ngrok-free.dev']
+        allowedHosts: [
+            'velda-nonraiseable-joshingly.ngrok-free.dev',
+            'henlike-heterogeneously-rex.ngrok-free.dev'
+        ],
+        hmr: {
+            host: 'henlike-heterogeneously-rex.ngrok-free.dev',
+            protocol: 'wss'
+        }
     }
 })

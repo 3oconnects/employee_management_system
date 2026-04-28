@@ -1,245 +1,217 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { LogIn, Lock, Mail, Loader2, Eye, EyeOff, Shield, Users, CreditCard, BarChart2 } from 'lucide-react';
+import { 
+    LogIn, Lock, Mail, Loader2, Eye, EyeOff, Shield, 
+    Users, UserCheck, AlertCircle, Zap, Globe, Cpu, Layers 
+} from 'lucide-react';
 import api from '../../../services/api';
 
-// ============================================================================
-// LOGIN PAGE — UPGRADED MULTI-ROLE SaaS LOGIN
-// ============================================================================
-// Changes:
-//   1. Uses api service instead of raw fetch (for interceptors)
-//   2. Stores permissions + refreshToken from upgraded auth response
-//   3. Role-based redirect (admin→dashboard, employee→attendance)
-//   4. Quick-switch buttons for demo roles
-//   5. Error toast instead of alert()
-//   6. Professional UI with role indicator
-// ============================================================================
-
 const DEMO_ACCOUNTS = [
-    { label: 'Admin',    email: 'admin@example.com',   icon: Shield,     color: 'bg-blue-600' },
-    { label: 'Manager',  email: 'sarah@example.com',   icon: Users,      color: 'bg-violet-600' },
-    { label: 'Employee', email: 'michael@example.com', icon: CreditCard, color: 'bg-emerald-600' },
+    { label: 'System Root', email: 'admin@company.com',   icon: Shield,    color: 'bg-indigo-600', password: 'admin123'  },
+    { label: 'Executive', email: 'sarah@example.com',   icon: Users,     color: 'bg-purple-600', password: 'password'  },
+    { label: 'Operator',  email: 'michael@example.com', icon: UserCheck, color: 'bg-emerald-600', password: 'password' },
 ];
 
 const LoginPage: React.FC = () => {
-    const [email, setEmail] = useState('admin@example.com');
-    const [password, setPassword] = useState('password');
+    const [email, setEmail]               = useState('admin@company.com');
+    const [password, setPassword]         = useState('admin123');
     const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading]       = useState(false);
+    const [error, setError]               = useState<string | null>(null);
 
     const { setAuth, isAuthenticated, user } = useAuthStore();
-    const navigate = useNavigate();
-    const location = useLocation();
+    const navigate  = useNavigate();
 
-    const from = (location.state as any)?.from?.pathname;
-
-    // If already authenticated, redirect
     useEffect(() => {
-        if (isAuthenticated && user) {
-            const target = getRedirectPath(user.role);
-            navigate(target, { replace: true });
-        }
-    }, [isAuthenticated, user]);
-
-    function getRedirectPath(role: string): string {
-        if (from && from !== '/login') return from;
-        return '/dashboard';
-    }
+        if (isAuthenticated && user) navigate('/dashboard', { replace: true });
+    }, [isAuthenticated, user, navigate]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-
-        if (!email || !password) {
-            setError('Please enter both email and password.');
-            return;
-        }
-
+        if (!email || !password) { setError('All protocols require valid credentials.'); return; }
         setIsLoading(true);
-
         try {
-            const res = await api.post('/auth/login', { email, password });
+            const res  = await api.post('/auth/login', { email, password });
             const data = res.data;
-
-            if (!data.success && !data.accessToken) {
-                throw new Error(data.message || 'Login failed');
-            }
-
-            // Store user with permissions + tokens
             setAuth(
                 {
-                    id: data.user.id,
-                    employee_id: data.user.employee_id,
-                    tenant_id: data.user.tenant_id,
-                    name: data.user.name,
-                    email: data.user.email,
-                    role: data.user.role,
-                    phone: data.user.phone,
-                    address: data.user.address,
+                    id: data.user.id, employee_id: data.user.employee_id,
+                    tenant_id: data.user.tenant_id, name: data.user.name,
+                    email: data.user.email, role: data.user.role,
+                    phone: data.user.phone, address: data.user.address,
                     emergency: data.user.emergency,
                     permissions: data.user.permissions || [],
                 },
                 data.accessToken || data.token,
                 data.refreshToken
             );
-
-            const target = getRedirectPath(data.user.role);
-            navigate(target, { replace: true });
+            navigate('/dashboard', { replace: true });
         } catch (err: any) {
-            console.error('Login error:', err);
-            setError(err.message || err.response?.data?.message || 'Invalid email or password.');
+            setError(err.response?.data?.message || 'Authentication sequence failed. Verify credentials.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const selectDemoAccount = (demoEmail: string) => {
-        setEmail(demoEmail);
-        setPassword('password');
+    const selectDemo = (account: typeof DEMO_ACCOUNTS[0]) => {
+        setEmail(account.email);
+        setPassword(account.password);
         setError(null);
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 flex items-center justify-center p-4">
-            <div className="max-w-[440px] w-full">
-
-                {/* ── BRAND HEADER ──────────────────────────── */}
-                <div className="text-center mb-8">
-                    <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white mx-auto shadow-xl shadow-blue-200/50 mb-5">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        </svg>
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome to PrecisionHub</h1>
-                    <p className="text-slate-500 mt-1.5 text-sm">Sign in to your enterprise workspace</p>
+        <div className="min-h-screen flex bg-slate-50 font-sans selection:bg-indigo-500/30">
+            {/* Left: Brand Panel */}
+            <div className="hidden lg:flex w-[480px] flex-col justify-between p-12 bg-[#0A0828] relative overflow-hidden">
+                {/* Background Decor */}
+                <div className="absolute top-0 right-0 w-full h-full opacity-20">
+                    <div className="absolute top-[-10%] right-[-10%] w-[80%] h-[80%] rounded-full border border-white/5" />
+                    <div className="absolute bottom-[-20%] left-[-20%] w-[100%] h-[100%] rounded-full border border-white/5" />
                 </div>
 
-                {/* ── LOGIN CARD ─────────────────────────────── */}
-                <div className="bg-white p-7 rounded-2xl shadow-xl shadow-slate-200/40 border border-slate-100/80">
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-16">
+                        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-600/40">
+                            <Layers size={26} className="text-white" />
+                        </div>
+                        <h1 className="text-[24px] font-black text-white tracking-tighter uppercase italic">AURA CORE</h1>
+                    </div>
 
-                    {/* Error Banner */}
+                    <div className="space-y-6">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-lg">
+                            <Zap size={14} className="text-indigo-400 fill-indigo-400" />
+                            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Protocol Active</span>
+                        </div>
+                        <h2 className="text-4xl font-black text-white leading-[1.1] tracking-tight">
+                            ENTERPRISE<br />
+                            <span className="text-indigo-400">COMMAND CENTER.</span>
+                        </h2>
+                        <p className="text-slate-400 font-medium leading-relaxed max-w-sm">
+                            Access the neural interface for multi-tenant workforce management, automated fiscal processing, and real-time operational traceability.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="relative z-10 space-y-8">
+                    <div className="grid grid-cols-2 gap-8 pt-8 border-t border-white/5">
+                        <div>
+                            <p className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em] mb-2">Sync Status</p>
+                            <span className="text-[14px] font-bold text-white flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block" />
+                                Operational
+                            </span>
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em] mb-2">Traceability</p>
+                            <span className="text-[14px] font-bold text-white flex items-center gap-2">
+                                <Shield size={14} className="text-indigo-400" />
+                                L3 Secure
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right: Login Panel */}
+            <div className="flex-1 flex flex-col items-center justify-center p-8 lg:p-24 bg-white relative">
+                <div className="w-full max-w-md space-y-10">
+                    <div className="space-y-2">
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Identity Access</h3>
+                        <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest">Enter Credentials to Initialize</p>
+                    </div>
+
                     {error && (
-                        <div className="mb-5 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700 font-medium flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
-                            {error}
+                        <div className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 animate-in fade-in slide-in-from-top-2">
+                            <AlertCircle size={18} />
+                            <p className="text-[13px] font-bold">{error}</p>
                         </div>
                     )}
 
-                    <form onSubmit={handleLogin} className="space-y-5">
-                        {/* Email */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">
-                                Email Address
-                            </label>
-                            <div className="relative">
-                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                <input
-                                    type="email"
+                    <form onSubmit={handleLogin} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Interface ID (Email)</label>
+                            <div className="relative group">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                <input 
+                                    type="email" 
                                     value={email}
-                                    onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
-                                    placeholder="name@company.com"
+                                    onChange={e => setEmail(e.target.value)}
+                                    placeholder="operator@auracore.io"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-[14px] font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-300"
                                     required
-                                    autoComplete="email"
                                 />
                             </div>
                         </div>
 
-                        {/* Password */}
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">
-                                Password
-                            </label>
-                            <div className="relative">
-                                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center px-1">
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Secure Key</label>
+                                <button type="button" className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors">Reset Key</button>
+                            </div>
+                            <div className="relative group">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                                <input 
+                                    type={showPassword ? 'text' : 'password'} 
                                     value={password}
-                                    onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                                    className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all"
-                                    placeholder="••••••••"
+                                    onChange={e => setPassword(e.target.value)}
+                                    placeholder="••••••••••••"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-12 text-[14px] font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-300"
                                     required
-                                    autoComplete="current-password"
                                 />
-                                <button
+                                <button 
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
                                 >
-                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
                         </div>
 
-                        {/* Remember + Forgot */}
-                        <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
-                                <span className="text-xs text-slate-500">Remember me</span>
-                            </label>
-                            <button type="button" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
-                                Forgot password?
-                            </button>
-                        </div>
-
-                        {/* Submit */}
-                        <button
-                            type="submit"
+                        <button 
+                            type="submit" 
                             disabled={isLoading}
-                            className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-200/50 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 py-4 rounded-2xl text-white text-[14px] font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                         >
                             {isLoading ? (
-                                <>
-                                    <Loader2 className="animate-spin" size={18} />
-                                    <span>Authenticating...</span>
-                                </>
+                                <><Loader2 className="animate-spin" size={18} /> Synchronizing...</>
                             ) : (
-                                <>
-                                    <LogIn size={18} />
-                                    <span>Sign In</span>
-                                </>
+                                <><LogIn size={18} /> Authenticate Session</>
                             )}
                         </button>
                     </form>
 
-                    {/* ── DEMO ROLE SWITCHER ─────────────────────── */}
-                    <div className="mt-6 pt-5 border-t border-slate-100">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Quick Login As</p>
-                        <div className="grid grid-cols-3 gap-2">
-                            {DEMO_ACCOUNTS.map((demo) => (
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-4">
+                            <div className="flex-1 h-px bg-slate-100" />
+                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Quick Access Tokens</span>
+                            <div className="flex-1 h-px bg-slate-100" />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                            {DEMO_ACCOUNTS.map(account => (
                                 <button
-                                    key={demo.label}
-                                    type="button"
-                                    onClick={() => selectDemoAccount(demo.email)}
-                                    className={`
-                                        group flex flex-col items-center gap-1.5 py-3 rounded-xl border transition-all duration-200
-                                        ${email === demo.email
-                                            ? 'border-blue-200 bg-blue-50/50 shadow-sm'
-                                            : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'
-                                        }
-                                    `}
+                                    key={account.label}
+                                    onClick={() => selectDemo(account)}
+                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all ${email === account.email ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-300'}`}
                                 >
-                                    <div className={`w-8 h-8 ${demo.color} rounded-lg flex items-center justify-center text-white shadow-sm group-hover:scale-110 transition-transform`}>
-                                        <demo.icon size={14} />
+                                    <div className={`w-10 h-10 ${account.color} rounded-xl flex items-center justify-center text-white shadow-lg`}>
+                                        <account.icon size={18} />
                                     </div>
-                                    <span className={`text-[11px] font-semibold ${email === demo.email ? 'text-blue-700' : 'text-slate-500'}`}>
-                                        {demo.label}
+                                    <span className={`text-[10px] font-black uppercase tracking-tighter ${email === account.email ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                        {account.label}
                                     </span>
                                 </button>
                             ))}
                         </div>
                     </div>
-                </div>
 
-                {/* Footer */}
-                <p className="text-center mt-6 text-[11px] text-slate-400">
-                    &copy; 2026 PrecisionHub HRMS &middot; Enterprise SaaS Platform
-                </p>
+                    <p className="text-center text-[11px] font-black text-slate-300 uppercase tracking-widest pt-8">
+                        © 2026 PRECISIONHUB INDUSTRIAL SYSTEMS
+                    </p>
+                </div>
             </div>
         </div>
     );

@@ -163,6 +163,10 @@ export const getReportSummary = async (req: Request, res: Response) => {
             monthlyHiringTrend: dashData.monthlyHiringTrend,
             payrollTrend: dashData.payrollTrend,
             genderDistribution: dashData.genderDistribution,
+            employmentType: dashData.employmentTypeBreakdown,
+            todayAttendanceLog: dashData.todayAttendanceLog,
+            salaryDistribution: dashData.salaryDistribution,
+            orgMetrics: dashData.orgMetrics,
             recentReports: [
                 { name: 'Monthly Attendance Ledger', type: 'Compliance', size: '2.4 MB', date: new Date().toLocaleDateString() },
                 { name: 'Payroll Summary', type: 'Finance', size: '1.8 MB', date: new Date().toLocaleDateString() },

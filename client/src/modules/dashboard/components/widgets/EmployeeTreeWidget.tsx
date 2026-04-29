@@ -130,15 +130,34 @@ const EmployeeTreeWidget: React.FC = () => {
                 });
 
                 const roots: EmpNode[] = [];
+                const virtualManagers = new Map<number, EmpNode>();
+
                 map.forEach(node => {
                     const mgrId = (node as any).reporting_manager_id;
-                    if (mgrId && userIdMap.has(Number(mgrId))) {
-                        userIdMap.get(Number(mgrId))!.children.push(node);
+                    const mgrName = (node as any).manager_name || 'System Admin';
+
+                    if (mgrId) {
+                        if (userIdMap.has(Number(mgrId))) {
+                            userIdMap.get(Number(mgrId))!.children.push(node);
+                        } else {
+                            // Create virtual manager node
+                            if (!virtualManagers.has(Number(mgrId))) {
+                                virtualManagers.set(Number(mgrId), {
+                                    id: `v-${mgrId}`,
+                                    name: mgrName,
+                                    position: 'Administrative Head',
+                                    department_name: 'Corporate',
+                                    children: [node]
+                                } as any);
+                            } else {
+                                virtualManagers.get(Number(mgrId))!.children.push(node);
+                            }
+                        }
                     } else {
                         roots.push(node);
                     }
                 });
-                setTree(roots);
+                setTree([...roots, ...Array.from(virtualManagers.values())]);
             } catch { setTree([]); }
             finally { setLoading(false); }
         })();

@@ -13,11 +13,9 @@ export const pool = new Pool({
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 30000,
 });
 
-// For migrations: prefer DIRECT_URL (port 5432) but fall back to pooler (port 6543)
-// Port 5432 may be blocked on some networks — pooler is more reliable
 export const directPool = new Pool({
     connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },

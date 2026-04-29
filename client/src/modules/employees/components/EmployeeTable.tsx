@@ -76,10 +76,12 @@ const EmployeeTable: React.FC = () => {
     const [refreshKey, setRefreshKey] = useState(0);
     const refresh = () => { setPage(1); setRefreshKey(k => k + 1); };
 
-    const fetchEmp = async (search:string,p:number) => {
+    const fetchEmp = async (search:string,p:number,v?:string) => {
         setLoading(true);
         try {
-            const {data} = await api.get('/employees',{params:{search,page:p,limit:16}});
+            const currentView = v || view;
+            const limit = currentView === 'tree' ? 1000 : 16;
+            const {data} = await api.get('/employees',{params:{search,page:p,limit}});
             setEmployees(data.items||[]);
             setTotalPages(data.totalPages||1);
             setTotalItems(data.totalItems||0);
@@ -87,6 +89,15 @@ const EmployeeTable: React.FC = () => {
     };
     const dSearch = useCallback(debounce((v:string)=>{setPage(1);fetchEmp(v,1);},400),[]);
     useEffect(()=>{fetchEmp(searchTerm,page);},[page, refreshKey]);
+
+    // Re-fetch when switching to tree view to get all nodes
+    useEffect(() => {
+        if (view === 'tree') {
+            fetchEmp(searchTerm, 1, 'tree');
+        } else {
+            fetchEmp(searchTerm, page, view);
+        }
+    }, [view]);
 
     /* Modals */
     const [showAdd,setShowAdd]   = useState(false);
@@ -180,15 +191,35 @@ const EmployeeTable: React.FC = () => {
         });
 
         const roots:TreeNode[]=[];
+        const virtualManagers = new Map<number, TreeNode>();
+
         map.forEach(node=>{
             const mgrId = node.reporting_manager_id;
-            if(mgrId && userIdMap.has(Number(mgrId))){
-                userIdMap.get(Number(mgrId))!.children.push(node);
-            }else{
+            const mgrName = node.manager_name || 'System Admin';
+
+            if(mgrId){
+                if (userIdMap.has(Number(mgrId))) {
+                    userIdMap.get(Number(mgrId))!.children.push(node);
+                } else {
+                    // Create virtual manager node
+                    if (!virtualManagers.has(Number(mgrId))) {
+                        virtualManagers.set(Number(mgrId), {
+                            id: `v-${mgrId}`,
+                            name: mgrName,
+                            position: 'Administrative Head',
+                            department: 'Corporate',
+                            status: 'active',
+                            children: [node]
+                        } as any);
+                    } else {
+                        virtualManagers.get(Number(mgrId))!.children.push(node);
+                    }
+                }
+            } else {
                 roots.push(node);
             }
         });
-        return roots;
+        return [...roots, ...Array.from(virtualManagers.values())];
     };
 
     return (

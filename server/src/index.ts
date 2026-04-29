@@ -156,7 +156,9 @@ const start = async () => {
         await runMigrationV3();
         console.log('✅ All schema migrations completed.');
     } catch (dbErr: any) {
-        console.warn('⚠️  Backend initialization warning:', dbErr.message);
+        console.error('\n❌ CRITICAL: Database Connection Failed');
+        console.error('   Error Details:', dbErr);
+        console.error('   Hint:  Check your DATABASE_URL, network firewall (port 5432/6543), and password encoding.\n');
     }
 };
 

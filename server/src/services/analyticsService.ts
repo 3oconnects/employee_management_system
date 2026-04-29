@@ -33,6 +33,9 @@ interface AdminDashboardData {
     recentActivities: any[];
     upcomingHolidays: any[];
     headcountGrowth: number;
+    todayAttendanceLog: any[];
+    salaryDistribution: any[];
+    orgMetrics: { units: number; locations: number };
 }
 
 // ─── ADMIN / HR DASHBOARD ───────────────────────────────────────────────────
@@ -75,8 +78,8 @@ export class AnalyticsService {
             // 1. Employee counts
             safeQuery(`
                 SELECT
-                    COUNT(*) FILTER (WHERE status = 'active' AND deleted_at IS NULL) AS active,
-                    COUNT(*) FILTER (WHERE status != 'active' OR deleted_at IS NOT NULL) AS inactive,
+                    COUNT(*) FILTER (WHERE status IN ('active', 'onboarding') AND deleted_at IS NULL) AS active,
+                    COUNT(*) FILTER (WHERE status = 'terminated' OR deleted_at IS NOT NULL) AS inactive,
                     COUNT(*) AS total
                 FROM employees
             `, [], { rows: [{ active: '0', inactive: '0', total: '0' }] }),
@@ -196,12 +199,19 @@ export class AnalyticsService {
             `, [], { rows: [] }),
             // 16. Avg attendance (last 30 days)
             safeQuery(`
-                SELECT
-                    COUNT(DISTINCT COALESCE(check_in, check_in_time)::date) AS working_days,
-                    COUNT(*) AS total_checkins
-                FROM attendance
-                WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days'
-            `, [], { rows: [{ working_days: '1', total_checkins: '0' }] }),
+                WITH daily_counts AS (
+                    SELECT 
+                        COALESCE(check_in, check_in_time)::date as d,
+                        COUNT(DISTINCT COALESCE(user_id::text, employee_id)) as present
+                    FROM attendance
+                    WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days'
+                    GROUP BY 1
+                )
+                SELECT 
+                    COALESCE(AVG(present), 0) as avg_present,
+                    (SELECT COUNT(DISTINCT COALESCE(check_in, check_in_time)::date) FROM attendance WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days') as working_days
+                FROM daily_counts
+            `, [], { rows: [{ avg_present: '0', working_days: '1' }] }),
             // 17. Previous month headcount (for growth %)
             safeQuery(`
                 SELECT COUNT(*) AS count FROM employees
@@ -209,6 +219,35 @@ export class AnalyticsService {
                 AND (exit_date IS NULL OR exit_date >= DATE_TRUNC('month', CURRENT_DATE))
                 AND deleted_at IS NULL
             `, [], { rows: [{ count: '1' }] }),
+            // 18. Today's attendance log
+            safeQuery(`
+                SELECT 
+                    e.id, e.name, e.department, e.employment_type,
+                    COALESCE(a.check_in, a.check_in_time) as check_in,
+                    COALESCE(a.location, 'Main Office') as location
+                FROM employees e
+                LEFT JOIN users u ON u.email = e.email
+                LEFT JOIN attendance a ON (a.user_id = u.id OR a.employee_id = e.id) AND COALESCE(a.check_in, a.check_in_time)::date = CURRENT_DATE
+                WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL
+                ORDER BY a.check_in DESC NULLS LAST, e.name
+            `, [], { rows: [] }),
+            // 19. Salary distribution
+            safeQuery(`
+                SELECT 
+                    e.position as level,
+                    COUNT(*) as count,
+                    COALESCE(SUM(pp.annual_ctc), 0) as total_ctc
+                FROM employees e
+                LEFT JOIN payroll_profiles pp ON pp.employee_id = e.id
+                WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL
+                GROUP BY e.position
+            `, [], { rows: [] }),
+            // 20. Org metrics
+            safeQuery(`
+                SELECT 
+                    (SELECT COUNT(*)::int FROM departments WHERE is_active = true) as units,
+                    (SELECT COUNT(DISTINCT location)::int FROM employees WHERE location IS NOT NULL AND status IN ('active', 'onboarding')) as locations
+            `, [], { rows: [{ units: 0, locations: 0 }] }),
         ]);
 
         const emp = empStats.rows[0] || { active: '0', inactive: '0', total: '0' };
@@ -221,6 +260,9 @@ export class AnalyticsService {
         const att30 = last30Attendance.rows[0] || { working_days: '1', total_checkins: '0' };
         const workingDays = parseInt(att30.working_days) || 1;
         const totalCheckins = parseInt(att30.total_checkins) || 0;
+        const attendanceLog = todayAttendanceLog.rows || [];
+        const salaryDist = salaryDistribution.rows || [];
+        const org = orgMetrics.rows[0] || { units: 0, locations: 0 };
 
         // Department distribution with percentages
         const totalDeptEmp = deptDist.rows.reduce((s: number, r: any) => s + parseInt(r.count), 0) || 1;
@@ -249,7 +291,7 @@ export class AnalyticsService {
             pendingTimesheets: parseInt(pendingTimesheets.rows[0]?.count) || 0,
             todayPresent: parseInt(todayAttendance.rows[0]?.count) || 0,
             onLeaveToday: parseInt(onLeaveToday.rows[0]?.count) || 0,
-            avgAttendanceRate: Math.round((totalCheckins / (active * workingDays)) * 100) || 0,
+            avgAttendanceRate: active > 0 ? Math.round((parseFloat(att30.avg_present) / active) * 100) : 0,
             attritionRate: annualizedAttrition,
             genderDistribution: {
                 male: parseInt(genderRow.male) || 0,
@@ -273,6 +315,12 @@ export class AnalyticsService {
             recentActivities: recentActivity.rows,
             upcomingHolidays: holidays.rows,
             headcountGrowth: Math.round(((active - prevCount) / prevCount) * 100 * 10) / 10,
+            todayAttendanceLog: attendanceLog,
+            salaryDistribution: salaryDist,
+            orgMetrics: {
+                units: parseInt(org.units) || 0,
+                locations: parseInt(org.locations) || 1,
+            },
         };
     }
 

@@ -17,7 +17,8 @@ export default defineConfig({
         ],
         hmr: {
             host: 'henlike-heterogeneously-rex.ngrok-free.dev',
-            protocol: 'wss'
+            protocol: 'wss',
+            clientPort: 443
         }
     }
 })

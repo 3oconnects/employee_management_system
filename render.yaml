@@ -9,7 +9,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - group: ems-secrets  # <--- Uses your .env values from here
+      - fromGroup: ems-secrets
 
   # ─── FRONTEND SERVICE (Static Site) ───────────────────
   - type: web
@@ -19,12 +19,16 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
-      - group: ems-secrets  # <--- Shared secrets (like API URLs)
+      - fromGroup: ems-secrets
       - key: VITE_API_URL
         fromService:
           type: web
           name: ems-api
           property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 # ─── ENVIRONMENT GROUP ──────────────────────────────────
 envVarGroups:

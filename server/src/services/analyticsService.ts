@@ -74,6 +74,9 @@ export class AnalyticsService {
             holidays,
             last30Attendance,
             prevMonthCount,
+            todayAttendanceLog,
+            salaryDistribution,
+            orgMetrics,
         ] = await Promise.all([
             // 1. Employee counts
             safeQuery(`

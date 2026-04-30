@@ -55,8 +55,18 @@ const schema = `
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS tenants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    domain TEXT UNIQUE,
+    status TEXT DEFAULT 'active',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
+    tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
@@ -133,6 +143,27 @@ const schema = `
     paid_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS departments (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    manager_id INTEGER,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS teams (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    department_id INTEGER REFERENCES departments(id) ON DELETE CASCADE,
+    parent_team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+    manager_id INTEGER,
+    description TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name, department_id)
+  );
+
   CREATE TABLE IF NOT EXISTS reimbursement_claims (
     id SERIAL PRIMARY KEY,
     employee_id TEXT REFERENCES employees(id),
@@ -140,6 +171,76 @@ const schema = `
     category TEXT,
     description TEXT,
     status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- ─── ENTERPRISE HIERARCHY & GOVERNANCE LAYER (ADDITIVE) ───
+
+  -- 1. Unified Organizational Nodes (Shadow Graph)
+  CREATE TABLE IF NOT EXISTS org_nodes (
+    id SERIAL PRIMARY KEY,
+    entity_type TEXT NOT NULL, -- 'department', 'team', 'squad', etc.
+    entity_id INTEGER,         -- ID of original department/team
+    parent_node_id INTEGER REFERENCES org_nodes(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    category TEXT DEFAULT 'core', -- 'core', 'support', 'strategic', etc.
+    hierarchical_path TEXT,    -- Dot-separated path (e.g. 1.5.12)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 2. Governance & Ownership
+  CREATE TABLE IF NOT EXISTS org_governance (
+    node_id INTEGER PRIMARY KEY REFERENCES org_nodes(id) ON DELETE CASCADE,
+    creator_id INTEGER REFERENCES users(id),
+    owner_id INTEGER REFERENCES users(id),  -- Primary responsible authority
+    ruler_id INTEGER REFERENCES users(id),  -- Ultimate decision authority
+    is_inheritance_blocked BOOLEAN DEFAULT false,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 3. Advanced Role Definitions
+  CREATE TABLE IF NOT EXISTS org_roles (
+    id SERIAL PRIMARY KEY,
+    node_id INTEGER REFERENCES org_nodes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 4. Temporal Employee Participation
+  CREATE TABLE IF NOT EXISTS employee_roles (
+    id SERIAL PRIMARY KEY,
+    employee_id TEXT REFERENCES employees(id),
+    role_id INTEGER REFERENCES org_roles(id) ON DELETE CASCADE,
+    context TEXT, -- 'lead', 'contributor', 'consultant'
+    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    end_date DATE,
+    is_primary BOOLEAN DEFAULT false,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 5. Entity-Agnostic Attachments
+  CREATE TABLE IF NOT EXISTS org_resources (
+    id SERIAL PRIMARY KEY,
+    node_id INTEGER REFERENCES org_nodes(id) ON DELETE CASCADE,
+    resource_type TEXT NOT NULL, -- 'policy', 'handbook', 'diagram'
+    title TEXT NOT NULL,
+    file_url TEXT,
+    metadata JSONB DEFAULT '{}',
+    uploaded_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- 6. Structural Change Intelligence
+  CREATE TABLE IF NOT EXISTS org_structural_audit (
+    id SERIAL PRIMARY KEY,
+    node_id INTEGER,
+    action TEXT NOT NULL,
+    previous_state JSONB,
+    new_state JSONB,
+    performed_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 `;
@@ -165,15 +266,21 @@ export const initDb = async () => {
     
     console.log('✅ Base database schema initialized.');
 
-    // --- Migration: upgrade existing schema for AnalyticsService compatibility ---
-    
+    // Organization Metadata
+    await pool.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';`).catch(() => {});
+    await pool.query(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';`).catch(() => {});
+    await pool.query(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS parent_team_id INTEGER REFERENCES teams(id);`).catch(() => {});
+
     // Core Identity & Multi-tenancy
+    await pool.query(`ALTER TABLE org_nodes ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'core';`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_token TEXT;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id INTEGER;`).catch(() => {});
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS temp_password TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_password_temp BOOLEAN DEFAULT false;`).catch(() => {});
 
     // Employees
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
@@ -203,6 +310,8 @@ export const initDb = async () => {
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS employment_type TEXT DEFAULT 'full_time';`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER;`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS reporting_manager_id INTEGER;`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id);`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id);`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
 
@@ -250,6 +359,8 @@ export const initDb = async () => {
     await pool.query(`ALTER TABLE payroll_profiles ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
     await pool.query(`ALTER TABLE payroll_profiles ADD COLUMN IF NOT EXISTS annual_ctc NUMERIC DEFAULT 0;`).catch(() => {});
     await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS total_deductions NUMERIC DEFAULT 0;`).catch(() => {});
+    await pool.query(`ALTER TABLE payroll_profiles ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id);`).catch(() => {});
+    await pool.query(`ALTER TABLE payroll_profiles ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id);`).catch(() => {});
     await pool.query(`ALTER TABLE payroll_history ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
     
     // Create audit_logs if missing (needed for admin dashboard activity feed)
@@ -320,15 +431,83 @@ export const initDb = async () => {
       END $$;
     `).catch(() => { /* constraint already exists */ });
 
-    // --- Seed default admin user ---
-    const { rows: adminExists } = await pool.query("SELECT 1 FROM users WHERE email = 'admin@company.com'");
-    if (adminExists.length === 0) {
-      const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+    // Ensure tenant columns exist for legacy compatibility
+    await pool.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';`).catch(() => {});
+    await pool.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS domain TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS slug TEXT;`).catch(() => {});
+    
+    // Backfill slugs for existing tenants if missing
+    await pool.query(`UPDATE tenants SET slug = id WHERE slug IS NULL`).catch(() => {});
+
+    // --- Seed default tenant ---
+    await pool.query(`
+      INSERT INTO tenants (id, name, domain, status)
+      VALUES ('tenant_default', 'AURA Default', 'company.com', 'active')
+      ON CONFLICT (id) DO NOTHING
+    `);
+
+    // --- Seed/Repair default admin user ---
+    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+    const { rows: adminRows } = await pool.query("SELECT id FROM users WHERE email = 'admin@company.com'");
+    
+    if (adminRows.length === 0) {
+      console.log('🌱 Seeding default admin user...');
       await pool.query(`
-        INSERT INTO users (name, email, password, role)
-        VALUES ('System Admin', 'admin@company.com', $1, 'admin')
-        ON CONFLICT (email) DO NOTHING
+        INSERT INTO users (name, email, password, role, tenant_id, is_active)
+        VALUES ('System Admin', 'admin@company.com', $1, 'admin', 'tenant_default', true)
       `, [hashedAdminPassword]);
+    } else {
+      console.log('🔧 Synchronizing admin credentials...');
+      await pool.query(`
+        UPDATE users 
+        SET password = $1, is_active = true, deleted_at = NULL, tenant_id = 'tenant_default'
+        WHERE email = 'admin@company.com'
+      `, [hashedAdminPassword]);
+    }
+
+    // Seed Departments
+    const { rows: deptRows } = await pool.query('SELECT COUNT(*) FROM departments');
+    if (parseInt(deptRows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO departments (name, description) VALUES 
+        ('Engineering', 'Core software development and infrastructure'),
+        ('Product', 'Product management and design'),
+        ('Sales', 'Sales and business development'),
+        ('Marketing', 'Marketing and communications'),
+        ('HR', 'Human resources and recruitment'),
+        ('Finance', 'Financial planning and accounting'),
+        ('Operations', 'Business operations and logistics'),
+        ('Design', 'Creative design and UI/UX'),
+        ('Support', 'Customer support and success'),
+        ('Legal', 'Legal and compliance'),
+        ('Management', 'Executive leadership and strategy')
+      `);
+      
+      // Seed demo accounts with temp passwords for security rotation demo
+      const demoUsers = [
+          { email: 'saranbtech@gmail.com', pass: 'AURA_SARAN_2026' },
+          { email: 'roughu049@gmail.com', pass: 'AURA_SRIDHAR_2026' }
+      ];
+
+      for (const d of demoUsers) {
+          const hashed = await bcrypt.hash(d.pass, 10);
+          await pool.query(
+              'UPDATE users SET password=$1, temp_password=$2, is_password_temp=true WHERE email=$3',
+              [hashed, d.pass, d.email]
+          );
+      }
+      
+      // Seed Teams for Engineering
+      const { rows: engDept } = await pool.query("SELECT id FROM departments WHERE name = 'Engineering'");
+      if (engDept.length > 0) {
+        await pool.query(`
+          INSERT INTO teams (name, department_id, description) VALUES 
+          ('Frontend', $1, 'React and UI development'),
+          ('Backend', $1, 'Node.js and API development'),
+          ('DevOps', $1, 'Cloud infrastructure and CI/CD'),
+          ('QA', $1, 'Quality assurance and testing')
+        `, [engDept[0].id]);
+      }
     }
 
     // Also seed a matching employee record for the admin so the join works
@@ -362,6 +541,51 @@ export const initDb = async () => {
         WHERE employee_id = 'EMP000' AND (overtime = 0 OR overtime IS NULL)
     `);
     
+    // ─── SHADOW GRAPH SYNCHRONIZATION ───────────────────────────────────────
+    console.log('🔄 Synchronizing Organizational Shadow Graph...');
+    
+    // 1. Sync Departments
+    const { rows: depts } = await pool.query('SELECT * FROM departments');
+    for (const dept of depts) {
+      const { rows: existing } = await pool.query(
+        'SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2',
+        ['department', dept.id]
+      );
+      if (existing.length === 0) {
+        const nodeRes = await pool.query(
+          'INSERT INTO org_nodes (entity_type, entity_id, name, category) VALUES ($1, $2, $3, $4) RETURNING id',
+          ['department', dept.id, dept.name, 'core']
+        );
+        await pool.query(
+          'INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [nodeRes.rows[0].id, dept.manager_id || null]
+        );
+      }
+    }
+
+    // 2. Sync Teams
+    const { rows: teams } = await pool.query('SELECT * FROM teams');
+    for (const team of teams) {
+      const { rows: existing } = await pool.query(
+        'SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2',
+        ['team', team.id]
+      );
+      if (existing.length === 0) {
+        const { rows: parentNode } = await pool.query(
+          'SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2',
+          ['department', team.department_id]
+        );
+        const nodeRes = await pool.query(
+          'INSERT INTO org_nodes (entity_type, entity_id, parent_node_id, name, category) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+          ['team', team.id, parentNode[0]?.id || null, team.name, 'core']
+        );
+        await pool.query(
+          'INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [nodeRes.rows[0].id, team.manager_id || null]
+        );
+      }
+    }
+
     console.log('✅ Admin credentials and analytics seed data synced.');
   } catch (err) {
     console.error('❌ Error initializing database schema:', err);

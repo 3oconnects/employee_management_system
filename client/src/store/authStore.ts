@@ -32,9 +32,10 @@ interface AuthState {
     accessToken: string | null;
     refreshToken: string | null;
     isAuthenticated: boolean;
+    mustChangePassword: boolean;
 
     // Actions
-    setAuth: (user: User, accessToken: string, refreshToken?: string) => void;
+    setAuth: (user: User, accessToken: string, refreshToken?: string, mustChangePassword?: boolean) => void;
     setAccessToken: (token: string) => void;
     setRefreshToken: (token: string) => void;
     updateUser: (updates: Partial<User>) => void;
@@ -53,13 +54,15 @@ export const useAuthStore = create<AuthState>()(
             accessToken: null,
             refreshToken: null,
             isAuthenticated: false,
+            mustChangePassword: false,
 
-            setAuth: (user, accessToken, refreshToken) =>
+            setAuth: (user, accessToken, refreshToken, mustChangePassword = false) =>
                 set({
                     user,
                     accessToken,
                     refreshToken: refreshToken || null,
                     isAuthenticated: true,
+                    mustChangePassword,
                 }),
 
             setAccessToken: (accessToken) => set({ accessToken }),
@@ -109,6 +112,7 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: state.isAuthenticated,
                 accessToken: state.accessToken,
                 refreshToken: state.refreshToken,
+                mustChangePassword: state.mustChangePassword,
             }),
         }
     )

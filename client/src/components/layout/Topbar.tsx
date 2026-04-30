@@ -18,6 +18,7 @@ const routeLabels: Record<string, string> = {
     '/reports':    'Reports & Analytics',
     '/profile':    'My Profile',
     '/audit-logs': 'Audit Logs',
+    '/organization': 'Hierarchy',
 };
 
 /* Avatar color map — same as Sidebar for consistency */

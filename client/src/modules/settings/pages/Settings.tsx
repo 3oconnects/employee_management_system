@@ -50,7 +50,7 @@ const Settings: React.FC = () => {
     };
 
     const loadAll = useCallback(async () => {
-        setLoading(true);
+        // We don't set global loading to true here because we want the Overview to be instant.
         try {
             const [rolesRes, permsRes, usersRes, configRes] = await Promise.all([
                 api.get('/settings/roles'),
@@ -60,26 +60,16 @@ const Settings: React.FC = () => {
             ]);
             setRoles(rolesRes.data.data || []);
             setPermissions(permsRes.data.data || {});
-            setUsers(usersRes.data.data || {});
+            setUsers(usersRes.data.data || []);
             setConfig(configRes.data.data || {});
         } catch {
-            notify('Failed to load settings data', false);
+            notify('Failed to sync settings', false);
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => { loadAll(); }, [loadAll]);
-
-    // ── Loading state ────────────────────────────────────────────────────────
-    if (loading) return (
-        <div className="flex items-center justify-center h-[60vh]">
-            <div className="flex flex-col items-center gap-3">
-                <Loader2 size={28} className="text-indigo-500 animate-spin" />
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Loading Settings...</p>
-            </div>
-        </div>
-    );
 
     return (
         <div className="min-h-screen bg-[#F4F5F8]">
@@ -143,78 +133,93 @@ const Settings: React.FC = () => {
                                 </div>
                             </button>
                         ))}
+                        {loading && (
+                            <div className="fixed bottom-10 right-10 flex items-center gap-3 px-4 py-2 bg-white rounded-full shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
+                                <Loader2 size={14} className="text-indigo-500 animate-spin" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Syncing Data...</span>
+                            </div>
+                        )}
                     </div>
                 )}
-                {tab === 'general' && (
-                    <GeneralTab
-                        config={config.general || {}}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                {tab !== 'overview' && loading ? (
+                    <div className="flex flex-col items-center justify-center py-32 animate-pulse">
+                        <Loader2 size={32} className="text-indigo-500 animate-spin mb-4" />
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Establishing Secure Sync...</p>
+                    </div>
+                ) : (
+                    <>
+                        {tab === 'general' && (
+                            <GeneralTab
+                                config={config.general || {}}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'roles' && (
-                    <RolesTab
-                        roles={roles}
-                        permissions={permissions}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                        {tab === 'roles' && (
+                            <RolesTab
+                                roles={roles}
+                                permissions={permissions}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'users' && (
-                    <UsersTab
-                        users={users}
-                        roles={roles}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                        {tab === 'users' && (
+                            <UsersTab
+                                users={users}
+                                roles={roles}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'email' && (
-                    <EmailTab
-                        config={config.email || {}}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                        {tab === 'email' && (
+                            <EmailTab
+                                config={config.email || {}}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'security' && (
-                    <SecurityTab
-                        config={config.security || {}}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                        {tab === 'security' && (
+                            <SecurityTab
+                                config={config.security || {}}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'features' && (
-                    <FeatureControlTab
-                        config={config.features || {}}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                        {tab === 'features' && (
+                            <FeatureControlTab
+                                config={config.features || {}}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'branding' && (
-                    <BrandingTab
-                        config={config.branding || {}}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
+                        {tab === 'branding' && (
+                            <BrandingTab
+                                config={config.branding || {}}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
 
-                {tab === 'integrations' && (
-                    <IntegrationsTab
-                        config={config.integrations || {}}
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
-                )}
-                {tab === 'policies' && (
-                    <PoliciesTab
-                        onRefresh={loadAll}
-                        onNotify={notify}
-                    />
+                        {tab === 'integrations' && (
+                            <IntegrationsTab
+                                config={config.integrations || {}}
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
+                        {tab === 'policies' && (
+                            <PoliciesTab
+                                onRefresh={loadAll}
+                                onNotify={notify}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </div>

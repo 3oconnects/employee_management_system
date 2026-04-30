@@ -5,8 +5,11 @@ import { NotificationService } from '../services/notificationService';
 import { sendEmail, buildWelcomeEmail } from '../services/emailService';
 
 export const getEmployees = async (req: Request, res: Response) => {
-    const { search, page = 1, limit = 10, status, departmentId } = req.query;
+    const { search, page = 1, limit = 10, status, departmentId, department_id, teamId, team_id } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
+
+    const finalDeptId = departmentId || department_id;
+    const finalTeamId = teamId || team_id;
 
     try {
         let sql = `
@@ -34,10 +37,17 @@ export const getEmployees = async (req: Request, res: Response) => {
             pIndex++;
         }
 
-        if (departmentId) {
+        if (finalDeptId) {
             sql += ` AND e.department_id = $${pIndex}`;
             countSql += ` AND e.department_id = $${pIndex}`;
-            params.push(departmentId);
+            params.push(finalDeptId);
+            pIndex++;
+        }
+
+        if (finalTeamId) {
+            sql += ` AND e.team_id = $${pIndex}`;
+            countSql += ` AND e.team_id = $${pIndex}`;
+            params.push(finalTeamId);
             pIndex++;
         }
 
@@ -95,19 +105,21 @@ export const createEmployee = async (req: Request, res: Response) => {
             INSERT INTO employees (
                 id, name, email, position, department, join_date, status,
                 phone, date_of_birth, gender, personal_email, address_line1, city, state, pincode,
-                employment_type, reporting_manager_id, department_id, probation_end_date,
+                employment_type, reporting_manager_id, department_id, team_id, probation_end_date,
                 highest_degree, field_of_study, institution, graduation_year,
                 education_history, experience_history,
                 internship_start_date, internship_end_date, internship_stipend,
                 internship_supervisor, internship_college,
                 tenant_id
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
             RETURNING *
         `;
         const empParams = [
             newId, name, email, finalPosition, department, joinDate, empStatus,
             phone, dateOfBirth, gender, personalEmail, addressLine1, city, state, pincode,
-            employmentType || 'full_time', reportingManagerId || null, departmentId || null,
+            employmentType || 'full_time', reportingManagerId || null, 
+            departmentId || req.body.department_id || null, 
+            req.body.team_id || null,
             probationEndDate || null,
             highestDegree || null, fieldOfStudy || null, institution || null, graduationYear || null,
             JSON.stringify(educationHistory || []),
@@ -204,6 +216,8 @@ export const updateEmployee = async (req: Request, res: Response) => {
             internshipStipend:   'internship_stipend',
             internshipSupervisor: 'internship_supervisor',
             internshipCollege:    'internship_college',
+            department_id:        'department_id',
+            team_id:              'team_id',
         };
         const BLOCKED = new Set(['id','created_at','updated_at','tenant_id', 'reportingManagerName']);
         const mapped: Record<string,any> = {};
@@ -220,15 +234,25 @@ export const updateEmployee = async (req: Request, res: Response) => {
         }
 
         // Sync Payroll if major fields changed
-        if (updates.name || updates.department || updates.position || updates.annual_ctc) {
+        if (updates.name || updates.department || updates.position || updates.annual_ctc || updates.department_id || updates.team_id) {
             await client.query(
                 `UPDATE payroll_profiles 
                  SET name = COALESCE($1, name), 
                      department = COALESCE($2, department),
                      role = COALESCE($3, role),
-                     annual_ctc = COALESCE($4, annual_ctc)
-                 WHERE employee_id = $5`,
-                [updates.name, updates.department, updates.position, updates.annualCTC || updates.annual_ctc, id]
+                     annual_ctc = COALESCE($4, annual_ctc),
+                     department_id = COALESCE($5, department_id),
+                     team_id = COALESCE($6, team_id)
+                 WHERE employee_id = $7`,
+                [
+                    updates.name, 
+                    updates.department, 
+                    updates.position, 
+                    updates.annualCTC || updates.annual_ctc, 
+                    updates.department_id,
+                    updates.team_id,
+                    id
+                ]
             );
         }
 

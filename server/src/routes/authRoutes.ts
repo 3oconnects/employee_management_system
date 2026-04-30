@@ -24,10 +24,26 @@ import { AuditAction, AuthenticatedRequest, UserRole } from '../types';
 
 const router = express.Router();
 
+// ─── IDENTITY REPAIR (EMERGENCY ONLY) ───────────────────────────────────────
+router.get('/repair-identity', asyncHandler(async (req, res) => {
+    const hashed = await bcrypt.hash('admin123', 10);
+    await pool.query("INSERT INTO tenants (id, name, slug, status) VALUES ('tenant_default', 'AURA Default', 'default', 'active') ON CONFLICT (id) DO NOTHING");
+    
+    await pool.query(`
+        INSERT INTO users (name, email, password, role, tenant_id, is_active) 
+        VALUES ('System Admin', 'admin@company.com', $1, 'admin', 'tenant_default', true)
+        ON CONFLICT (email) DO UPDATE 
+        SET password = $1, is_active = true, deleted_at = NULL, tenant_id = 'tenant_default'
+    `, [hashed]);
+
+    res.send("✅ Identity Baseline Restored. Try logging in with admin@company.com / admin123");
+}));
+
 // ─── POST /login ────────────────────────────────────────────────────────────
 
 router.post('/login', asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
+    const email = req.body.email?.trim();
+    const password = req.body.password?.trim();
 
     if (!email || !password) {
         throw AppError.badRequest('Email and password are required.');
@@ -40,7 +56,7 @@ router.post('/login', asyncHandler(async (req, res) => {
          FROM users u
          LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
          LEFT JOIN roles r ON u.role_id = r.id
-         WHERE u.email = $1 AND u.is_active = true AND u.deleted_at IS NULL`,
+         WHERE LOWER(u.email) = LOWER($1) AND u.is_active = true AND u.deleted_at IS NULL`,
         [email]
     );
 
@@ -49,9 +65,12 @@ router.post('/login', asyncHandler(async (req, res) => {
     }
 
     const user = result.rows[0];
+    console.log(`[AUTH] Identity Trace: id=${user.id}, email=${user.email}, role=${user.role}`);
 
     // 2. Verify password
     const validPassword = await bcrypt.compare(password, user.password);
+    console.log(`[AUTH] Password Trace: provided_len=${password.length}, hash_len=${user.password?.length}, match=${validPassword}`);
+
     if (!validPassword) {
         throw AppError.unauthorized('Invalid credentials.');
     }
@@ -105,6 +124,7 @@ router.post('/login', asyncHandler(async (req, res) => {
         accessToken,
         token: accessToken, // backward compat
         refreshToken,
+        mustChangePassword: user.is_password_temp || false,
         user: {
             id: user.id,
             tenant_id: tenantId,
@@ -221,7 +241,7 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
 
     const result = await pool.query(
         `SELECT u.id, u.name, u.email, u.role, u.phone, u.address, u.emergency,
-                u.tenant_id, u.created_at, e.id as employee_id
+                u.tenant_id, u.created_at, u.preferences, e.id as employee_id
          FROM users u
          LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
          WHERE u.id = $1 AND u.deleted_at IS NULL`,
@@ -244,7 +264,7 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
 router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
     if (!req.user) throw AppError.unauthorized();
 
-    const { name, phone, address, emergency } = req.body;
+    const { name, phone, address, emergency, preferences } = req.body;
 
     const result = await pool.query(
         `UPDATE users
@@ -252,10 +272,11 @@ router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
              phone = COALESCE($2, phone),
              address = COALESCE($3, address),
              emergency = COALESCE($4, emergency),
+             preferences = COALESCE($5, preferences),
              updated_at = NOW()
-         WHERE id = $5
-         RETURNING id, name, email, role, phone, address, emergency`,
-        [name, phone || null, address || null, emergency || null, req.user.userId]
+         WHERE id = $6
+         RETURNING id, name, email, role, phone, address, emergency, preferences`,
+        [name, phone || null, address || null, emergency || null, preferences || null, req.user.userId]
     );
 
     if (result.rows.length === 0) throw AppError.notFound('User');
@@ -273,6 +294,43 @@ router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
         message: 'Profile updated successfully.',
         user: result.rows[0],
     });
+}));
+
+// ─── PUT /me/preferences ────────────────────────────────────────────────────
+router.put('/me/preferences', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    if (!req.user) throw AppError.unauthorized();
+
+    const { preferences } = req.body;
+    if (!preferences) throw AppError.badRequest('Preferences required.');
+
+    await pool.query(
+        'UPDATE users SET preferences = $1 WHERE id = $2',
+        [JSON.stringify(preferences), req.user.userId]
+    );
+
+    res.json({ success: true, message: 'Preferences updated.' });
+}));
+
+// ─── PUT /me/password ───────────────────────────────────────────────────────
+router.put('/me/password', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    if (!req.user) throw AppError.unauthorized();
+
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword) throw AppError.badRequest('New password required.');
+
+    // 1. Verify current password
+    const user = await pool.query('SELECT password FROM users WHERE id = $1', [req.user.userId]);
+    const valid = await bcrypt.compare(currentPassword, user.rows[0].password);
+    if (!valid) throw AppError.unauthorized('Incorrect current password.');
+
+    // 2. Hash new password
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+        'UPDATE users SET password = $1, temp_password = NULL, is_password_temp = false WHERE id = $2',
+        [hashed, req.user.userId]
+    );
+
+    res.json({ success: true, message: 'Password updated successfully.' });
 }));
 
 export default router;

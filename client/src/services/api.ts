@@ -102,7 +102,10 @@ api.interceptors.response.use(
     async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Skip refresh logic for auth endpoints (login, refresh) to prevent loops
+        const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh');
+
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
             // Check if token expired (specific code from backend)
             const errorData = error.response?.data as any;
             const isExpired = errorData?.code === 'TOKEN_EXPIRED' || !originalRequest._retry;

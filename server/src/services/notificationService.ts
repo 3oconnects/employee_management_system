@@ -157,6 +157,28 @@ export class NotificationService {
         });
     }
 
+    static async onRoleUpdated(tenantId: string, userId: number, newRole: string): Promise<void> {
+        await NotificationService.notify({
+            tenantId,
+            userId,
+            title: 'Role Updated 🔑',
+            message: `Your access level has been updated to: ${newRole}.`,
+            type: 'success',
+            link: '/profile',
+        });
+    }
+
+    static async onAccountCreated(tenantId: string, userId: number, name: string): Promise<void> {
+        await NotificationService.notify({
+            tenantId,
+            userId,
+            title: 'Welcome to AURA 🚀',
+            message: `Hello ${name}! Your account has been provisioned. Welcome aboard.`,
+            type: 'success',
+            link: '/dashboard',
+        });
+    }
+
     /**
      * Get unread count for a user.
      */

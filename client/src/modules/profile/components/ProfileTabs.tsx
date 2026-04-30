@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Briefcase, CreditCard, GraduationCap, BookOpen, Clock, Calendar, Award, FileText } from 'lucide-react';
+import { User, Briefcase, CreditCard, GraduationCap, BookOpen, Clock, Calendar, Award, FileText, Settings } from 'lucide-react';
 
 export const TABS = [
     { key: 'overview',     label: 'Overview',    icon: User },
@@ -11,6 +11,7 @@ export const TABS = [
     { key: 'leave',        label: 'Leave',        icon: Calendar },
     { key: 'performance',  label: 'Reviews',      icon: Award },
     { key: 'documents',    label: 'Documents',    icon: FileText },
+    { key: 'settings',     label: 'Settings',     icon: Settings },
 ] as const;
 
 export type TabKey = typeof TABS[number]['key'];

@@ -13,6 +13,8 @@ import ProfileTabs, { type TabKey } from '../components/ProfileTabs';
 import EducationTab  from '../components/EducationTab';
 import ExperienceTab from '../components/ExperienceTab';
 import AttendanceTab from '../components/AttendanceTab';
+import SettingsTab   from '../components/SettingsTab';
+import { Check, AlertCircle } from 'lucide-react';
 import type { EduEntry, ExpEntry } from '../../employees/components/modals/shared';
 
 const Profile: React.FC = () => {
@@ -29,6 +31,12 @@ const Profile: React.FC = () => {
     const [isOwnProfile,setIsOwnProfile]= useState(false);
     const [eduList,     setEduList]     = useState<EduEntry[]>([]);
     const [expList,     setExpList]     = useState<ExpEntry[]>([]);
+    const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+
+    const notify = (msg: string, ok = true) => {
+        setToast({ msg, ok });
+        setTimeout(() => setToast(null), 3200);
+    };
 
     useEffect(() => {
         (async () => {
@@ -71,7 +79,10 @@ const Profile: React.FC = () => {
             await api.put(`/employees/${empId}`, editForm);
             const { data } = await api.get(`/reports/profile/${empId}`);
             setProfile(data); setEditing(false);
-        } catch (err: any) { alert(err.response?.data?.message || 'Update failed'); }
+            notify('Profile updated successfully');
+        } catch (err: any) { 
+            notify(err.response?.data?.message || 'Update failed', false);
+        }
         finally { setSaveLoading(false); }
     };
 
@@ -90,6 +101,14 @@ const Profile: React.FC = () => {
 
     return (
         <div className="max-w-[1200px] mx-auto p-6 space-y-6">
+            {/* ── Toast ─────────────────────────────────────────────── */}
+            {toast && (
+                <div className={`fixed top-5 right-5 z-[999] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-[13px] font-bold animate-in slide-in-from-top-2 duration-200
+                    ${toast.ok ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                    {toast.ok ? <Check size={15} /> : <AlertCircle size={15} />}
+                    {toast.msg}
+                </div>
+            )}
 
             <ProfileHeader emp={emp} user={user}/>
             <ProfileTabs active={tab} onChange={setTab}/>
@@ -279,6 +298,14 @@ const Profile: React.FC = () => {
                         <button onClick={() => setTab('overview')} className="mt-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[11px] font-bold hover:bg-indigo-100 transition-all">Go to Overview</button>
                     </div>
                 </Section>
+            )}
+
+            {/* ── SETTINGS ── */}
+            {tab === 'settings' && (
+                <SettingsTab 
+                    initialPreferences={profile?.user?.preferences || user?.preferences} 
+                    onNotify={notify} 
+                />
             )}
         </div>
     );

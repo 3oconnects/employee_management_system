@@ -108,7 +108,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
                                     </div>
                                     <div>
                                         <p className="text-[22px] font-black text-slate-900 leading-tight tracking-tight">{req.employee_name}</p>
-                                        <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-1">{getTypeName(req.type)} • ID: {req.id}</p>
+                                        <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mt-1">{getTypeName(req.type)} • ID: {req.employee_id}</p>
                                     </div>
                                 </div>
                             </div>

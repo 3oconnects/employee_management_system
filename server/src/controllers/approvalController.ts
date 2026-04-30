@@ -129,11 +129,11 @@ export const getApprovals = async (req: AuthenticatedRequest, res: Response) => 
             SELECT 
                 id, employee_id, employee_name, department, type, status, metadata, requested_by, created_at, manager_id
             FROM all_pending ap
-            WHERE 1=1
+            ${filterClause}
             ORDER BY department ASC, created_at DESC
         `;
         
-        const result = await pool.query(query);
+        const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
     } catch (err: any) {
         console.error('❌ APPROVALS HUB ERROR:', err);
@@ -171,6 +171,66 @@ export const updateApprovalAction = async (req: Request, res: Response) => {
             await pool.query('UPDATE timesheets SET status = $1 WHERE id = $2', [status, id]);
         } else if (type === 'claim') {
             await pool.query('UPDATE claims SET status = $1 WHERE id = $2', [status, id]);
+        } else if (type === 'department_creation' && action === 'approve') {
+            // Execute Department Creation
+            const { rows: approval } = await pool.query('SELECT metadata FROM approvals WHERE id = $1', [id]);
+            const meta = approval[0].metadata;
+            
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                const deptRes = await client.query(
+                    'INSERT INTO departments (name, description, manager_id, metadata) VALUES ($1, $2, $3, $4) RETURNING id',
+                    [meta.name, meta.description, meta.owner_id || null, meta.metadata || {}]
+                );
+                const nodeRes = await client.query(
+                    'INSERT INTO org_nodes (entity_type, entity_id, name, category) VALUES ($1, $2, $3, $4) RETURNING id',
+                    ['department', deptRes.rows[0].id, meta.name, meta.category || 'core']
+                );
+                await client.query('INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2)', [nodeRes.rows[0].id, meta.owner_id || null]);
+                await client.query('UPDATE approvals SET status = $1, actioned_at = NOW() WHERE id = $2', [status, id]);
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            } finally {
+                client.release();
+            }
+        } else if (type === 'team_creation' && action === 'approve') {
+            // Execute Team Creation
+            const { rows: approval } = await pool.query('SELECT metadata FROM approvals WHERE id = $1', [id]);
+            const meta = approval[0].metadata;
+            
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                const teamRes = await client.query(
+                    'INSERT INTO teams (name, department_id, parent_team_id, description, manager_id, metadata) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                    [meta.name, meta.department_id, meta.parent_team_id || null, meta.description, meta.owner_id || null, meta.metadata || {}]
+                );
+                
+                let parentNodeId = null;
+                if (meta.parent_team_id) {
+                    const pnRes = await client.query('SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2', ['team', meta.parent_team_id]);
+                    if (pnRes.rows.length > 0) parentNodeId = pnRes.rows[0].id;
+                } else {
+                    const pnRes = await client.query('SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2', ['department', meta.department_id]);
+                    if (pnRes.rows.length > 0) parentNodeId = pnRes.rows[0].id;
+                }
+
+                const nodeRes = await client.query(
+                    'INSERT INTO org_nodes (entity_type, entity_id, parent_node_id, name, category) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                    ['team', teamRes.rows[0].id, parentNodeId, meta.name, meta.category || 'core']
+                );
+                await client.query('INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2)', [nodeRes.rows[0].id, meta.owner_id || null]);
+                await client.query('UPDATE approvals SET status = $1, actioned_at = NOW() WHERE id = $2', [status, id]);
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            } finally {
+                client.release();
+            }
         } else {
             await pool.query('UPDATE approvals SET status = $1, actioned_at = NOW() WHERE id = $2', [status, id]);
         }

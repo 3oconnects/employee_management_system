@@ -14,7 +14,14 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
-import { addToastListener } from '../../hooks';
+import { addToastListener, showToast } from '../../hooks';
+
+export const toast = {
+    success: (msg: string) => showToast('success', msg),
+    error: (msg: string) => showToast('error', msg),
+    info: (msg: string) => showToast('info', msg),
+    warning: (msg: string) => showToast('warning', msg),
+};
 
 // ─── BUTTON ─────────────────────────────────────────────────────────────────
 

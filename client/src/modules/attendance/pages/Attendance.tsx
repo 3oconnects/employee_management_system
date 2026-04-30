@@ -177,7 +177,7 @@ const RegularizePanel: React.FC<{ userId: any }> = ({ userId }) => {
     };
 
     return (
-        <div className="rounded-[32px] bg-white border border-slate-100 flex flex-col gap-0 shadow-2xl shadow-slate-200/50 overflow-hidden relative h-full group transition-all duration-500 hover:shadow-indigo-500/10">
+        <div className="rounded-2xl bg-white border border-slate-100 flex flex-col gap-0 shadow-2xl shadow-slate-200/50 overflow-hidden relative h-full group transition-all duration-500 hover:shadow-indigo-500/10">
             <div className="p-8 pb-6 border-b border-slate-50 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 group-hover:bg-indigo-100 transition-colors" />
                 <div className="relative">
@@ -379,8 +379,8 @@ const Attendance: React.FC = () => {
                         <History size={22} className="text-white"/>
                     </div>
                     <div>
-                        <h2 className="text-[20px] font-black text-slate-900 tracking-tight">Attendance Ledger</h2>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-0.5">Operational Lifecycle Verification</p>
+                        <h2 className="text-[20px] font-black text-slate-900 tracking-tight">Attendance Logs</h2>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-0.5">View and manage your attendance records</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">

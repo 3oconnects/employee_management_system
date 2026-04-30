@@ -131,9 +131,9 @@ const ApplyLeave: React.FC = () => {
                         <CalendarDays size={20} className="text-white" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-black text-[#0F172A] tracking-tight">Time-Off Ecosystem</h2>
+                        <h2 className="text-xl font-black text-[#0F172A] tracking-tight">Leave Management</h2>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">
-                            Operational Absence Management
+                            Apply and track your time off
                         </p>
                     </div>
                 </div>
@@ -153,7 +153,7 @@ const ApplyLeave: React.FC = () => {
             <div className="space-y-4">
                 <div className="flex items-center gap-2.5 px-1">
                     <ClipboardList size={16} className="text-indigo-600" />
-                    <h3 className="text-[12px] font-black text-[#0F172A] uppercase tracking-[0.15em]">Absence Audit History</h3>
+                    <h3 className="text-[12px] font-black text-[#0F172A] uppercase tracking-[0.15em]">Leave History</h3>
                 </div>
                 <LeaveRequests requests={requests} onEdit={handleEdit} onCancel={handleCancel} />
             </div>
@@ -170,10 +170,10 @@ const ApplyLeave: React.FC = () => {
                         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                             <div>
                                 <h3 className="text-[16px] font-black text-[#0F172A] tracking-tight">
-                                    {editingId ? 'Revise Application' : 'Time-Off Application'}
+                                    {editingId ? 'Edit Leave Request' : 'New Leave Request'}
                                 </h3>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mt-0.5">
-                                    {editingId ? 'Modify existing entry' : 'New Leave Submission'}
+                                    {editingId ? 'Modify existing entry' : 'Submit a new application'}
                                 </p>
                             </div>
                             <button 

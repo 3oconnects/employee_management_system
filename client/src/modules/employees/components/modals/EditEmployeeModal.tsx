@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, Pencil, AlertCircle } from 'lucide-react';
-import { EditEmployeeForm, inputCls, DEPTS } from './shared';
+import { EditEmployeeForm, inputCls } from './shared';
 import Field from './Field';
 import ManagerPicker from './ManagerPicker';
+import api from '../../../../services/api';
 
 interface Props {
     show: boolean; onClose: () => void; onSubmit: (e: React.FormEvent) => void;
@@ -12,6 +13,23 @@ interface Props {
 }
 
 const EditEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, setForm, loading, error }) => {
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [teams, setTeams] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (show) {
+            api.get('/organization/departments').then(res => setDepartments(res.data.data || []));
+        }
+    }, [show]);
+
+    useEffect(() => {
+        if (show && form.department_id) {
+            api.get(`/organization/teams?department_id=${form.department_id}`).then(res => setTeams(res.data.data || []));
+        } else {
+            setTeams([]);
+        }
+    }, [show, form.department_id]);
+
     if (!show) return null;
 
     const STATUS_OPTIONS = [
@@ -19,6 +37,12 @@ const EditEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, set
         {val:'onboarding', label:'Onboarding', cls:'bg-amber-50 border-amber-300 text-amber-700'},
         {val:'terminated', label:'Terminated', cls:'bg-rose-50 border-rose-300 text-rose-700'},
     ];
+
+    const handleDeptChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const deptId = e.target.value;
+        const deptName = departments.find(d => d.id.toString() === deptId)?.name || '';
+        setForm(f => ({...f, department_id: deptId, department: deptName, team_id: '' }));
+    };
 
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
@@ -29,7 +53,7 @@ const EditEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, set
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-violet-600 rounded-xl flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
                             <Pencil size={15} className="text-white"/>
                         </div>
                         <div>
@@ -69,25 +93,38 @@ const EditEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, set
 
                     <div className="grid grid-cols-2 gap-4">
                         <Field label="Department *">
-                            <select required value={form.department}
-                                onChange={e => setForm(f => ({...f, department: e.target.value}))}
+                            <select required value={form.department_id}
+                                onChange={handleDeptChange}
                                 className={`${inputCls} appearance-none cursor-pointer`}>
-                                {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
+                                <option value="">Select department</option>
+                                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                             </select>
                         </Field>
+                        <Field label="Team / Squad">
+                            <select value={form.team_id}
+                                onChange={e => setForm(f => ({...f, team_id: e.target.value}))}
+                                className={`${inputCls} appearance-none cursor-pointer`}
+                                disabled={!form.department_id}
+                            >
+                                <option value="">Select team</option>
+                                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                        </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
                         <Field label="Position / Role *">
                             <input required type="text" value={form.position}
                                 onChange={e => setForm(f => ({...f, position: e.target.value}))} className={inputCls}/>
                         </Field>
+                        <Field label="Reporting Manager">
+                            <ManagerPicker 
+                                value={form.reportingManagerId || ''} 
+                                displayName={form.reportingManagerName || ''}
+                                onChange={(id, name) => setForm(f => ({...f, reportingManagerId: id, reportingManagerName: name}))}
+                            />
+                        </Field>
                     </div>
-
-                    <Field label="Reporting Manager">
-                        <ManagerPicker 
-                            value={form.reportingManagerId || ''} 
-                            displayName={form.reportingManagerName || ''}
-                            onChange={(id, name) => setForm(f => ({...f, reportingManagerId: id, reportingManagerName: name}))}
-                        />
-                    </Field>
 
                     <Field label="Status">
                         <div className="grid grid-cols-3 gap-2">

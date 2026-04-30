@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
 import { 
     LogIn, Lock, Mail, Loader2, Eye, EyeOff, Shield, 
-    Users, UserCheck, AlertCircle, Zap, Globe, Cpu, Layers 
+    Users, UserCheck, AlertCircle, Zap, Globe, Cpu, Layers, ShieldAlert 
 } from 'lucide-react';
 import api from '../../../services/api';
 
@@ -45,9 +45,15 @@ const LoginPage: React.FC = () => {
                     permissions: data.user.permissions || [],
                 },
                 data.accessToken || data.token,
-                data.refreshToken
+                data.refreshToken,
+                data.mustChangePassword
             );
-            navigate('/dashboard', { replace: true });
+
+            if (data.mustChangePassword) {
+                navigate('/change-password', { replace: true });
+            } else {
+                navigate('/dashboard', { replace: true });
+            }
         } catch (err: any) {
             setError(err.response?.data?.message || 'Authentication sequence failed. Verify credentials.');
         } finally {
@@ -122,10 +128,16 @@ const LoginPage: React.FC = () => {
                         <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest">Enter Credentials to Initialize</p>
                     </div>
 
+                    {/* ── ERROR FEEDBACK ── */}
                     {error && (
-                        <div className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 animate-in fade-in slide-in-from-top-2">
-                            <AlertCircle size={18} />
-                            <p className="text-[13px] font-bold">{error}</p>
+                        <div className="p-4 bg-rose-50/50 border-l-[3px] border-rose-500 rounded-xl flex items-start gap-3.5 animate-in slide-in-from-left-4 duration-300">
+                            <div className="w-8 h-8 bg-rose-500/10 rounded-full flex items-center justify-center shrink-0">
+                                <ShieldAlert size={16} className="text-rose-600" />
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[12px] font-black text-rose-900 uppercase tracking-tight">Identity Breach / Protocol Failure</p>
+                                <p className="text-[13px] font-bold text-rose-600/90 leading-tight">{error}</p>
+                            </div>
                         </div>
                     )}
 

@@ -20,6 +20,11 @@ const Reports = lazy(() => import('./modules/reports/pages/Reports'));
 const Profile = lazy(() => import('./modules/profile/pages/Profile'));
 const Settings = lazy(() => import('./modules/settings/pages/Settings'));
 const Approvals = lazy(() => import('./modules/approvals/pages/Approvals'));
+const OrganizationPage = lazy(() => import('./modules/organization/pages/OrganizationPage.tsx'));
+const StructuralDeepDivePage = lazy(() => import('./modules/organization/pages/StructuralDeepDivePage.tsx'));
+
+const AuditLogPage = lazy(() => import('./modules/audit/pages/AuditLogPage'));
+const ChangePasswordPage = lazy(() => import('./modules/auth/pages/ChangePasswordPage'));
 
 // ─── ROOT REDIRECT ─────────────────────────────────────────────────────────
 
@@ -46,6 +51,9 @@ function App() {
             <Routes>
                 <Route path="/" element={<RootRedirect />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/change-password" element={
+                    <ProtectedRoute><PageLoader><ChangePasswordPage /></PageLoader></ProtectedRoute>
+                } />
 
                 <Route element={<MainLayout />}>
                     <Route path="/dashboard" element={
@@ -97,6 +105,16 @@ function App() {
                             <PageLoader><Approvals /></PageLoader>
                         </ProtectedRoute>
                     } />
+                    <Route path="/organization" element={
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'super_admin']}>
+                            <PageLoader><OrganizationPage /></PageLoader>
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/organization/deep-dive/:type/:id" element={
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'super_admin']}>
+                            <PageLoader><StructuralDeepDivePage /></PageLoader>
+                        </ProtectedRoute>
+                    } />
                     <Route path="/audit-logs" element={
                         <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                             <PageLoader>
@@ -117,9 +135,9 @@ function App() {
                                 <ShieldAlert size={48} />
                             </div>
                             <div className="text-center max-w-md animate-in slide-in-from-bottom-4 duration-700">
-                                <h1 className="text-4xl font-black text-primary tracking-tighter mb-4">Protocol Restriction</h1>
+                                <h1 className="text-4xl font-black text-primary tracking-tighter mb-4">Access Denied</h1>
                                 <p className="text-[13px] text-text-muted font-bold uppercase tracking-widest leading-relaxed mb-10">
-                                    Your current authorization level is insufficient to access this secure module.
+                                    You do not have permission to access this secure module.
                                 </p>
                                 <button 
                                     onClick={() => navigate('/dashboard')}
@@ -138,9 +156,9 @@ function App() {
                             <Terminal size={64} />
                         </div>
                         <div className="text-center max-w-lg">
-                            <h1 className="text-6xl font-black text-primary tracking-tighter mb-4">Void Protocol 404</h1>
+                            <h1 className="text-6xl font-black text-primary tracking-tighter mb-4">404 - Not Found</h1>
                             <p className="text-[14px] text-text-muted font-bold uppercase tracking-[0.2em] leading-relaxed mb-12">
-                                The requested resource coordinate does not exist within the current system matrix.
+                                The page you are looking for does not exist within the system.
                             </p>
                             <button 
                                 onClick={() => navigate('/')}
@@ -156,110 +174,6 @@ function App() {
             {/* Global toast notifications */}
             <ToastContainer />
         </>
-    );
-}
-
-// ─── INLINE AUDIT LOG PAGE ──────────────────────────────────────────────────
-
-function AuditLogPage() {
-    const [logs, setLogs] = React.useState<any[]>([]);
-    const [loading, setLoading] = React.useState(true);
-
-    React.useEffect(() => {
-        import('./services/api').then(({ default: api }) => {
-            api.get('/audit-logs?limit=100')
-                .then(res => setLogs(res.data.data || []))
-                .catch(() => {})
-                .finally(() => setLoading(false));
-        });
-    }, []);
-
-    if (loading) return <LoadingSpinner text="Querying System Archive..." />;
-
-    return (
-        <div className="p-10 page-enter space-y-10 max-w-[1600px] mx-auto">
-            <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/20">
-                    <History size={28} />
-                </div>
-                <div>
-                    <h1 className="text-3xl font-black text-primary tracking-tighter">System Audit Log</h1>
-                    <p className="text-[11px] text-text-muted font-black uppercase tracking-[0.3em] mt-2">Executive Compliance & Traceability Matrix</p>
-                </div>
-            </div>
-
-            <div className="card-premium overflow-hidden border-primary-light/20 shadow-premium bg-white">
-                <div className="px-8 py-5 bg-primary/5 border-b border-primary-light/10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Activity size={16} className="text-primary-soft" />
-                        <h3 className="text-[13px] font-black text-primary uppercase tracking-[0.2em]">Temporal Activity Stream</h3>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1 bg-white border border-primary-light/10 rounded-lg">
-                        <Database size={12} className="text-text-muted" />
-                        <span className="text-[10px] font-black text-text-muted uppercase tracking-widest">{logs.length} RECORDS</span>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-primary-light/5 text-[10px] font-black text-primary-soft uppercase tracking-[0.3em] border-b border-primary-light/10">
-                                <th className="px-8 py-5">Action Protocol</th>
-                                <th className="px-8 py-5">System Entity</th>
-                                <th className="px-8 py-5">Operator Identifier</th>
-                                <th className="px-8 py-5 text-right">Temporal Signature</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-primary-light/5">
-                            {logs.map((log: any) => (
-                                <tr key={log.id} className="hover:bg-primary/5 transition-all group">
-                                    <td className="px-8 py-6">
-                                        <span className="inline-flex px-3 py-1.5 rounded-lg bg-primary/5 text-primary font-black text-[10px] border border-primary/10 uppercase tracking-widest">
-                                            {log.action}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <p className="text-[14px] font-bold text-primary">{log.entity_type}</p>
-                                        <p className="text-[11px] text-text-muted font-bold mt-1 uppercase tracking-tighter opacity-60">ID: {log.entity_id || 'N/A'}</p>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 bg-primary/5 rounded-lg flex items-center justify-center text-primary-soft">
-                                                <User size={14} />
-                                            </div>
-                                            <div>
-                                                <p className="text-[13px] font-black text-primary">{log.user_name || 'System Auto'}</p>
-                                                <p className="text-[10px] text-text-muted font-bold tracking-tighter uppercase">{log.user_email || 'internal@precision.io'}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <div className="flex flex-col items-end">
-                                            <div className="flex items-center gap-2 text-primary font-black text-[13px] tracking-tight">
-                                                <Clock size={14} className="text-primary-light" />
-                                                {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                            </div>
-                                            <p className="text-[11px] text-text-muted font-bold mt-1 uppercase tracking-widest">{new Date(log.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {logs.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="px-8 py-32 text-center">
-                                        <div className="flex flex-col items-center opacity-30">
-                                            <Activity size={48} className="text-primary-light mb-4" />
-                                            <p className="text-[14px] font-black text-primary uppercase tracking-widest">Zero Activity Detected</p>
-                                            <p className="text-[11px] text-text-muted font-bold mt-2">The system archive is currently in a baseline state.</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
     );
 }
 

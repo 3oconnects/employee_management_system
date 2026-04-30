@@ -1,32 +1,11 @@
-// ============================================================================
-// EMS BACKEND — SERVER ENTRY POINT (UPGRADED)
-// ============================================================================
-// Changes from original:
-//   1. Added Helmet for security headers
-//   2. Added rate limiting
-//   3. Added global error handler + 404 handler
-//   4. Added request logging
-//   5. Cookie parser for refresh tokens
-//   6. Graceful shutdown
-//   7. All existing routes preserved
-// ============================================================================
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-
-// Load env before anything else
-dotenv.config();
-
-// Unified DB reference
 import { pool } from './config/db';
 import { initDb } from './initDb';
 import { initializeDatabase } from './db/schema';
 import { runMigrationV3 } from './db/migration_v3';
-
-// Middleware
-import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 
 // Routes
 import authRoutes from './routes/authRoutes';
@@ -44,6 +23,9 @@ import notificationRoutes from './routes/notificationRoutes';
 import performanceRoutes from './routes/performanceRoutes';
 import documentRoutes from './routes/documentRoutes';
 import settingsRoutes from './routes/settingsRoutes';
+import organizationRoutes from './routes/organizationRoutes';
+import governanceRoutes from './routes/governanceRoutes';
+import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -56,35 +38,22 @@ app.use(cors({
         const allowedOrigins = [
             'http://localhost:5173',
             'http://127.0.0.1:5173',
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'https://velda-nonraiseable-joshingly.ngrok-free.dev',
-            'https://henlike-heterogeneously-rex.ngrok-free.dev',
+            'http://localhost:3000'
         ];
-        // Allow if in list, or if it's an ngrok/render domain, or if no origin (local tools)
-        if (!origin || allowedOrigins.includes(origin) || origin.includes('ngrok-free.dev') || origin.includes('onrender.com')) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Request logger (lightweight)
-app.use((req, _res, next) => {
-    if (process.env.NODE_ENV !== 'production') {
-        const timestamp = new Date().toISOString().slice(11, 19);
-        console.log(`  [${timestamp}] ${req.method} ${req.originalUrl}`);
-    }
-    next();
-});
+// Body parsers
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serving static files
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
@@ -106,6 +75,8 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/documents', documentRoutes);
 app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/organization', organizationRoutes);
+app.use('/api/v1/governance', governanceRoutes);
 
 
 // Health check
@@ -114,9 +85,13 @@ app.get('/api/v1/health', (_req, res) => {
         success: true,
         status: 'ok',
         version: '2.0.0',
-        timestamp: new Date(),
-        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
     });
+});
+
+// Root path handler
+app.get('/', (_req, res) => {
+    res.send('EMS Backend API is running.');
 });
 
 // ─── ERROR HANDLING ─────────────────────────────────────────────────────────
@@ -124,36 +99,38 @@ app.get('/api/v1/health', (_req, res) => {
 app.use(notFoundHandler);
 app.use(globalErrorHandler);
 
-// ─── SERVER START ───────────────────────────────────────────────────────────
+// ─── SERVER LIFECYCLE ───────────────────────────────────────────────────────
 
 const start = async () => {
     // ── Start HTTP server immediately ────────────────────────────────────────
     activeServer = app.listen(port, () => {
-        console.log(`\n🚀 EMS Server v2.0 running at http://localhost:${port}`);
-        console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`   API Base:    http://localhost:${port}/api/v1\n`);
+        console.log(`
+🚀 ===================================================
+   EMS BACKEND — SERVER STARTED
+   PORT: ${port}
+   ENV:  ${process.env.NODE_ENV || 'development'}
+   DATE: ${new Date().toLocaleString()}
+   ===================================================
+        `);
     });
 
     // ── Graceful shutdown ────────────────────────────────────────────────────
-    const shutdown = async (signal: string) => {
-        console.log(`\n🛑 ${signal} received. Shutting down gracefully...`);
+    const shutdown = async () => {
+        console.log('\n🛑 Shutting down server...');
         if (activeServer) {
             activeServer.close(async () => {
+                console.log('💤 HTTP server closed.');
                 await pool.end();
-                console.log('✅ Database pool closed.');
+                console.log('🔌 Database connection closed.');
                 process.exit(0);
             });
         } else {
-            await pool.end();
             process.exit(0);
         }
-        setTimeout(() => {
-            console.error('⚠️ Forced shutdown after timeout.');
-            process.exit(1);
-        }, 10000);
     };
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT',  () => shutdown('SIGINT'));
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
 
     // ── Run schema migrations in background ──────────────────────────────────
     try {

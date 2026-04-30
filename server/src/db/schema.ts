@@ -27,11 +27,19 @@ const TENANT_SCHEMA = `
         domain TEXT,
         logo_url TEXT,
         is_active BOOLEAN DEFAULT true,
+        status TEXT DEFAULT 'active',
         plan TEXT DEFAULT 'free',
         max_employees INTEGER DEFAULT 50,
-        created_at TIMESTAMP DEFAULT NOW(),
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT NOW()
     );
+    
+    DO $$ BEGIN
+        ALTER TABLE tenants ADD COLUMN IF NOT EXISTS slug TEXT;
+        ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+        ALTER TABLE tenants ADD COLUMN IF NOT EXISTS domain TEXT;
+    EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  PERMISSIONS — Granular access control actions              ║
@@ -83,6 +91,7 @@ const CORE_SCHEMA = `
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
     ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{"notifications": {"in_app": true, "email": true}}';
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  NOTIFICATIONS                                              ║
@@ -402,8 +411,8 @@ export const initializeDatabase = async () => {
 
         // 2. Seed default tenant
         await query(`
-            INSERT INTO tenants (id, name, slug, is_active, plan, max_employees)
-            VALUES ($1, 'Default Organization', 'default', true, 'enterprise', 500)
+            INSERT INTO tenants (id, name, slug, domain, is_active, status, plan, max_employees)
+            VALUES ($1, 'Default Organization', 'default', 'company.com', true, 'active', 'enterprise', 500)
             ON CONFLICT (id) DO NOTHING
         `, [DEFAULT_TENANT_ID]);
         console.log('  ✅ Default tenant seeded.');
@@ -518,7 +527,7 @@ export const initializeDatabase = async () => {
         // 11. Seed Admin User if no users exist
         const { rows: userCount } = await query('SELECT COUNT(*) FROM users');
         if (parseInt(userCount[0].count) === 0) {
-            const hashedPassword = await bcrypt.hash('password', 10);
+            const hashedPassword = await bcrypt.hash('admin123', 10);
             const adminRoleRes = await query(
                 'SELECT id FROM roles WHERE tenant_id = $1 AND name = $2',
                 [DEFAULT_TENANT_ID, 'admin']
@@ -527,15 +536,15 @@ export const initializeDatabase = async () => {
 
             await query(`
                 INSERT INTO users (name, email, password, role, tenant_id, role_id, is_active)
-                VALUES ('Admin User', 'admin@example.com', $1, 'admin', $2, $3, true)
+                VALUES ('System Admin', 'admin@company.com', $1, 'admin', $2, $3, true)
             `, [hashedPassword, DEFAULT_TENANT_ID, adminRoleId]);
 
             await query(`
                 INSERT INTO employees (id, name, department, position, join_date, email, status, tenant_id)
-                VALUES ('EMP001', 'Admin User', 'Management', 'Administrator', NOW(), 'admin@example.com', 'active', $1)
+                VALUES ('EMP001', 'System Admin', 'Management', 'Administrator', NOW(), 'admin@company.com', 'active', $1)
                 ON CONFLICT (id) DO NOTHING
             `, [DEFAULT_TENANT_ID]);
-            console.log('  ✅ Admin user seeded: admin@example.com / password');
+            console.log('  ✅ Admin user seeded: admin@company.com / password');
         }
 
         // 12. Seed Leave Types for default tenant

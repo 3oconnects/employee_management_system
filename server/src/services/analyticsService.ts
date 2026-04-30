@@ -178,12 +178,12 @@ export class AnalyticsService {
             // 13. Payroll trend (last 6 months)
             safeQuery(`
                 SELECT
-                    TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') AS month,
+                    TO_CHAR(DATE_TRUNC('month', paid_at), 'Mon YYYY') AS month,
                     COALESCE(SUM(net_salary), 0) AS amount
                 FROM payroll_history
-                WHERE created_at >= CURRENT_DATE - INTERVAL '6 months'
-                GROUP BY DATE_TRUNC('month', created_at)
-                ORDER BY DATE_TRUNC('month', created_at)
+                WHERE paid_at >= CURRENT_DATE - INTERVAL '6 months'
+                GROUP BY DATE_TRUNC('month', paid_at)
+                ORDER BY DATE_TRUNC('month', paid_at)
             `, [], { rows: [] }),
             // 14. Recent activity (audit log last 10)
             safeQuery(`
@@ -514,7 +514,7 @@ export class AnalyticsService {
                 WHERE ph.employee_id = (
                     SELECT e.id FROM employees e JOIN users u ON u.email = e.email WHERE u.id = $1 LIMIT 1
                 )
-                ORDER BY ph.created_at DESC
+                ORDER BY ph.paid_at DESC
                 LIMIT 1
             `, [userId], { rows: [] }),
             // Notifications

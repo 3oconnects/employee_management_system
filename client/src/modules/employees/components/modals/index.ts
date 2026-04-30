@@ -6,4 +6,4 @@ export { default as EducationSection } from './EducationSection';
 export { default as ExperienceSection } from './ExperienceSection';
 export { default as Field } from './Field';
 export type { AddEmployeeForm, EditEmployeeForm, EduEntry, ExpEntry } from './shared';
-export { emptyEdu, emptyExp, inputCls, DEPTS, EMP_TYPES, DEGREES } from './shared';
+export { emptyEdu, emptyExp, inputCls, EMP_TYPES, DEGREES } from './shared';

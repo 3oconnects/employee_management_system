@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-    Shield, Calendar, Users, Briefcase, Inbox, Activity, Clock
+    Shield, Calendar, Users, Briefcase, Inbox, Activity, Clock, Building2, Layers
 } from 'lucide-react';
 import { ApprovalType } from '../types';
 
@@ -11,6 +11,8 @@ export const getTypeIcon = (type: string) => {
         case 'team_change': return <Users size={18} />;
         case 'promotion': return <Briefcase size={18} />;
         case 'attendance': return <Clock size={18} />;
+        case 'department_creation': return <Building2 size={18} />;
+        case 'team_creation': return <Layers size={18} />;
         default: return <Inbox size={18} />;
     }
 };

@@ -45,6 +45,12 @@ const sidebarSections: MenuSection[] = [
         ]
     },
     {
+        title: 'Organization',
+        items: [
+            { icon: Layers,          label: 'Hierarchy',  path: '/organization', roles: ['admin','hr','super_admin'],           module: 'organization' },
+        ]
+    },
+    {
         title: 'Operations',
         items: [
             { icon: Clock,           label: 'Attendance', path: '/attendance', roles: ['admin','hr','manager','employee','super_admin'], module: 'attendance' },
@@ -57,7 +63,7 @@ const sidebarSections: MenuSection[] = [
         items: [
             { icon: CreditCard,      label: 'Payroll',    path: '/payroll',    roles: ['admin','hr','employee','super_admin'],           module: 'payroll' },
             { icon: BarChart2,       label: 'Reports',    path: '/reports',    roles: ['admin','hr','super_admin'],                     module: 'reports' },
-            { icon: Shield,          label: 'Audit Log',  path: '/audit-logs', roles: ['admin','super_admin'],                          module: 'audit' },
+            { icon: History,         label: 'Audit Log',  path: '/audit-logs', roles: ['admin','super_admin'],                          module: 'audit' },
         ]
     },
     {
@@ -98,7 +104,7 @@ const Sidebar: React.FC = () => {
                 flex flex-col h-screen flex-shrink-0 z-40 select-none
                 bg-[#0F172A] border-r border-indigo-500/10 shadow-[4px_0_24px_rgba(0,0,0,0.15)]
                 transition-all duration-300 ease-in-out
-                ${collapsed ? 'w-[72px]' : 'w-[256px]'}
+                ${collapsed ? 'w-[72px] min-w-[72px]' : 'w-[256px] min-w-[256px]'}
             `}
         >
             {/* ── Logo + Collapse ─────────────────── */}

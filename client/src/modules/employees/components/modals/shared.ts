@@ -2,7 +2,7 @@
 export const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder:text-slate-300";
 export const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1";
 
-export const DEPTS = ['Engineering','Product','Sales','Marketing','HR','Finance','Operations','Design','Support','Legal','Management'];
+// export const DEPTS = ['Engineering','Product','Sales','Marketing','HR','Finance','Operations','Design','Support','Legal','Management']; // Deprecated: Now dynamic
 export const EMP_TYPES = [
     {value:'full_time', label:'Full-Time'},
     {value:'part_time', label:'Part-Time'},
@@ -15,7 +15,10 @@ export const DEGREES = ['High School','Diploma',"Bachelor's (B.E / B.Tech / B.Sc
 export interface AddEmployeeForm {
     name: string; email: string; phone: string; dateOfBirth: string;
     gender: string; personalEmail: string;
-    department: string; position: string; joinDate: string;
+    department: string; // Keep for legacy/string storage
+    department_id?: string;
+    team_id?: string;
+    position: string; joinDate: string;
     employmentType: string; status: string;
     addressLine1: string; city: string; state: string; pincode: string;
     reportingManagerId: string; reportingManagerName: string;
@@ -26,7 +29,10 @@ export interface AddEmployeeForm {
 }
 
 export interface EditEmployeeForm {
-    name: string; email: string; department: string;
+    name: string; email: string; 
+    department: string;
+    department_id?: string;
+    team_id?: string;
     position: string; status: string; joinDate: string;
     reportingManagerId?: string; reportingManagerName?: string;
 }

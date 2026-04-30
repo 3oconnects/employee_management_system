@@ -4,7 +4,7 @@ import {
     X, Loader2, UserPlus, AlertCircle, ChevronRight,
     User, Building2, CreditCard, GraduationCap, Briefcase
 } from 'lucide-react';
-import { AddEmployeeForm, EduEntry, ExpEntry, inputCls, DEPTS, EMP_TYPES, emptyEdu, emptyExp } from './shared';
+import { AddEmployeeForm, EduEntry, ExpEntry, inputCls, EMP_TYPES, emptyEdu, emptyExp } from './shared';
 import Field from './Field';
 import ManagerPicker from './ManagerPicker';
 import EducationSection from './EducationSection';
@@ -166,59 +166,90 @@ const PersonalTab: React.FC<{form:AddEmployeeForm; set:any}> = ({form,set}) => (
     </div>
 );
 
-const WorkTab: React.FC<{form:AddEmployeeForm; set:any; setForm:any; isIntern:boolean}> = ({form,set,setForm,isIntern}) => (
-    <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-            <Field label="Department *">
-                <select required value={form.department} onChange={set('department')} className={`${inputCls} appearance-none cursor-pointer`}>
-                    <option value="">Select department</option>
-                    {DEPTS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-            </Field>
-            <Field label="Position / Role"><input type="text" placeholder="e.g. Senior Engineer" value={form.position} onChange={set('position')} className={inputCls}/></Field>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-            <Field label="Join Date *"><input required type="date" value={form.joinDate} onChange={set('joinDate')} className={inputCls}/></Field>
-            <Field label="Employment Type">
-                <select value={form.employmentType} onChange={set('employmentType')} className={`${inputCls} appearance-none cursor-pointer`}>
-                    {EMP_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-            </Field>
-        </div>
-        <Field label="Reporting Manager">
-            <ManagerPicker value={form.reportingManagerId} displayName={form.reportingManagerName}
-                onChange={(id,name) => setForm((f:any) => ({...f, reportingManagerId:id, reportingManagerName:name}))}/>
-        </Field>
-        {isIntern && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-                <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">Internship Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                    <Field label="Start Date *"><input required type="date" value={form.internshipStartDate} onChange={set('internshipStartDate')} className={inputCls}/></Field>
-                    <Field label="End Date *"><input required type="date" value={form.internshipEndDate} onChange={set('internshipEndDate')} className={inputCls}/></Field>
-                </div>
-                {form.internshipStartDate && form.internshipEndDate && (() => {
-                    const d = Math.ceil((new Date(form.internshipEndDate).getTime()-new Date(form.internshipStartDate).getTime())/86400000);
-                    return d>0 ? <div className="flex justify-between bg-amber-100 rounded-lg px-3 py-2 text-[10px] font-bold text-amber-700"><span>Duration</span><span>{Math.round(d/30)} months ({d} days)</span></div> : null;
-                })()}
-                <div className="grid grid-cols-2 gap-3">
-                    <Field label="Monthly Stipend (₹)"><input type="number" placeholder="e.g. 15000" value={form.internshipStipend} onChange={set('internshipStipend')} className={inputCls}/></Field>
-                    <Field label="Supervisor"><input type="text" placeholder="Supervisor name" value={form.internshipSupervisor} onChange={set('internshipSupervisor')} className={inputCls}/></Field>
-                </div>
-                <Field label="College / Institute"><input type="text" placeholder="e.g. VIT University" value={form.internshipCollege} onChange={set('internshipCollege')} className={inputCls}/></Field>
+const WorkTab: React.FC<{form:AddEmployeeForm; set:any; setForm:any; isIntern:boolean}> = ({form,set,setForm,isIntern}) => {
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [teams, setTeams] = useState<any[]>([]);
+
+    useEffect(() => {
+        api.get('/organization/departments').then(res => setDepartments(res.data.data || []));
+    }, []);
+
+    useEffect(() => {
+        if (form.department_id) {
+            api.get(`/organization/teams?department_id=${form.department_id}`).then(res => setTeams(res.data.data || []));
+        } else {
+            setTeams([]);
+        }
+    }, [form.department_id]);
+
+    const handleDeptChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const deptId = e.target.value;
+        const deptName = departments.find(d => d.id.toString() === deptId)?.name || '';
+        setForm((f: any) => ({ ...f, department_id: deptId, department: deptName, team_id: '' }));
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                <Field label="Department *">
+                    <select required value={form.department_id} onChange={handleDeptChange} className={`${inputCls} appearance-none cursor-pointer`}>
+                        <option value="">Select department</option>
+                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                </Field>
+                <Field label="Team / Squad">
+                    <select value={form.team_id} onChange={set('team_id')} className={`${inputCls} appearance-none cursor-pointer`} disabled={!form.department_id}>
+                        <option value="">Select team</option>
+                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                </Field>
             </div>
-        )}
-        <Field label="Initial Status">
-            <div className="grid grid-cols-3 gap-2">
-                {[{val:'onboarding',label:'Onboarding',color:'bg-amber-50 border-amber-300 text-amber-700'},{val:'active',label:'Active',color:'bg-emerald-50 border-emerald-300 text-emerald-700'},{val:'terminated',label:'Terminated',color:'bg-rose-50 border-rose-300 text-rose-700'}].map(s=>(
-                    <button key={s.val} type="button" onClick={()=>setForm((f:any)=>({...f,status:s.val}))}
-                        className={`py-2.5 rounded-xl border text-[11px] font-bold transition-all ${form.status===s.val?s.color:'bg-slate-50 border-slate-200 text-slate-400 hover:bg-white'}`}>
-                        {s.label}
-                    </button>
-                ))}
+            <div className="grid grid-cols-2 gap-4">
+                <Field label="Position / Role"><input type="text" placeholder="e.g. Senior Engineer" value={form.position} onChange={set('position')} className={inputCls}/></Field>
+                <Field label="Join Date *"><input required type="date" value={form.joinDate} onChange={set('joinDate')} className={inputCls}/></Field>
             </div>
-        </Field>
-    </div>
-);
+            <div className="grid grid-cols-2 gap-4">
+                <Field label="Employment Type">
+                    <select value={form.employmentType} onChange={set('employmentType')} className={`${inputCls} appearance-none cursor-pointer`}>
+                        {EMP_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                </Field>
+                <Field label="Reporting Manager">
+                    <ManagerPicker value={form.reportingManagerId} displayName={form.reportingManagerName}
+                        onChange={(id,name) => setForm((f:any) => ({...f, reportingManagerId:id, reportingManagerName:name}))}/>
+                </Field>
+            </div>
+            {isIntern && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                    <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide">Internship Details</p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <Field label="Start Date *"><input required type="date" value={form.internshipStartDate} onChange={set('internshipStartDate')} className={inputCls}/></Field>
+                        <Field label="End Date *"><input required type="date" value={form.internshipEndDate} onChange={set('internshipEndDate')} className={inputCls}/></Field>
+                    </div>
+                    {form.internshipStartDate && form.internshipEndDate && (() => {
+                        const d = Math.ceil((new Date(form.internshipEndDate).getTime()-new Date(form.internshipStartDate).getTime())/86400000);
+                        return d>0 ? <div className="flex justify-between bg-amber-100 rounded-lg px-3 py-2 text-[10px] font-bold text-amber-700"><span>Duration</span><span>{Math.round(d/30)} months ({d} days)</span></div> : null;
+                    })()}
+                    <div className="grid grid-cols-2 gap-3">
+                        <Field label="Monthly Stipend (₹)"><input type="number" placeholder="e.g. 15000" value={form.internshipStipend} onChange={set('internshipStipend')} className={inputCls}/></Field>
+                        <Field label="Supervisor"><input type="text" placeholder="Supervisor name" value={form.internshipSupervisor} onChange={set('internshipSupervisor')} className={inputCls}/></Field>
+                    </div>
+                    <Field label="College / Institute"><input type="text" placeholder="e.g. VIT University" value={form.internshipCollege} onChange={set('internshipCollege')} className={inputCls}/></Field>
+                </div>
+            )}
+            <Field label="Initial Status">
+                <div className="grid grid-cols-3 gap-2">
+                    {[{val:'onboarding',label:'Onboarding',color:'bg-amber-50 border-amber-300 text-amber-700'},{val:'active',label:'Active',color:'bg-emerald-50 border-emerald-300 text-emerald-700'},{val:'terminated',label:'Terminated',color:'bg-rose-50 border-rose-300 text-rose-700'}].map(s=>(
+                        <button key={s.val} type="button" onClick={()=>setForm((f:any)=>({...f,status:s.val}))}
+                            className={`py-2.5 rounded-xl border text-[11px] font-bold transition-all ${form.status===s.val?s.color:'bg-slate-50 border-slate-200 text-slate-400 hover:bg-white'}`}>
+                            {s.label}
+                        </button>
+                    ))}
+                </div>
+            </Field>
+        </div>
+    );
+};
 
 const PayrollTab: React.FC<{form:AddEmployeeForm; set:any}> = ({form,set}) => (
     <div className="space-y-4">

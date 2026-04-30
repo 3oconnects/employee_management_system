@@ -146,9 +146,24 @@ const schema = `
 
 export const initDb = async () => {
   try {
-    // Create all tables (CREATE TABLE IF NOT EXISTS is fully idempotent)
-    await pool.query(schema);
-    console.log('✅ Database schema initialized.');
+    // Split schema into individual statements and execute them one by one
+    // to prevent timeouts and handle multi-statement restrictions in some environments
+    const statements = schema
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    console.log(`🔧 Initializing base schema (${statements.length} tables)...`);
+    
+    for (const statement of statements) {
+      await pool.query(statement).catch(err => {
+        if (!err.message.includes('already exists')) {
+          throw err;
+        }
+      });
+    }
+    
+    console.log('✅ Base database schema initialized.');
 
     // --- Migration: upgrade existing schema for AnalyticsService compatibility ---
     
@@ -306,12 +321,15 @@ export const initDb = async () => {
     `).catch(() => { /* constraint already exists */ });
 
     // --- Seed default admin user ---
-    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
-    await pool.query(`
-      INSERT INTO users (name, email, password, role)
-      VALUES ('System Admin', 'admin@company.com', $1, 'admin')
-      ON CONFLICT (email) DO NOTHING
-    `, [hashedAdminPassword]);
+    const { rows: adminExists } = await pool.query("SELECT 1 FROM users WHERE email = 'admin@company.com'");
+    if (adminExists.length === 0) {
+      const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+      await pool.query(`
+        INSERT INTO users (name, email, password, role)
+        VALUES ('System Admin', 'admin@company.com', $1, 'admin')
+        ON CONFLICT (email) DO NOTHING
+      `, [hashedAdminPassword]);
+    }
 
     // Also seed a matching employee record for the admin so the join works
     // We do this independently of the user seed to ensure the mapping ALWAYS exists

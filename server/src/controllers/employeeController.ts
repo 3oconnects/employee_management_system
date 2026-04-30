@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { pool } from '../config/db';
 import { NotificationService } from '../services/notificationService';
+import { sendEmail, buildWelcomeEmail } from '../services/emailService';
 
 export const getEmployees = async (req: Request, res: Response) => {
     const { search, page = 1, limit = 10, status, departmentId } = req.query;
@@ -120,10 +122,21 @@ export const createEmployee = async (req: Request, res: Response) => {
 
         // 2. Create User record if email provided
         if (email) {
+            const tempPassword = Math.random().toString(36).slice(-10).toUpperCase();
+            const hashedPassword = await bcrypt.hash(tempPassword, 10);
+            
             await client.query(
                 'INSERT INTO users (name, email, password, role, tenant_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (email) DO NOTHING',
-                [name, email, '$2b$10$dn7zRyaIJrLtiU24ttw4cObBjczJT8TkoTHwscC9jMJMbhh/VDbXC', 'employee', 'tenant_default']
+                [name, email, hashedPassword, 'employee', 'tenant_default']
             );
+
+            // Send welcome email
+            const loginUrl = process.env.APP_URL || 'http://localhost:5173';
+            await sendEmail({
+                to: email,
+                subject: '🎉 Welcome to the Team — Your Account is Ready',
+                html: buildWelcomeEmail({ name, email, tempPassword, role: 'employee', loginUrl }),
+            });
         }
 
         // 3. Create Payroll Profile

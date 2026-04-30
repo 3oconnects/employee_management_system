@@ -43,6 +43,7 @@ import auditRoutes from './routes/auditRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import performanceRoutes from './routes/performanceRoutes';
 import documentRoutes from './routes/documentRoutes';
+import settingsRoutes from './routes/settingsRoutes';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -51,14 +52,22 @@ const port = process.env.PORT || 4000;
 
 // CORS — Allow frontend origins
 app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'https://velda-nonraiseable-joshingly.ngrok-free.dev',
-        'https://henlike-heterogeneously-rex.ngrok-free.dev',
-    ],
+    origin: (origin, callback) => {
+        const allowedOrigins = [
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'https://velda-nonraiseable-joshingly.ngrok-free.dev',
+            'https://henlike-heterogeneously-rex.ngrok-free.dev',
+        ];
+        // Allow if in list, or if it's an ngrok/render domain, or if no origin (local tools)
+        if (!origin || allowedOrigins.includes(origin) || origin.includes('ngrok-free.dev') || origin.includes('onrender.com')) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -96,6 +105,7 @@ app.use('/api/v1/audit-logs', auditRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/documents', documentRoutes);
+app.use('/api/v1/settings', settingsRoutes);
 
 
 // Health check

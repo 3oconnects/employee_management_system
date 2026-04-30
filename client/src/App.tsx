@@ -18,6 +18,8 @@ const Attendance = lazy(() => import('./modules/attendance/pages/Attendance'));
 const Timesheets = lazy(() => import('./modules/timesheet/pages/Timesheets'));
 const Reports = lazy(() => import('./modules/reports/pages/Reports'));
 const Profile = lazy(() => import('./modules/profile/pages/Profile'));
+const Settings = lazy(() => import('./modules/settings/pages/Settings'));
+const Approvals = lazy(() => import('./modules/approvals/pages/Approvals'));
 
 // ─── ROOT REDIRECT ─────────────────────────────────────────────────────────
 
@@ -90,11 +92,22 @@ function App() {
                     } />
 
                     {/* Admin-only routes */}
+                    <Route path="/approvals" element={
+                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager', 'super_admin']}>
+                            <PageLoader><Approvals /></PageLoader>
+                        </ProtectedRoute>
+                    } />
                     <Route path="/audit-logs" element={
                         <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                             <PageLoader>
                                 <AuditLogPage />
                             </PageLoader>
+                        </ProtectedRoute>
+                    } />
+
+                    <Route path="/settings" element={
+                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                            <PageLoader><Settings /></PageLoader>
                         </ProtectedRoute>
                     } />
 

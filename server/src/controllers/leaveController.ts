@@ -90,6 +90,47 @@ export const approveLeave = async (req: Request, res: Response) => {
     }
 };
 
+export const updateLeaveRequest = async (req: Request, res: Response) => {
+    try {
+        const { leave_type_id, start_date, end_date, reason } = req.body;
+        const { id } = req.params;
+
+        const result = await query(
+            `UPDATE leave_requests 
+             SET leave_type_id = $1, start_date = $2, end_date = $3, reason = $4, updated_at = NOW()
+             WHERE id = $5 AND status = 'pending'
+             RETURNING *`,
+            [leave_type_id, start_date, end_date, reason || null, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Leave request not found or cannot be edited (already processed).' });
+        }
+
+        res.json({ ...result.rows[0], message: 'Leave request updated successfully.' });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const deleteLeaveRequest = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const result = await query(
+            `DELETE FROM leave_requests WHERE id = $1 AND status = 'pending' RETURNING *`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Leave request not found or cannot be deleted.' });
+        }
+
+        res.json({ message: 'Leave request deleted successfully.' });
+    } catch (err: any) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 export const getLeaveBalance = async (req: Request, res: Response) => {
     try {
         const { userId, year } = req.query;

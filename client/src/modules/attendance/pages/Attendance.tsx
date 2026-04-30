@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { RefreshCw, MapPin, History, Send, Loader2, BarChart3, Info, AlertCircle, Tally3 } from 'lucide-react';
+import { RefreshCw, MapPin, History, Send, Loader2, BarChart3, Info, AlertCircle, Tally3, Clock, ShieldCheck } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import { AttendanceHero }    from '../components/AttendanceHero';
@@ -156,86 +156,74 @@ const WeeklyChart: React.FC<{ days: Record<string, number>, history: any[] }> = 
 
 /* ─── Regularization Panel ───────────────────────────────── */
 const RegularizePanel: React.FC<{ userId: any }> = ({ userId }) => {
-    const [form, setForm]     = useState({ date: '', check_in_time: '09:00', check_out_time: '18:00', reason: '' });
-    const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
-    const [msg, setMsg]       = useState('');
+    const [date, setDate] = useState('');
+    const [inT, setInT] = useState('');
+    const [outT, setOutT] = useState('');
+    const [reason, setReason] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const submit = async () => {
-        if (!form.reason.trim() || !form.date) return;
-        setStatus('loading');
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
         try {
-            await api.post('/attendance/regularize', { userId, ...form });
-            setStatus('ok');
-            setMsg('Regularization submitted successfully.');
-            setForm(f => ({ ...f, reason: '' }));
+            await api.post('/attendance/regularize', { userId, date, check_in_time: inT, check_out_time: outT, reason });
+            alert('Regularization request submitted!');
+            setDate(''); setInT(''); setOutT(''); setReason('');
         } catch (err: any) {
-            setStatus('err');
-            setMsg(err.response?.data?.error || 'Submission failed. Try again.');
+            alert(err.response?.data?.error || 'Submission failed');
+        } finally {
+            setLoading(false);
         }
-        setTimeout(() => setStatus('idle'), 4000);
     };
 
     return (
-        <div className="rounded-3xl bg-indigo-600 text-white flex flex-col gap-0 shadow-2xl shadow-indigo-600/25 overflow-hidden relative border border-white/10 h-full">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"/>
-            <div className="p-6 flex-1 space-y-4">
-                <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 rounded-full text-[8px] font-black uppercase tracking-widest border border-white/10">
-                        <Info size={10}/> Data Correction
-                    </span>
+        <div className="rounded-[32px] bg-white border border-slate-100 flex flex-col gap-0 shadow-2xl shadow-slate-200/50 overflow-hidden relative h-full group transition-all duration-500 hover:shadow-indigo-500/10">
+            <div className="p-8 pb-6 border-b border-slate-50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 group-hover:bg-indigo-100 transition-colors" />
+                <div className="relative">
+                    <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 mb-4">
+                        <Clock size={18} />
+                    </div>
+                    <h3 className="text-[18px] font-black text-slate-800 tracking-tight">Request Regularization</h3>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manual Attendance Correction</p>
                 </div>
-                <div>
-                    <h3 className="text-[16px] font-black tracking-tight">Sync Regularization</h3>
-                    <p className="text-indigo-200 text-[11px] mt-0.5 leading-relaxed">Missed a punch? Submit a correction.</p>
-                </div>
-
-                <div className="space-y-3">
-                    <div>
-                        <label className="block text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-1">Date</label>
-                        <input type="date" value={form.date} max={new Date().toISOString().slice(0,10)}
-                            onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                            className="w-full bg-indigo-700/40 border border-white/15 rounded-xl px-4 py-2 text-[12px] text-white outline-none focus:bg-indigo-700/60 focus:border-white/30 transition-all [color-scheme:dark]"/>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-1">Check In</label>
-                            <input type="time" value={form.check_in_time}
-                                onChange={e => setForm(f => ({ ...f, check_in_time: e.target.value }))}
-                                className="w-full bg-indigo-700/40 border border-white/15 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:bg-indigo-700/60 focus:border-white/30 transition-all [color-scheme:dark]"/>
-                        </div>
-                        <div>
-                            <label className="block text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-1">Check Out</label>
-                            <input type="time" value={form.check_out_time}
-                                onChange={e => setForm(f => ({ ...f, check_out_time: e.target.value }))}
-                                className="w-full bg-indigo-700/40 border border-white/15 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:bg-indigo-700/60 focus:border-white/30 transition-all [color-scheme:dark]"/>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-[8px] font-black text-indigo-300 uppercase tracking-widest mb-1">Reason / Details</label>
-                        <textarea value={form.reason} rows={2} placeholder="Brief discrepancy details…"
-                            onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                            className="w-full bg-indigo-700/40 border border-white/15 rounded-xl px-4 py-2 text-[12px] text-white outline-none focus:bg-indigo-700/60 focus:border-white/30 transition-all resize-none placeholder:text-white/30"/>
-                    </div>
-                </div>
-
-                {status === 'ok' && (
-                    <div className="flex items-center gap-2 p-2.5 bg-emerald-500/20 border border-emerald-400/30 rounded-xl text-emerald-200 text-[11px] font-semibold">
-                        <AlertCircle size={13}/> {msg}
-                    </div>
-                )}
-                {status === 'err' && (
-                    <div className="flex items-center gap-2 p-2.5 bg-rose-500/20 border border-rose-400/30 rounded-xl text-rose-200 text-[11px] font-semibold">
-                        <AlertCircle size={13}/> {msg}
-                    </div>
-                )}
             </div>
 
-            <div className="px-6 pb-6">
-                <button onClick={submit} disabled={!form.reason.trim() || !form.date || status === 'loading'}
-                    className="w-full py-3 bg-white text-indigo-600 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-xl flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40">
-                    {status === 'loading' ? <Loader2 size={14} className="animate-spin"/> : <Send size={14}/>}
-                    {status === 'loading' ? 'Submitting…' : 'Submit Correction'}
+            <form onSubmit={handleSubmit} className="p-8 flex-1 flex flex-col gap-5">
+                <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Affected Date</label>
+                    <input required type="date" value={date} onChange={e => setDate(e.target.value)} 
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Check In</label>
+                        <input required type="time" value={inT} onChange={e => setInT(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Check Out</label>
+                        <input type="time" value={outT} onChange={e => setOutT(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
+                    </div>
+                </div>
+
+                <div className="space-y-1.5 flex-1 min-h-[100px]">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Reason for Adjustment</label>
+                    <textarea required value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Forgot to check in, System error..."
+                        className="w-full h-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all resize-none"/>
+                </div>
+
+                <button disabled={loading} type="submit" 
+                    className="w-full bg-slate-900 text-white rounded-2xl py-4 text-[13px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                    Submit Request
                 </button>
+            </form>
+
+            <div className="px-8 py-4 bg-slate-50/50 border-t border-slate-50">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">Requests are subject to manager approval</p>
             </div>
         </div>
     );

@@ -81,6 +81,8 @@ const CORE_SCHEMA = `
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  NOTIFICATIONS                                              ║
@@ -105,6 +107,7 @@ const CORE_SCHEMA = `
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS manager_id TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS location TEXT; -- Patch: Missing column
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
@@ -159,6 +162,8 @@ const CORE_SCHEMA = `
     -- ║  ATTENDANCE (upgraded)                                     ║
     -- ╚══════════════════════════════════════════════════════════════╝
     ALTER TABLE attendance ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
+    ALTER TABLE attendance ADD COLUMN IF NOT EXISTS location TEXT; -- Patch: Missing column
+    ALTER TABLE attendance ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(); -- Patch: Missing column
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  LEAVE_TYPES (upgraded)                                    ║
@@ -166,7 +171,28 @@ const CORE_SCHEMA = `
     ALTER TABLE leave_types ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
 
     -- ╔══════════════════════════════════════════════════════════════╗
-    -- ║  LEAVE_REQUESTS (upgraded)                                 ║
+    -- ║  APPROVALS — Generic request-approval workflow system        ║
+    -- ╚══════════════════════════════════════════════════════════════╝
+    CREATE TABLE IF NOT EXISTS approvals (
+        id          TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        tenant_id   TEXT REFERENCES tenants(id),
+        type        TEXT NOT NULL, -- 'role_change', 'promotion', 'salary_hike', etc.
+        status      TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+        metadata    JSONB, -- details about the request (e.g., target_role_id)
+        requested_by TEXT NOT NULL,
+        actioned_by  TEXT,
+        actioned_at  TIMESTAMP,
+        created_at   TIMESTAMP DEFAULT NOW(),
+        updated_at   TIMESTAMP DEFAULT NOW()
+    );
+    ALTER TABLE approvals ADD COLUMN IF NOT EXISTS metadata JSONB;
+    ALTER TABLE approvals ADD COLUMN IF NOT EXISTS requested_by TEXT;
+    ALTER TABLE approvals ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
+    CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status, tenant_id);
+
+    -- ╔══════════════════════════════════════════════════════════════╗
+    -- ║  LEAVE & ATTENDANCE (v3.1)                                 ║
     -- ╚══════════════════════════════════════════════════════════════╝
     ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
     ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
@@ -283,6 +309,14 @@ const PERMISSIONS_LIST = [
     { module: 'employees', action: 'create' },
     { module: 'employees', action: 'update' },
     { module: 'employees', action: 'delete' },
+    { module: 'employees', action: 'onboard' },
+    { module: 'employees', action: 'terminate' },
+    { module: 'employees', action: 'promote' },
+    // Approvals
+    { module: 'approvals', action: 'view' },
+    { module: 'approvals', action: 'approve' },
+    { module: 'approvals', action: 'reject' },
+    { module: 'approvals', action: 'manage_workflows' },
     // Attendance
     { module: 'attendance', action: 'view' },
     { module: 'attendance', action: 'check_in' },
@@ -296,6 +330,8 @@ const PERMISSIONS_LIST = [
     { module: 'payroll', action: 'view' },
     { module: 'payroll', action: 'manage' },
     { module: 'payroll', action: 'run' },
+    { module: 'payroll', action: 'adjust' },
+    { module: 'payroll', action: 'finalize' },
     { module: 'payroll', action: 'view_own' },
     // Timesheets
     { module: 'timesheet', action: 'view' },
@@ -312,8 +348,13 @@ const PERMISSIONS_LIST = [
     { module: 'profile', action: 'update' },
     // Audit
     { module: 'audit', action: 'view' },
+    { module: 'audit', action: 'export' },
+    { module: 'audit', action: 'cleanup' },
     // Settings
     { module: 'settings', action: 'manage' },
+    { module: 'settings', action: 'branding' },
+    { module: 'settings', action: 'integrations' },
+    { module: 'settings', action: 'security' },
 ];
 
 // Role → permissions mapping
@@ -340,6 +381,7 @@ const ROLE_PERMISSIONS_MAP: Record<string, string[]> = {
         'profile:view', 'profile:update',
     ],
     employee: [
+        'dashboard:view',
         'attendance:view', 'attendance:check_in',
         'leave:view', 'leave:apply',
         'payroll:view_own',
@@ -442,14 +484,20 @@ export const initializeDatabase = async () => {
         const tablesToBackfill = [
             'users', 'employees', 'attendance', 'leave_types', 'leave_requests',
             'timesheets', 'payroll_profiles', 'payroll_runs', 'payroll_entries',
-            'payroll_history', 'claims', 'reimbursement_claims'
+            'payroll_history', 'claims', 'reimbursement_claims', 'roles'
         ];
         for (const table of tablesToBackfill) {
-            await query(
-                `UPDATE ${table} SET tenant_id = $1 WHERE tenant_id IS NULL`,
-                [DEFAULT_TENANT_ID]
-            ).catch(() => {});
+            await query(`UPDATE ${table} SET tenant_id = $1 WHERE tenant_id IS NULL`, [DEFAULT_TENANT_ID]).catch(() => {});
         }
+        
+        // Backfill role_id for existing users if missing
+        await query(`
+            UPDATE users u SET role_id = r.id 
+            FROM roles r 
+            WHERE r.name = u.role AND r.tenant_id = u.tenant_id AND u.role_id IS NULL
+        `).catch(() => {});
+
+        console.log('  ✅ Data backfilled (tenant_id, role_id).');
         console.log('  ✅ Existing data backfilled with default tenant_id.');
 
         // 10. Link roles to existing users

@@ -4,7 +4,7 @@ import {
     LayoutDashboard, UserPlus, Users, Clock, CalendarDays,
     CreditCard, ClipboardList, BarChart2, Shield,
     Settings, Layers, ChevronLeft, ChevronRight, ChevronDown,
-    PlusCircle, History, ListFilter
+    PlusCircle, History, ListFilter, CheckCircle2
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -34,6 +34,7 @@ const sidebarSections: MenuSection[] = [
         title: 'Overview',
         items: [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin','hr','manager','super_admin','employee'], module: 'dashboard' },
+            { icon: CheckCircle2, label: 'Approvals', path: '/approvals', roles: ['admin','hr','manager','super_admin'], module: 'approvals' },
         ]
     },
     {
@@ -58,6 +59,12 @@ const sidebarSections: MenuSection[] = [
             { icon: BarChart2,       label: 'Reports',    path: '/reports',    roles: ['admin','hr','super_admin'],                     module: 'reports' },
             { icon: Shield,          label: 'Audit Log',  path: '/audit-logs', roles: ['admin','super_admin'],                          module: 'audit' },
         ]
+    },
+    {
+        title: 'Administration',
+        items: [
+            { icon: Settings,        label: 'Settings',   path: '/settings',   roles: ['admin','super_admin'],                          module: 'settings' },
+        ]
     }
 ];
 
@@ -78,8 +85,9 @@ const Sidebar: React.FC = () => {
     };
 
     const isAuthorized = (item: { roles: string[], module?: string }) => {
-        const roleMatch = item.roles.includes(user?.role ?? '');
-        if (!roleMatch) return false;
+        const role = user?.role ?? '';
+        if (!item.roles.includes(role)) return false;
+        if (role === 'admin' || role === 'super_admin') return true;
         if (item.module) return hasModule(item.module);
         return true;
     };
@@ -124,7 +132,7 @@ const Sidebar: React.FC = () => {
 
             {/* ── Navigation ────────────────────────── */}
             <nav className="flex-1 overflow-y-auto no-scrollbar px-3 py-4 space-y-6">
-                {sidebarSections.map(section => {
+                {sidebarSections.filter(s => s.title !== 'Administration').map(section => {
                     const visibleItems = section.items.filter(isAuthorized);
                     if (visibleItems.length === 0) return null;
 
@@ -205,24 +213,34 @@ const Sidebar: React.FC = () => {
                 })}
             </nav>
 
-            {/* ── Settings ─────────────────────────── */}
-            <div className="px-3 py-3 border-t border-white/[0.05]">
-                <button
-                    title={collapsed ? 'Settings' : undefined}
-                    className={`
-                        relative w-full flex items-center rounded-xl transition-all duration-150 group
-                        ${collapsed ? 'justify-center p-3.5' : 'gap-3 px-3 py-2.5'}
-                        text-white/20 hover:bg-white/[0.06] hover:text-white/50
-                    `}
-                >
-                    <Settings size={18} className="flex-shrink-0" />
-                    {!collapsed && <span className="text-[13px] font-semibold">Settings</span>}
-                    {collapsed && (
-                        <span className="pointer-events-none absolute left-[60px] z-50 bg-slate-800 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap border border-white/10 shadow-xl opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150">
-                            Settings
-                        </span>
-                    )}
-                </button>
+            {/* ── Settings (Pinned to bottom) ────────────────────────── */}
+            <div className="px-3 py-4 border-t border-white/[0.05] mt-auto">
+                {sidebarSections.find(s => s.title === 'Administration')?.items.filter(isAuthorized).map(item => (
+                    <NavLink
+                        key={item.label}
+                        to={item.path!}
+                        title={collapsed ? item.label : undefined}
+                        className={({ isActive }) => `
+                            relative flex items-center rounded-xl transition-all duration-150 group
+                            ${collapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
+                            ${isActive
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                                : 'text-white/40 hover:bg-white/[0.06] hover:text-white/80'}
+                        `}
+                    >
+                        <item.icon size={18} className="flex-shrink-0" />
+                        {!collapsed && (
+                            <span className="text-[13px] font-semibold tracking-tight whitespace-nowrap">
+                                {item.label}
+                            </span>
+                        )}
+                        {collapsed && (
+                            <span className="pointer-events-none absolute left-[60px] z-50 bg-slate-800 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap border border-white/10 shadow-xl opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150">
+                                {item.label}
+                            </span>
+                        )}
+                    </NavLink>
+                ))}
             </div>
         </aside>
     );

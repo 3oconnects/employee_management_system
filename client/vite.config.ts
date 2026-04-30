@@ -11,14 +11,15 @@ export default defineConfig({
         },
     },
     server: {
+        // Allow ngrok tunnels to serve this dev server
         allowedHosts: [
             'velda-nonraiseable-joshingly.ngrok-free.dev',
-            'henlike-heterogeneously-rex.ngrok-free.dev'
+            'henlike-heterogeneously-rex.ngrok-free.dev',
         ],
-        hmr: {
-            host: 'henlike-heterogeneously-rex.ngrok-free.dev',
-            protocol: 'wss',
-            clientPort: 443
-        }
+        // HMR (Hot Module Replacement) WebSocket cannot work through ngrok
+        // because ngrok does not proxy the Vite WebSocket path and returns 404,
+        // causing an infinite polling loop. Disable it so the page stays stable.
+        // HMR still works normally on direct localhost access.
+        hmr: false,
     }
 })

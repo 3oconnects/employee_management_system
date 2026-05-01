@@ -7,7 +7,8 @@ import {
     getTeams,
     createTeam,
     updateTeam,
-    deleteTeam
+    deleteTeam,
+    getTeamStatus
 } from '../controllers/organizationController';
 import { authenticate, authorize } from '../middleware/authMiddleware';
 
@@ -16,6 +17,9 @@ const router = express.Router();
 // Apply auth to all organization routes
 router.use(authenticate);
 const adminOnly = authorize(['admin', 'super_admin']);
+
+// Team Status
+router.get('/team-status', getTeamStatus);
 
 // Departments
 router.get('/departments', getDepartments);

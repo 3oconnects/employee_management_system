@@ -86,6 +86,7 @@ const CORE_SCHEMA = `
     ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id INTEGER REFERENCES roles(id);
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS availability_status TEXT DEFAULT 'available';
     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_token TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
@@ -544,7 +545,7 @@ export const initializeDatabase = async () => {
                 VALUES ('EMP001', 'System Admin', 'Management', 'Administrator', NOW(), 'admin@company.com', 'active', $1)
                 ON CONFLICT (id) DO NOTHING
             `, [DEFAULT_TENANT_ID]);
-            console.log('  ✅ Admin user seeded: admin@company.com / password');
+            console.log('  ✅ Admin user seeded: admin@company.com / admin123');
         }
 
         // 12. Seed Leave Types for default tenant

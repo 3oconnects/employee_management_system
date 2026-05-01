@@ -51,7 +51,7 @@ router.post('/login', asyncHandler(async (req, res) => {
 
     // 1. Find user with employee linkage and role/permissions
     const result = await pool.query(
-        `SELECT u.*, e.id as employee_id,
+        `SELECT u.*, e.id as employee_id, e.department_id,
                 r.id as role_record_id, r.name as role_name
          FROM users u
          LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
@@ -132,6 +132,7 @@ router.post('/login', asyncHandler(async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
+            availability_status: user.availability_status || 'available',
             phone: user.phone || '',
             address: user.address || '',
             emergency: user.emergency || '',
@@ -241,7 +242,7 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
 
     const result = await pool.query(
         `SELECT u.id, u.name, u.email, u.role, u.phone, u.address, u.emergency,
-                u.tenant_id, u.created_at, u.preferences, e.id as employee_id
+                u.tenant_id, u.created_at, u.preferences, u.availability_status, e.id as employee_id
          FROM users u
          LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
          WHERE u.id = $1 AND u.deleted_at IS NULL`,
@@ -309,6 +310,21 @@ router.put('/me/preferences', authenticate, asyncHandler(async (req: Authenticat
     );
 
     res.json({ success: true, message: 'Preferences updated.' });
+}));
+
+// ─── PUT /status ────────────────────────────────────────────────────────────
+router.put('/status', authenticate, asyncHandler(async (req: AuthenticatedRequest, res) => {
+    if (!req.user) throw AppError.unauthorized();
+
+    const { status } = req.body;
+    if (!status) throw AppError.badRequest('Status required.');
+
+    await pool.query(
+        'UPDATE users SET availability_status = $1 WHERE id = $2',
+        [status, req.user.userId]
+    );
+
+    res.json({ success: true, message: 'Status updated.' });
 }));
 
 // ─── PUT /me/password ───────────────────────────────────────────────────────

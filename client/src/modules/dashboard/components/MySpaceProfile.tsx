@@ -137,9 +137,19 @@ const MySpaceProfile: React.FC = () => {
             {/* ── Tab Content ────────────────────────────────── */}
             <div className="p-6">
                 {loading && (
-                    <div className="flex items-center justify-center py-10">
-                        <Loader2 size={20} className="animate-spin text-indigo-400 mr-3"/>
-                        <p className="text-[12px] font-semibold text-slate-400">Loading profile…</p>
+                    <div className="space-y-6 animate-pulse">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="space-y-2">
+                                    <div className="h-2.5 bg-slate-100 rounded-full w-1/4" />
+                                    <div className="h-9 bg-slate-50 rounded-xl border border-slate-100 w-full" />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="pt-4 space-y-4">
+                            <div className="h-2.5 bg-slate-100 rounded-full w-1/6" />
+                            <div className="h-24 bg-slate-50 rounded-xl border border-slate-100 w-full" />
+                        </div>
                     </div>
                 )}
 

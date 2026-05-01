@@ -70,7 +70,8 @@ const schema = `
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    role TEXT
+    role TEXT,
+    availability_status TEXT DEFAULT 'available'
   );
 
   CREATE TABLE IF NOT EXISTS investment_deadlines (
@@ -279,6 +280,7 @@ export const initDb = async () => {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_token TEXT;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id INTEGER;`).catch(() => {});
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS availability_status TEXT DEFAULT 'available';`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS temp_password TEXT;`).catch(() => {});
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_password_temp BOOLEAN DEFAULT false;`).catch(() => {});
 
@@ -441,9 +443,9 @@ export const initDb = async () => {
 
     // --- Seed default tenant ---
     await pool.query(`
-      INSERT INTO tenants (id, name, domain, status)
-      VALUES ('tenant_default', 'AURA Default', 'company.com', 'active')
-      ON CONFLICT (id) DO NOTHING
+      INSERT INTO tenants (id, name, slug, domain, status)
+      VALUES ('tenant_default', 'AURA Default', 'default', 'company.com', 'active')
+      ON CONFLICT (id) DO UPDATE SET slug = 'default'
     `);
 
     // --- Seed/Repair default admin user ---
@@ -512,11 +514,20 @@ export const initDb = async () => {
 
     // Also seed a matching employee record for the admin so the join works
     // We do this independently of the user seed to ensure the mapping ALWAYS exists
+    const { rows: mgmtDept } = await pool.query("SELECT id FROM departments WHERE name = 'Management'");
     await pool.query(`
-      INSERT INTO employees (id, name, department, position, join_date, email)
-      VALUES ('EMP000', 'System Admin', 'Management', 'Admin', CURRENT_TIMESTAMP, 'admin@company.com')
-      ON CONFLICT (id) DO UPDATE SET email = 'admin@company.com'
-    `);
+      INSERT INTO employees (id, name, department, position, join_date, email, department_id)
+      VALUES ('EMP000', 'System Admin', 'Management', 'Admin', CURRENT_TIMESTAMP, 'admin@company.com', $1)
+      ON CONFLICT (id) DO UPDATE SET email = 'admin@company.com', department_id = $1
+    `, [mgmtDept[0]?.id || null]);
+
+    // Backfill department_id for all employees based on department name string
+    await pool.query(`
+      UPDATE employees e
+      SET department_id = d.id
+      FROM departments d
+      WHERE e.department = d.name AND e.department_id IS NULL
+    `).catch(() => {});
 
     // Seed some analytics data if tables are empty
     const { rows: leaveRows } = await pool.query('SELECT COUNT(*) FROM leave_requests');

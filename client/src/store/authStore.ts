@@ -24,6 +24,7 @@ export interface User {
     phone?: string;
     address?: string;
     emergency?: string;
+    availability_status?: string;
     permissions?: string[];
 }
 

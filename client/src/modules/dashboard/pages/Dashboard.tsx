@@ -24,6 +24,7 @@ import DeptDirectoryWidget   from '../components/widgets/DeptDirectoryWidget';
 import BirthdayWidget        from '../components/widgets/BirthdayWidget';
 import NewHiresWidget        from '../components/widgets/NewHiresWidget';
 import OrgCalendarWidget     from '../components/widgets/OrgCalendarWidget';
+import TeamStatusWidget      from '../components/widgets/TeamStatusWidget';
 
 /* ── helpers ── */
 const COLORS: Record<string,string> = {A:'#6366f1',B:'#8b5cf6',C:'#ec4899',D:'#f59e0b',E:'#10b981',F:'#3b82f6',G:'#ef4444',H:'#14b8a6',I:'#f97316',J:'#84cc16',K:'#06b6d4',L:'#a855f7',M:'#e11d48',N:'#0ea5e9',O:'#22c55e',P:'#d946ef',Q:'#fb923c',R:'#64748b',S:'#6366f1',T:'#8b5cf6',U:'#ec4899',V:'#10b981',W:'#3b82f6',X:'#f59e0b',Y:'#14b8a6',Z:'#ef4444'};
@@ -62,7 +63,7 @@ const Dashboard:React.FC = () => {
     const [elapsed,   setElapsed]   = useState(0);
     const [busy,      setBusy]      = useState(false);
     const [err,       setErr]       = useState<string|null>(null);
-    const [status,    setStatus_]   = useState<SK>(()=>(localStorage.getItem('usr_status') as SK)?? 'available');
+    const [status,    setStatus_]   = useState<SK>(()=>(user?.availability_status as SK)?? (localStorage.getItem('usr_status') as SK)?? 'available');
     const [statusOpen,setSO]        = useState(false);
     const [orgSection,setOrgSection] = useState<OrgSection>('overview');
     const sRef = useRef<HTMLDivElement>(null);
@@ -78,7 +79,17 @@ const Dashboard:React.FC = () => {
         document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);
     },[]);
 
-    const setStatus=(k:SK)=>{setStatus_(k);localStorage.setItem('usr_status',k);setSO(false);};
+    const setStatus=async (k:SK)=>{
+        setStatus_(k);
+        localStorage.setItem('usr_status',k);
+        setSO(false);
+        try {
+            await api.put('/auth/status', { status: k });
+            updateUser({ availability_status: k });
+        } catch (e) {
+            console.error('Failed to sync status', e);
+        }
+    };
 
     const fetchAtt = async()=>{
         if(!user?.id)return;
@@ -126,16 +137,10 @@ const Dashboard:React.FC = () => {
         finally{setBusy(false);}
     };
 
-    if(loading)return(
-        <div className="flex items-center justify-center h-[70vh]">
-            <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"/>
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Loading...</p>
-            </div>
-        </div>
-    );
-
+    // ── Non-blocking Shell ──────────────────────────────────
     const isIn = att.status==='IN';
+    const hasData = isAdminOrHR ? !!adminData : (isManager ? !!mgrData : !!empData);
+    const dashLoading = loading && !hasData;
 
     return(
         <div className="min-h-screen bg-[#F4F5F8]">
@@ -145,105 +150,116 @@ const Dashboard:React.FC = () => {
 
                 {/* ── MY SPACE ──────────────────────────────── */}
                 {tab==='myspace' && (
-                    <>
-                        {/* Hero: Profile card (left) + Greeting + KPIs stacked (right) */}
-                        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 items-stretch">
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5 items-start">
 
-                            {/* ── Left: Profile card (unchanged) ── */}
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                <div className="h-16 w-full" style={{background:`linear-gradient(135deg,${c}cc,${c}44)`}}/>
-                                <div className="px-4 pb-4 -mt-7 space-y-3">
-                                    {/* Avatar + status picker */}
-                                    <div className="flex items-end justify-between">
-                                        <div className="relative">
-                                            <div className="w-14 h-14 rounded-xl flex items-center justify-center text-[18px] font-black text-white shadow-lg ring-4 ring-white"
-                                                style={{backgroundColor:c}}>{ini}</div>
-                                            <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${cur.dot} ${cur.pulse?'animate-pulse':''}`}/>
-                                        </div>
-                                        <div className="relative mb-1" ref={sRef}>
-                                            <button onClick={()=>setSO(!statusOpen)}
-                                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all hover:shadow-sm"
-                                                style={{color:cur.color,backgroundColor:`${cur.color}14`,borderColor:`${cur.color}30`}}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${cur.dot}`}/>
-                                                {cur.label}
-                                                <ChevronDown size={10} className={`transition-transform ${statusOpen?'rotate-180':''}`}/>
-                                            </button>
-                                            {statusOpen&&(
-                                                <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 w-44">
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 py-1.5">Set availability</p>
-                                                    {STATUSES.map(s=>(
-                                                        <button key={s.key} onClick={()=>setStatus(s.key)}
-                                                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium hover:bg-slate-50 text-left ${status===s.key?'bg-slate-50':''}`}>
-                                                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`}/>
-                                                            <span style={{color:status===s.key?s.color:'#475569'}}>{s.label}</span>
-                                                            {status===s.key&&<CheckCircle2 size={11} className="ml-auto" style={{color:s.color}}/>}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Identity */}
-                                    <div>
-                                        <div className="flex items-center gap-1.5 mb-0.5">
-                                            <h2 className="text-[15px] font-black text-slate-900">{user?.name}</h2>
-                                            <BadgeCheck size={14} style={{color:c}}/>
-                                        </div>
-                                        <p className="text-[11px] text-slate-400 font-mono">
-                                            {user?.employee_id?`EMP-${user.employee_id}`:`ID-${user?.id}`}
-                                        </p>
-                                        <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border"
-                                            style={{color:c,backgroundColor:`${c}12`,borderColor:`${c}28`}}>
-                                            <Shield size={8}/>{ROLE_LABEL[user?.role??'']??user?.role}
-                                        </span>
-                                    </div>
-
-                                    {/* Attendance widget */}
-                                    <div className="pt-3 border-t border-slate-100">
-                                        <div className="flex items-center justify-between mb-2.5">
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Today's Attendance</p>
-                                            {(att.sessions_today??0)>0&&(
-                                                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                                    {att.sessions_today} session{(att.sessions_today??0)>1?'s':''} · {att.total_hours_today}h
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className={`rounded-xl px-4 py-3 mb-3 flex items-center gap-3 ${isIn?'bg-emerald-50 border border-emerald-200':'bg-slate-50 border border-slate-200'}`}>
-                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isIn?'bg-emerald-100':'bg-white border border-slate-200'}`}>
-                                                {isIn?<CheckCircle2 size={16} className="text-emerald-600"/>:<Clock size={16} className="text-slate-400"/>}
+                            {/* ── Left Column: Profile & Team ── */}
+                            <div className="space-y-4">
+                                {/* Profile Card */}
+                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                    <div className="h-16 w-full" style={{background:`linear-gradient(135deg,${c}cc,${c}44)`}}/>
+                                    <div className="px-4 pb-4 -mt-7 space-y-3">
+                                        {/* Avatar + status picker */}
+                                        <div className="flex items-end justify-between">
+                                            <div className="relative">
+                                                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-[18px] font-black text-white shadow-lg ring-4 ring-white"
+                                                    style={{backgroundColor:c}}>{ini}</div>
+                                                <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${cur.dot} ${cur.pulse?'animate-pulse':''}`}/>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                {isIn?(
-                                                    <>
-                                                        <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Clocked In</p>
-                                                        <p className="text-[20px] font-black text-emerald-700 tabular-nums font-mono leading-tight">{fmt(elapsed)}</p>
-                                                        <p className="text-[9px] text-emerald-500 mt-0.5">Since {att.checkIn?new Date(att.checkIn).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'—'}</p>
-                                                    </>
-                                                ):(
-                                                    <>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Not Checked In</p>
-                                                        <p className="text-[15px] font-bold text-slate-700 tabular-nums mt-0.5"><LiveClock/></p>
-                                                        {(att.sessions_today??0)>0&&<p className="text-[9px] text-slate-400 mt-0.5">Ready to clock back in</p>}
-                                                    </>
+                                            <div className="relative mb-1" ref={sRef}>
+                                                <button onClick={()=>setSO(!statusOpen)}
+                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all hover:shadow-sm"
+                                                    style={{color:cur.color,backgroundColor:`${cur.color}14`,borderColor:`${cur.color}30`}}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${cur.dot}`}/>
+                                                    {cur.label}
+                                                    <ChevronDown size={10} className={`transition-transform ${statusOpen?'rotate-180':''}`}/>
+                                                </button>
+                                                {statusOpen&&(
+                                                    <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 w-44">
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 py-1.5">Set availability</p>
+                                                        {STATUSES.map(s=>(
+                                                            <button key={s.key} onClick={()=>setStatus(s.key)}
+                                                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium hover:bg-slate-50 text-left ${status===s.key?'bg-slate-50':''}`}>
+                                                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`}/>
+                                                                <span style={{color:status===s.key?s.color:'#475569'}}>{s.label}</span>
+                                                                {status===s.key&&<CheckCircle2 size={11} className="ml-auto" style={{color:s.color}}/>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
-                                        <button onClick={isIn?doCheckOut:doCheckIn} disabled={busy}
-                                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${busy?'opacity-50 cursor-not-allowed':''} ${isIn?'bg-rose-600 text-white hover:bg-rose-500 shadow-md shadow-rose-500/20':'text-white shadow-md'}`}
-                                            style={!isIn?{backgroundColor:c,boxShadow:`0 4px 16px ${c}35`}:undefined}>
-                                            {busy?<Loader2 size={14} className="animate-spin"/>:isIn?<LogOutIcon size={14}/>:<LogIn size={14}/>}
-                                            {busy?'Processing…':isIn?'Check Out':'Check In'}
-                                        </button>
+
+                                        {/* Identity Section */}
+                                        {loading ? (
+                                            <div className="space-y-2.5 animate-pulse">
+                                                <div className="h-4 bg-slate-100 rounded-full w-2/3" />
+                                                <div className="h-3 bg-slate-50 rounded-full w-1/3" />
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <h2 className="text-[15px] font-black text-slate-900">{user?.name}</h2>
+                                                    <BadgeCheck size={14} style={{color:c}}/>
+                                                </div>
+                                                <p className="text-[11px] text-slate-400 font-mono">
+                                                    {user?.employee_id?`EMP-${user.employee_id}`:`ID-${user?.id}`}
+                                                </p>
+                                                <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border"
+                                                    style={{color:c,backgroundColor:`${c}12`,borderColor:`${c}28`}}>
+                                                    <Shield size={8}/>{ROLE_LABEL[user?.role??'']??user?.role}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Attendance widget */}
+                                        <div className="pt-3 border-t border-slate-100">
+                                            <div className="flex items-center justify-between mb-2.5">
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Today's Attendance</p>
+                                                {(att.sessions_today??0)>0&&(
+                                                    <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                                        {att.sessions_today} session{(att.sessions_today??0)>1?'s':''} · {att.total_hours_today}h
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className={`rounded-xl px-4 py-3 mb-3 flex items-center gap-3 ${isIn?'bg-emerald-50 border border-emerald-200':'bg-slate-50 border border-slate-200'}`}>
+                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${isIn?'bg-emerald-100':'bg-white border border-slate-200'}`}>
+                                                    {isIn?<CheckCircle2 size={16} className="text-emerald-600"/>:<Clock size={16} className="text-slate-400"/>}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    {isIn?(
+                                                        <>
+                                                            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Clocked In</p>
+                                                            <p className="text-[20px] font-black text-emerald-700 tabular-nums font-mono leading-tight">{fmt(elapsed)}</p>
+                                                            <p className="text-[9px] text-emerald-500 mt-0.5">Since {att.checkIn?new Date(att.checkIn).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'—'}</p>
+                                                        </>
+                                                    ):(
+                                                        <>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Not Checked In</p>
+                                                            <p className="text-[15px] font-bold text-slate-700 tabular-nums mt-0.5"><LiveClock/></p>
+                                                            {(att.sessions_today??0)>0&&<p className="text-[9px] text-slate-400 mt-0.5">Ready to clock back in</p>}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <button onClick={isIn?doCheckOut:doCheckIn} disabled={busy}
+                                                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all ${busy?'opacity-50 cursor-not-allowed':''} ${isIn?'bg-rose-600 text-white hover:bg-rose-500 shadow-md shadow-rose-500/20':'text-white shadow-md'}`}
+                                                style={!isIn?{backgroundColor:c,boxShadow:`0 4px 16px ${c}35`}:undefined}>
+                                                {busy?<Loader2 size={14} className="animate-spin"/>:isIn?<LogOutIcon size={14}/>:<LogIn size={14}/>}
+                                                {busy?'Processing…':isIn?'Check Out':'Check In'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* Team Status Widget (Only added feature) */}
+                                <TeamStatusWidget />
                             </div>
 
-                            {/* ── Right: Greeting + KPI strip stacked ── */}
-                            <div className="flex flex-col gap-3">
-
-                                {/* Greeting card — takes remaining space above KPIs */}
-                                <div className="flex-1 min-h-[160px] bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative flex flex-col">
+                            {/* ── Right Column: Content ── */}
+                            <div className="flex flex-col gap-4 min-w-0">
+                                {/* Greeting card */}
+                                <div className="min-h-[160px] bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden relative flex flex-col">
                                     <div className="absolute inset-0 overflow-hidden pointer-events-none">
                                         <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full opacity-[0.07]" style={{background:c,animation:'orb1 8s ease-in-out infinite'}}/>
                                         <div className="absolute top-16 right-48 w-36 h-36 rounded-full opacity-[0.05]" style={{background:c,animation:'orb2 11s ease-in-out infinite'}}/>
@@ -280,35 +296,23 @@ const Dashboard:React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* KPI strip — 4 equal cards, proper height */}
-                                <div className="grid grid-cols-4 gap-3">
-                                    {[
-                                        {label:'Sessions Today', value: String(att.sessions_today??0),         sub:'Check-ins',    color:'#6366f1', big:true},
-                                        {label:'Hours Today',    value: String(att.total_hours_today??'0.00'), sub:'Accumulated',  color:'#10b981', big:true},
-                                        {label:'Role',           value: ROLE_LABEL[user?.role??'']??user?.role??'—', sub:'Access level', color:c, big:false},
-                                        {label:'Status',         value: cur.label, sub:'Availability',             color:cur.color,  big:false},
-                                    ].map((k,i)=>(
-                                        <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-4 flex flex-col justify-between min-h-[84px]">
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{k.label}</p>
-                                            <div>
-                                                <p className={`font-black text-slate-800 truncate leading-none ${k.big?'text-[24px]':'text-[15px]'}`}
-                                                    style={!k.big?{color:k.color}:{}}>{k.value}</p>
-                                                <p className="text-[10px] text-slate-400 mt-1">{k.sub}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                {/* Dashboard Content (Admin/Mgr/Emp) */}
+                                {dashLoading ? (
+                                    <div className="space-y-6 animate-pulse">
+                                        <div className="h-[400px] bg-slate-100/30 rounded-2xl border border-slate-100 w-full" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Optional Personal KPI summary if needed, but primary focus is Profile */}
+                                        {empData && (
+                                            <EmployeeDashboard data={empData} navigate={navigate} elapsed={elapsed} checkingIn={busy} onCheckIn={doCheckIn} onCheckOut={doCheckOut}/>
+                                        )}
+                                        <MySpaceProfile />
+                                    </div>
+                                )}
                             </div>
                         </div>
-
-                        {/* Employee personal dashboard */}
-                        {isEmployee&&!isManager&&!isAdminOrHR&&empData&&(
-                            <EmployeeDashboard data={empData} navigate={navigate} elapsed={elapsed} checkingIn={busy} onCheckIn={doCheckIn} onCheckOut={doCheckOut}/>
-                        )}
-
-                        {/* ── My Profile inline ─────────── */}
-                        <MySpaceProfile />
-                    </>
+                    </div>
                 )}
 
                 {/* ── ORGANIZATION ──────────────────────────── */}
@@ -386,11 +390,11 @@ const Dashboard:React.FC = () => {
                 )}
             </div>
 
-            <style>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes orb1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-20px,15px) scale(1.05)}66%{transform:translate(10px,-10px) scale(.97)}}
                 @keyframes orb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(15px,20px) scale(1.08)}}
                 @keyframes orb3{0%,100%{transform:translate(0,0)}40%{transform:translate(-15px,-20px) scale(1.04)}80%{transform:translate(10px,10px) scale(.96)}}
-            `}</style>
+            ` }} />
         </div>
     );
 };

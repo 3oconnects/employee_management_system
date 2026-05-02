@@ -9,6 +9,7 @@ import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import debounce from 'lodash/debounce';
 import { AddEmployeeModal, EditEmployeeModal } from './modals/EmployeeModals';
+import { EditEmployeeForm } from './modals/shared';
 import BulkUploadModal from './modals/BulkUploadModal';
 
 interface Employee {
@@ -148,7 +149,7 @@ const EmployeeTable: React.FC = () => {
     const [addError,setAddError]=useState('');
     const [showEdit,setShowEdit]=useState(false);
     const [editId,setEditId]=useState<string|null>(null);
-    const [editForm,setEditForm]=useState({name:'',email:'',department:'',position:'',status:'',joinDate:'',reportingManagerId:''});
+    const [editForm,setEditForm]=useState<EditEmployeeForm>({name:'',email:'',department:'',position:'',status:'',joinDate:'',reportingManagerId:'',reportingManagerName:''});
     const [editLoading,setEditLoading]=useState(false);
     const [editError,setEditError]=useState('');
 

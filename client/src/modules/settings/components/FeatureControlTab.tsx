@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutGrid, Save, Loader2, Power, AlertCircle } from 'lucide-react';
+import { LayoutGrid, Save, Loader2, Power, AlertCircle, Shield, Check } from 'lucide-react';
 import api from '../../../services/api';
 
 interface Props {

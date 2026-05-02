@@ -18,7 +18,7 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
     const [newName, setNewName] = useState('');
     const [newDesc, setNewDesc] = useState('');
     const [saving, setSaving] = useState(false);
-    const [editingRole, setEditingRole] = useState<string | null>(null);
+    const [editingRole, setEditingRole] = useState<number | null>(null);
     const [editName, setEditName] = useState('');
     const [editDesc, setEditDesc] = useState('');
     const [dashboardType, setDashboardType] = useState('employee');
@@ -65,7 +65,7 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
         finally { setSaving(false); }
     };
 
-    const saveRoleDetail = async (id: string) => {
+    const saveRoleDetail = async (id: number) => {
         if (!editName.trim()) return;
         setSaving(true);
         try {

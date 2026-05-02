@@ -302,7 +302,7 @@ const Topbar: React.FC = () => {
                                 <button className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
                                     <Settings size={15} /> Settings
                                 </button>
-                                {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'administrator' || user?.dashboard_type === 'admin') && (
+                                {(user?.role === 'admin' || user?.role === 'super_admin' || user?.dashboard_type === 'admin') && (
                                     <button onClick={() => { navigate('/audit-logs'); setUserMenuOpen(false); }}
                                         className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
                                         <Shield size={15} /> Audit Logs

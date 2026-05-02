@@ -44,7 +44,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
                         </span>
                         {activeTab === 'history' && (
                             <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded tracking-wider border
-                                ${req.status === 'approved' || req.status === 'active' ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-rose-600 bg-rose-50 border-rose-100'}`}>
+                                ${req.status === 'approved' ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-rose-600 bg-rose-50 border-rose-100'}`}>
                                 {req.status}
                             </span>
                         )}
@@ -156,7 +156,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
                             </span>
                             {activeTab === 'history' && (
                                 <span className={`px-1.5 py-0.5 text-[8.5px] font-black uppercase rounded tracking-wider 
-                                    ${req.status === 'approved' || req.status === 'active' ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-rose-600 bg-rose-50 border border-rose-100'}`}>
+                                    ${req.status === 'approved' ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-rose-600 bg-rose-50 border border-rose-100'}`}>
                                     {req.status}
                                 </span>
                             )}
@@ -268,8 +268,8 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
                                 </>
                             ) : (
                                 <div className={`w-full py-4 rounded-2xl text-[12px] font-black uppercase tracking-[0.1em] border flex items-center justify-center gap-3
-                                    ${req.status === 'approved' || req.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                                    <div className={`w-2 h-2 rounded-full ${req.status === 'approved' || req.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]'}`} />
+                                    ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                                    <div className={`w-2 h-2 rounded-full ${req.status === 'approved' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]'}`} />
                                     Decision: {req.status}
                                 </div>
                             )}

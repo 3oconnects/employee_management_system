@@ -8,6 +8,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
+const updateUser = useAuthStore.getState().updateUser;
 import { AdminDashboard }    from '../components/AdminDashboard';
 import { ManagerDashboard }  from '../components/ManagerDashboard';
 import { EmployeeDashboard } from '../components/EmployeeDashboard';

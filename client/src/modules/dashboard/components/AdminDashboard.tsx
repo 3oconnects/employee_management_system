@@ -208,7 +208,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data: d, navigat
             )}
 
             {/* ── ORGANIZATION: People ───────────────────────────── */}
-            {section === 'people' && (
+            {(section as any) === 'people' && (
                 <div className="grid grid-cols-12 gap-4">
                     {/* Department Distribution */}
                     <div className="col-span-12 lg:col-span-7 bg-white rounded-2xl border border-slate-100 p-6">
@@ -259,7 +259,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data: d, navigat
             )}
 
             {/* ── ORGANIZATION: Finance ──────────────────────────── */}
-            {section === 'finance' && (
+            {(section as any) === 'finance' && (
                 <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-12 bg-white rounded-2xl border border-slate-100 p-6">
                         <h3 className="text-[15px] font-bold text-slate-800 mb-6">Payroll Summary</h3>
@@ -282,7 +282,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ data: d, navigat
             )}
 
             {/* ── ORGANIZATION: Audit/Activity ───────────────────── */}
-            {(section === 'overview' || section === 'pulse') && (
+            {(section === 'overview' || (section as any) === 'pulse') && (
                 <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                         <h3 className="text-[15px] font-bold text-slate-800">Recent System Activity</h3>

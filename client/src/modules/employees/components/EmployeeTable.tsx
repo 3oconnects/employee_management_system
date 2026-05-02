@@ -148,7 +148,7 @@ const EmployeeTable: React.FC = () => {
     const [addError,setAddError]=useState('');
     const [showEdit,setShowEdit]=useState(false);
     const [editId,setEditId]=useState<string|null>(null);
-    const [editForm,setEditForm]=useState({name:'',email:'',department:'',position:'',status:'',joinDate:''});
+    const [editForm,setEditForm]=useState({name:'',email:'',department:'',position:'',status:'',joinDate:'',reportingManagerId:''});
     const [editLoading,setEditLoading]=useState(false);
     const [editError,setEditError]=useState('');
 

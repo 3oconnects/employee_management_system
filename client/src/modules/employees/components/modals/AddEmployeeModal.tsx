@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import api from '../../../../services/api';
 import {
     X, Loader2, UserPlus, AlertCircle, ChevronRight,
     User, Building2, CreditCard, GraduationCap, Briefcase

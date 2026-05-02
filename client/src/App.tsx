@@ -20,8 +20,8 @@ const Reports = lazy(() => import('./modules/reports/pages/Reports'));
 const Profile = lazy(() => import('./modules/profile/pages/Profile'));
 const Settings = lazy(() => import('./modules/settings/pages/Settings'));
 const Approvals = lazy(() => import('./modules/approvals/pages/Approvals'));
-const OrganizationPage = lazy(() => import('./modules/organization/pages/OrganizationPage.tsx'));
-const StructuralDeepDivePage = lazy(() => import('./modules/organization/pages/StructuralDeepDivePage.tsx'));
+const OrganizationPage = lazy(() => import('./modules/organization/pages/OrganizationPage'));
+const StructuralDeepDivePage = lazy(() => import('./modules/organization/pages/StructuralDeepDivePage'));
 
 const AuditLogPage = lazy(() => import('./modules/audit/pages/AuditLogPage'));
 const ChangePasswordPage = lazy(() => import('./modules/auth/pages/ChangePasswordPage'));

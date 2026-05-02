@@ -10,6 +10,7 @@ import { useAuthStore } from '../../../store/authStore';
 
 export interface UserAccount {
     id: number; name: string; email: string; role: string;
+    employee_id?: string;
     role_id?: number; role_name?: string; is_active: boolean;
     department?: string; position?: string; last_login?: string;
     temp_password?: string; is_password_temp?: boolean;

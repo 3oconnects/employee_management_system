@@ -26,6 +26,7 @@ export interface User {
     emergency?: string;
     availability_status?: string;
     permissions?: string[];
+    preferences?: any;
     dashboard_type?: 'admin' | 'manager' | 'employee';
 }
 

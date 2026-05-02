@@ -36,18 +36,20 @@ export interface ApiResponse<T = unknown> {
 // 3. Fallback to current host with port 4000
 const getApiUrl = () => {
     if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    
     if (typeof window !== 'undefined') {
-        const protocol = window.location.protocol;
         const hostname = window.location.hostname;
-        // If on ngrok, we usually need to specify the backend tunnel too.
-        // But if it's not provided, we try to guess it.
-        if (hostname.includes('ngrok-free.dev')) {
-            // Most users tunnel both frontend and backend. 
-            // If VITE_API_URL is missing, we assume backend is NOT local.
-            return `https://${hostname}/api/v1`; 
+        
+        // Handle local development fallback
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return `http://${hostname}:4000/api/v1`;
         }
-        return `${protocol}//${hostname}:4000/api/v1`;
+        
+        // On Vercel or production, use relative path if they share the domain
+        // This works with our vercel.json rewrites
+        return '/api/v1';
     }
+    
     return 'http://localhost:4000/api/v1';
 };
 

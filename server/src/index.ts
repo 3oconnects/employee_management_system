@@ -25,6 +25,7 @@ import documentRoutes from './routes/documentRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import organizationRoutes from './routes/organizationRoutes';
 import governanceRoutes from './routes/governanceRoutes';
+import realtimeRoutes from './routes/realtimeRoutes';
 import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -77,6 +78,7 @@ app.use('/api/v1/documents', documentRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/organization', organizationRoutes);
 app.use('/api/v1/governance', governanceRoutes);
+app.use('/api/v1/realtime', realtimeRoutes);
 
 
 // Health check

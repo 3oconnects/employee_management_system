@@ -8,14 +8,14 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-    const { isAuthenticated, user } = useAuthStore();
+    const { isAuthenticated, hasAnyRole } = useAuthStore();
     const location = useLocation();
 
     if (!isAuthenticated) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    if (allowedRoles && !hasAnyRole(...allowedRoles)) {
         return <Navigate to="/unauthorized" replace />;
     }
 

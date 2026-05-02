@@ -49,9 +49,9 @@ const Dashboard:React.FC = () => {
     const {user,hasAnyRole} = useAuthStore();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const isAdminOrHR = hasAnyRole('admin','super_admin','hr');
-    const isManager   = hasAnyRole('manager');
-    const isEmployee  = hasAnyRole('employee');
+    const isAdminOrHR = user?.dashboard_type === 'admin' || hasAnyRole('admin','super_admin','hr');
+    const isManager   = user?.dashboard_type === 'manager' || hasAnyRole('manager');
+    const isEmployee  = user?.dashboard_type === 'employee' || hasAnyRole('employee');
 
     // Read view from URL — Topbar pill controls this
     const tab = (searchParams.get('view') ?? 'myspace') as 'myspace' | 'org';
@@ -168,21 +168,28 @@ const Dashboard:React.FC = () => {
                                             </div>
                                             <div className="relative mb-1" ref={sRef}>
                                                 <button onClick={()=>setSO(!statusOpen)}
-                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold transition-all hover:shadow-sm"
-                                                    style={{color:cur.color,backgroundColor:`${cur.color}14`,borderColor:`${cur.color}30`}}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${cur.dot}`}/>
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all hover:shadow-md bg-black/20 backdrop-blur-md border-white/10 text-white group"
+                                                >
+                                                    <div className={`w-2 h-2 rounded-full ring-2 ring-white/20 ${
+                                                        status === 'busy' || status === 'dnd' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]' :
+                                                        status === 'break' || status === 'lunch' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' :
+                                                        status === 'offline' ? 'bg-slate-400' :
+                                                        'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
+                                                    }`} />
                                                     {cur.label}
-                                                    <ChevronDown size={10} className={`transition-transform ${statusOpen?'rotate-180':''}`}/>
+                                                    <ChevronDown size={11} className={`transition-transform duration-300 opacity-60 group-hover:opacity-100 ${statusOpen?'rotate-180':''}`}/>
                                                 </button>
                                                 {statusOpen&&(
-                                                    <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 w-44">
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-3 py-1.5">Set availability</p>
+                                                    <div className="absolute right-0 top-10 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 w-52 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        <div className="px-4 py-2 border-b border-slate-50 mb-1">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Update Availability</p>
+                                                        </div>
                                                         {STATUSES.map(s=>(
                                                             <button key={s.key} onClick={()=>setStatus(s.key)}
-                                                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-medium hover:bg-slate-50 text-left ${status===s.key?'bg-slate-50':''}`}>
-                                                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`}/>
-                                                                <span style={{color:status===s.key?s.color:'#475569'}}>{s.label}</span>
-                                                                {status===s.key&&<CheckCircle2 size={11} className="ml-auto" style={{color:s.color}}/>}
+                                                                className={`w-full flex items-center gap-3 px-4 py-2.5 text-[12px] font-bold hover:bg-slate-50 transition-colors text-left ${status===s.key?'bg-indigo-50/50':''}`}>
+                                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot} ${s.pulse && status === s.key ? 'animate-pulse' : ''}`}/>
+                                                                <span className={status===s.key?'text-indigo-600':'text-slate-600'}>{s.label}</span>
+                                                                {status===s.key&&<CheckCircle2 size={12} className="ml-auto text-indigo-500"/>}
                                                             </button>
                                                         ))}
                                                     </div>

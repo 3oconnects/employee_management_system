@@ -22,7 +22,7 @@ import { NotificationService } from '../services/notificationService';
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize(['admin', 'super_admin']));
+router.use(authorize(['admin', 'super_admin', 'hr']));
 
 const DEFAULT_TENANT = 'tenant_default';
 
@@ -59,7 +59,7 @@ router.get('/roles', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
     try {
         const roles = await pool.query(
-            `SELECT r.id, r.name, r.description, r.is_system,
+            `SELECT r.id, r.name, r.description, r.is_system, r.dashboard_type,
                     COUNT(DISTINCT u.id) as user_count
              FROM roles r
              LEFT JOIN users u ON u.role_id = r.id
@@ -97,15 +97,15 @@ router.get('/roles', asyncHandler(async (req: AuthenticatedRequest, res) => {
 
 // ─── POST /settings/roles ────────────────────────────────────────────────────
 router.post('/roles', asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const { name, description, permissions = [] } = req.body;
+    const { name, description, dashboard_type = 'employee', permissions = [] } = req.body;
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
     if (!name?.trim()) throw AppError.badRequest('Role name is required.');
     
     try {
         const roleResult = await pool.query(
-            `INSERT INTO roles (tenant_id, name, description, is_system)
-             VALUES ($1, $2, $3, false) RETURNING *`,
-            [tenantId, name.trim(), description || null]
+            `INSERT INTO roles (tenant_id, name, description, dashboard_type, is_system)
+             VALUES ($1, $2, $3, $4, false) RETURNING *`,
+            [tenantId, name.trim(), description || null, dashboard_type]
         );
         const role = roleResult.rows[0];
         for (const permKey of permissions) {
@@ -126,12 +126,15 @@ router.post('/roles', asyncHandler(async (req: AuthenticatedRequest, res) => {
 // ─── PUT /settings/roles/:id ─────────────────────────────────────────────────
 router.put('/roles/:id', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, dashboard_type } = req.body;
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
     const result = await pool.query(
-        `UPDATE roles SET name=COALESCE($1,name), description=COALESCE($2,description)
-         WHERE id=$3 AND tenant_id=$4 AND is_system=false RETURNING *`,
-        [name || null, description || null, id, tenantId]
+        `UPDATE roles SET 
+            name=COALESCE($1,name), 
+            description=COALESCE($2,description),
+            dashboard_type=COALESCE($3,dashboard_type)
+         WHERE id=$4 AND tenant_id=$5 AND is_system=false RETURNING *`,
+        [name || null, description || null, dashboard_type || null, id, tenantId]
     );
     if (result.rows.length === 0) throw AppError.notFound('Role not found or is a system role.');
     res.json({ success: true, data: result.rows[0] });

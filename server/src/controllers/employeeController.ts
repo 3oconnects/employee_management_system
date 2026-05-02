@@ -13,10 +13,14 @@ export const getEmployees = async (req: Request, res: Response) => {
 
     try {
         let sql = `
-            SELECT e.*, d.name as department_name, m.name as manager_name 
+            SELECT e.*, d.name as department_name, m.name as manager_name, 
+                   u.availability_status,
+                   CASE WHEN a.id IS NOT NULL THEN true ELSE false END as is_checked_in
             FROM employees e
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN users m ON e.reporting_manager_id = m.id
+            LEFT JOIN users u ON e.email = u.email AND e.tenant_id = u.tenant_id
+            LEFT JOIN attendance a ON u.id = a.user_id AND a.check_in::date = CURRENT_DATE
             WHERE 1=1
         `;
         let countSql = 'SELECT COUNT(*) FROM employees e WHERE 1=1';

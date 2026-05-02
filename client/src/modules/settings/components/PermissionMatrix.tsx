@@ -7,6 +7,7 @@ export interface Permission { id: number; action: string; description?: string; 
 export type PermissionsMap = Record<string, Permission[]>;
 export interface Role {
     id: number; name: string; description?: string;
+    dashboard_type: string;
     is_system: boolean; user_count: number; permissions: string[];
 }
 
@@ -76,6 +77,35 @@ const PermissionMatrix: React.FC<Props> = ({
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                     Save Changes
                 </button>
+            </div>
+
+            {/* Dashboard Config */}
+            <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-100">
+                <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">Dashboard Configuration</p>
+                <div className="flex gap-3">
+                    {['employee', 'manager', 'admin'].map((type) => (
+                        <button
+                            key={type}
+                            onClick={() => {
+                                // Since we are managing editingPerms locally in RolesTab, 
+                                // we should probably have a callback for dashboard_type too.
+                                // For now, I'll update the role object directly if it was passed as state,
+                                // but the cleanest way is a callback.
+                                // I'll add onDashboardChange to the props.
+                                (window as any)._setDashboardType?.(type);
+                            }}
+                            className={`px-4 py-2 rounded-xl border text-[12px] font-bold transition-all
+                                ${role.dashboard_type === type 
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20' 
+                                    : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'}`}
+                        >
+                            {type.charAt(0).toUpperCase() + type.slice(1)} View
+                        </button>
+                    ))}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-2 font-medium">
+                    This determines which dashboard layout users with this role will see upon login.
+                </p>
             </div>
 
             {/* Permission grid */}

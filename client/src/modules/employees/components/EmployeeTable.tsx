@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../../services/api';
+import { useAuthStore } from '../../../store/authStore';
 import debounce from 'lodash/debounce';
 import { AddEmployeeModal, EditEmployeeModal } from './modals/EmployeeModals';
 import BulkUploadModal from './modals/BulkUploadModal';
@@ -17,6 +18,8 @@ interface Employee {
     join_date: string; manager_id?: string | null;
     reporting_manager_id?: string | null;
     manager_name?: string | null;
+    availability_status?: 'available' | 'busy' | 'away' | 'offline' | 'dnd' | 'break';
+    is_checked_in?: boolean;
 }
 interface TreeNode extends Employee { children: TreeNode[]; }
 
@@ -98,6 +101,44 @@ const EmployeeTable: React.FC = () => {
             fetchEmp(searchTerm, page, view);
         }
     }, [view]);
+    
+    // ─── REAL-TIME UPDATES (SSE) ──────────────────────────────────────────
+    useEffect(() => {
+        // Construct the full SSE URL
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+        const sseUrl = `${baseUrl}/realtime/stream`;
+        
+        // Get token from store (Zustand)
+        const token = useAuthStore.getState().accessToken;
+        if (!token) return;
+
+        const source = new EventSource(`${sseUrl}?token=${token}`);
+
+        source.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'STATUS_UPDATE') {
+                    const { email, status } = data.data;
+                    setEmployees(prev => prev.map(emp => 
+                        emp.email === email 
+                            ? { ...emp, availability_status: status } 
+                            : emp
+                    ));
+                }
+            } catch (err) {
+                console.error('SSE Error parsing data:', err);
+            }
+        };
+
+        source.onerror = (err) => {
+            console.error('SSE Connection Error:', err);
+            source.close();
+        };
+
+        return () => {
+            source.close();
+        };
+    }, []);
 
     /* Modals */
     const [showAdd,setShowAdd]   = useState(false);
@@ -335,12 +376,38 @@ const EmployeeTable: React.FC = () => {
                                         {/* Decorative circles */}
                                         <div className="absolute top-[-18px] right-[-18px] w-28 h-28 rounded-full opacity-20" style={{backgroundColor:'#fff'}}/>
                                         <div className="absolute top-4 right-8 w-12 h-12 rounded-full opacity-10" style={{backgroundColor:'#fff'}}/>
+ 
+                                        {/* Attendance Status (Checked In / Online) */}
+                                        {emp.is_checked_in ? (
+                                            <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 backdrop-blur-sm text-emerald-100 border border-emerald-400/30 animate-in fade-in zoom-in duration-500">
+                                                <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                                                Checked In
+                                            </div>
+                                        ) : emp.availability_status && emp.availability_status !== 'offline' ? (
+                                            <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-500/20 backdrop-blur-sm text-indigo-100 border border-indigo-400/30">
+                                                <div className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+                                                Online
+                                            </div>
+                                        ) : (
+                                            <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-500/20 backdrop-blur-sm text-slate-100 border border-slate-400/30 opacity-60">
+                                                Not Checked In
+                                            </div>
+                                        )}
 
                                         {/* Status badge top-right */}
-                                        <span className={`absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-white/20 backdrop-blur-sm text-white border border-white/30`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full bg-white ${emp.status==='active'?'animate-pulse':''}`}/>
-                                            {emp.status||'Active'}
-                                        </span>
+
+                                        {/* Availability Indicator — High Visibility Pill */}
+                                        <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2 py-1 bg-black/20 backdrop-blur-md rounded-lg border border-white/10">
+                                            <div className={`w-1.5 h-1.5 rounded-full ring-2 ring-white/20 ${
+                                                emp.availability_status === 'busy' || emp.availability_status === 'dnd' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]' :
+                                                emp.availability_status === 'away' || emp.availability_status === 'break' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]' :
+                                                emp.availability_status === 'offline' ? 'bg-slate-400' :
+                                                'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
+                                            }`} />
+                                            <span className="text-[9px] font-black text-white uppercase tracking-[0.1em]">
+                                                {emp.availability_status || 'available'}
+                                            </span>
+                                        </div>
 
                                         {/* Avatar — half overlapping hero */}
                                         <Link to={`/profile/${emp.id}`}
@@ -436,7 +503,32 @@ const EmployeeTable: React.FC = () => {
                                                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0" style={{backgroundColor:color}}>{ini(emp.name)}</div>
                                                     <div className="min-w-0">
                                                         <Link to={`/profile/${emp.id}`} className="text-[12px] font-bold text-slate-800 hover:text-indigo-600 truncate block">{emp.name}</Link>
-                                                        <span className="text-[10px] text-slate-400 truncate block">{emp.email}</span>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span className="text-[10px] text-slate-400 truncate">{emp.email}</span>
+                                                            <span className="w-1 h-1 rounded-full bg-slate-300"/>
+                                                            
+                                                            {/* Attendance Tag */}
+                                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                                                emp.is_checked_in ? 'bg-emerald-50 text-emerald-600' : 
+                                                                emp.availability_status && emp.availability_status !== 'offline' ? 'bg-indigo-50 text-indigo-600' :
+                                                                'bg-slate-50 text-slate-400'
+                                                            }`}>
+                                                                {emp.is_checked_in ? 'Checked In' : emp.availability_status && emp.availability_status !== 'offline' ? 'Online' : 'Not Checked In'}
+                                                            </span>
+
+                                                            <span className="w-1 h-1 rounded-full bg-slate-300"/>
+                                                            <div className="flex items-center gap-1">
+                                                                <div className={`w-1.5 h-1.5 rounded-full ${
+                                                                    emp.availability_status === 'busy' || emp.availability_status === 'dnd' ? 'bg-rose-500' :
+                                                                    emp.availability_status === 'away' || emp.availability_status === 'break' ? 'bg-amber-500' :
+                                                                    emp.availability_status === 'offline' ? 'bg-slate-400' :
+                                                                    'bg-emerald-500'
+                                                                }`} />
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+                                                                    {emp.availability_status || 'available'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>

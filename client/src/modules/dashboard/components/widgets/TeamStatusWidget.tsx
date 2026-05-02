@@ -66,52 +66,51 @@ const TeamStatusWidget: React.FC = () => {
 
             <div className="divide-y divide-slate-50 overflow-y-auto max-h-[450px] custom-scrollbar">
                 {members.map((m) => {
-                    const isIn = !!m.clocked_in_at;
-                    const s = isIn ? (STATUS_MAP[m.availability_status] || STATUS_MAP.available) : STATUS_MAP.offline;
+                    const isCheckedIn = !!m.clocked_in_at;
+                    const isOnline = m.availability_status && m.availability_status !== 'offline';
+                    const s = STATUS_MAP[m.availability_status] || STATUS_MAP.available;
                     const ini = m.name?.split(' ').map((p:any)=>p[0]).join('').toUpperCase().slice(0,2) || '??';
 
                     return (
-                        <div key={m.id} className={`px-5 py-4 flex items-center gap-4 transition-colors group ${!isIn ? 'opacity-70' : 'hover:bg-slate-50/50'}`}>
+                        <div key={m.id} className="px-5 py-4 flex items-center gap-4 transition-colors group hover:bg-slate-50/50">
                             {/* Avatar */}
                             <div className="relative flex-shrink-0">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-black border transition-all ${isIn ? 'bg-white text-slate-700 border-slate-200 group-hover:shadow-md group-hover:scale-105' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-black border bg-white text-slate-700 border-slate-200 group-hover:shadow-md group-hover:scale-105 transition-all">
                                     {ini}
                                 </div>
-                                <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm ${s.dot}`}/>
+                                <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm ${
+                                    m.availability_status === 'busy' || m.availability_status === 'dnd' ? 'bg-rose-500' :
+                                    m.availability_status === 'away' || m.availability_status === 'break' || m.availability_status === 'lunch' ? 'bg-amber-500' :
+                                    m.availability_status === 'offline' ? 'bg-slate-400' :
+                                    'bg-emerald-500'
+                                }`}/>
                             </div>
 
                             {/* Info */}
                             <div className="flex-1 min-w-0">
-                                <p className={`text-[13px] font-bold truncate transition-colors ${isIn ? 'text-slate-800 group-hover:text-indigo-600' : 'text-slate-500'}`}>{m.name}</p>
-                                <p className="text-[11px] text-slate-400 truncate tracking-tight font-medium">{m.position || 'Team Member'}</p>
+                                <p className="text-[13px] font-black truncate text-slate-800 group-hover:text-indigo-600 transition-colors">{m.name}</p>
+                                <p className="text-[11px] text-slate-400 truncate tracking-tight font-bold uppercase">{m.position || 'Member'}</p>
                             </div>
 
                             {/* Status badges */}
-                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                                {isIn ? (
-                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-sm border border-black/5`}
-                                        style={{ color: s.color, backgroundColor: `${s.color}15`, borderColor: `${s.color}20` }}>
-                                        {s.label}
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                {isCheckedIn ? (
+                                    <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                        Checked In
+                                    </span>
+                                ) : isOnline ? (
+                                    <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                        Online
                                     </span>
                                 ) : (
-                                    <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-slate-100 text-slate-400 border border-slate-200/50">
+                                    <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">
                                         Offline
                                     </span>
                                 )}
                                 
-                                <div className={`flex items-center gap-1.5 text-[10px] font-bold tracking-tight ${isIn ? 'text-emerald-500' : 'text-slate-300'}`}>
-                                    {isIn ? (
-                                        <>
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/>
-                                            <span>Active Now</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="w-1.5 h-1.5 rounded-full bg-slate-300"/>
-                                            <span>Away</span>
-                                        </>
-                                    )}
-                                </div>
+                                <span className="text-[10px] font-bold text-slate-400 capitalize">
+                                    {m.availability_status || 'available'}
+                                </span>
                             </div>
                         </div>
                     );

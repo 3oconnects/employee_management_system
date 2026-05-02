@@ -61,8 +61,10 @@ export enum AuditAction {
 
 export interface JwtPayload {
     userId: number;
+    email: string;
     tenantId: string;
     role: UserRole;
+    dashboard_type?: string;
     permissions: string[];
 }
 

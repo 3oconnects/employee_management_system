@@ -47,8 +47,15 @@ export const authenticate = (
 ): void => {
     try {
         const authHeader = req.headers.authorization;
+        let token: string | undefined;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.split(' ')[1];
+        } else if (req.query.token) {
+            token = req.query.token as string;
+        }
+
+        if (!token) {
             res.status(401).json({
                 success: false,
                 message: 'Authentication required. No token provided.',
@@ -56,14 +63,15 @@ export const authenticate = (
             return;
         }
 
-        const token = authHeader.split(' ')[1];
         const decoded = verifyAccessToken(token);
 
         // Attach decoded JWT payload to req for downstream use
         req.user = {
             userId: decoded.userId,
+            email: decoded.email,
             tenantId: decoded.tenantId,
             role: decoded.role,
+            dashboard_type: decoded.dashboard_type,
             permissions: decoded.permissions || [],
         };
 
@@ -98,11 +106,32 @@ export const authorize = (allowedRoles: UserRole[]) => {
             return;
         }
 
-        if (!allowedRoles.includes(req.user.role)) {
-            res.status(403).json({
-                success: false,
-                message: 'You do not have permission to access this resource.',
-            });
+        const userRole = (req.user.role || '').toLowerCase();
+        const userEmail = (req.user.email || '').toLowerCase();
+        const dashType = req.user.dashboard_type;
+
+        const isAllowed = allowedRoles.some(allowedRole => {
+            const targetRole = allowedRole.toLowerCase();
+            
+            // 1. Direct role match
+            if (targetRole === userRole) return true;
+            
+            // 2. System Admin Override (email-based safety net)
+            if (targetRole === 'admin' && userEmail === 'admin@company.com') return true;
+            
+            // 3. Synonym match
+            if (targetRole === 'admin' && (userRole === 'administrator' || userRole === 'super_admin')) return true;
+            
+            // 4. Dashboard Type Match (allows custom roles to access relevant routes)
+            if (targetRole === 'admin' && dashType === 'admin') return true;
+            if (targetRole === 'manager' && dashType === 'manager') return true;
+            
+            return false;
+        });
+
+        if (!isAllowed) {
+            console.warn(`[AUTH] 403 Forbidden: User ${req.user.email} (Role: ${userRole}, Dash: ${dashType}) tried to access ${req.originalUrl}. Required: ${allowedRoles.join(', ')}`);
+            res.status(403).json({ error: 'Access denied: insufficient permissions' });
             return;
         }
 

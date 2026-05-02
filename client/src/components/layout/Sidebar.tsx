@@ -33,7 +33,7 @@ const sidebarSections: MenuSection[] = [
     {
         title: 'Overview',
         items: [
-            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin','hr','manager','super_admin','employee'], module: 'dashboard' },
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: [], module: 'dashboard' },
             { icon: CheckCircle2, label: 'Approvals', path: '/approvals', roles: ['admin','hr','manager','super_admin'], module: 'approvals' },
         ]
     },
@@ -75,7 +75,7 @@ const sidebarSections: MenuSection[] = [
 ];
 
 const Sidebar: React.FC = () => {
-    const { user, hasModule } = useAuthStore();
+    const { user, hasModule, hasAnyRole } = useAuthStore();
     const [collapsed, setCollapsed] = useState<boolean>(() => {
         try { return localStorage.getItem('sidebar_collapsed') === 'true'; }
         catch { return false; }
@@ -91,10 +91,18 @@ const Sidebar: React.FC = () => {
     };
 
     const isAuthorized = (item: { roles: string[], module?: string }) => {
-        const role = user?.role ?? '';
-        if (!item.roles.includes(role)) return false;
-        if (role === 'admin' || role === 'super_admin') return true;
+        // 1. Universal access (empty roles array)
+        if (item.roles.length === 0) return true;
+
+        // 2. Check Role-based access
+        if (!hasAnyRole(...(item.roles as any))) return false;
+        
+        // 3. Admins see everything they are allowed by role
+        if (hasAnyRole('admin', 'super_admin')) return true;
+        
+        // 4. Granular module check
         if (item.module) return hasModule(item.module);
+        
         return true;
     };
 

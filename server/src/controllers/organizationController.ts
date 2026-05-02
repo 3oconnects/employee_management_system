@@ -157,7 +157,7 @@ export const getTeamStatus = async (req: any, res: Response) => {
     try {
         // 1. Get user's context (Role, Department, Team, and User ID)
         const userRes = await pool.query(`
-            SELECT u.role, e.department_id, e.team_id, e.user_id, e.department
+            SELECT u.role, e.department_id, e.team_id, e.user_id, e.department, e.reporting_manager_id
             FROM users u
             LEFT JOIN employees e ON LOWER(e.email) = LOWER(u.email) AND e.tenant_id = u.tenant_id
             WHERE u.id = $1 AND u.tenant_id = $2
@@ -167,13 +167,13 @@ export const getTeamStatus = async (req: any, res: Response) => {
             return res.json({ success: true, data: [] });
         }
 
-        const { role, department_id: deptId, team_id: teamId, user_id: empUserId, department: deptName } = userRes.rows[0];
+        const { role, department_id: deptId, team_id: teamId, user_id: empUserId, department: deptName, reporting_manager_id: managerId } = userRes.rows[0];
         const userRole = (role || '').toLowerCase();
         const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'hr' || userRole === 'administrator';
 
         // 2. Get all employees in the 'Span of Control'
         //    - If Admin: See everyone in tenant
-        //    - If Manager/Employee: See Team + Department + Direct Reports
+        //    - If Manager/Employee: See Team + Department + Direct Reports + Manager
         const { rows } = await pool.query(`
             SELECT DISTINCT
                 e.id, e.name, e.position, e.email,
@@ -201,10 +201,11 @@ export const getTeamStatus = async (req: any, res: Response) => {
                 OR e.department_id = $4
                 OR e.team_id = $5 
                 OR e.reporting_manager_id = $6
+                OR e.user_id = $8 -- Visibility of their Manager
                 OR (e.department_id IS NULL AND e.department = $7 AND $7 IS NOT NULL)
               )
             ORDER BY is_clocked_in DESC, is_available DESC, e.name ASC
-        `, [tenantId, userId, isAdmin, deptId || -1, teamId || -1, empUserId || -1, deptName || null]);
+        `, [tenantId, userId, isAdmin, deptId || -1, teamId || -1, empUserId || -1, deptName || null, managerId || -1]);
 
         res.json({ success: true, data: rows });
     } catch (err: any) {

@@ -21,10 +21,15 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
     const [editingRole, setEditingRole] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
     const [editDesc, setEditDesc] = useState('');
+    const [dashboardType, setDashboardType] = useState('employee');
+
+    // Expose setter for PermissionMatrix (simulating a callback for now)
+    (window as any)._setDashboardType = setDashboardType;
 
     const selectRole = (role: Role) => {
         setSelectedRole(role);
         setEditingPerms(new Set(role.permissions));
+        setDashboardType(role.dashboard_type || 'employee');
     };
 
     const togglePerm = (key: string) => {
@@ -50,7 +55,11 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
             await api.put(`/settings/roles/${selectedRole.id}/permissions`, {
                 permissions: Array.from(editingPerms),
             });
-            onNotify('Permissions saved!');
+            // Also update the dashboard_type on the role itself
+            await api.put(`/settings/roles/${selectedRole.id}`, { 
+                dashboard_type: dashboardType 
+            });
+            onNotify('Role configuration saved!');
             onRefresh();
         } catch { onNotify('Failed to save permissions', false); }
         finally { setSaving(false); }
@@ -236,7 +245,7 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
             {/* ── Right: Permission matrix ─────────────────────────── */}
             <div className="col-span-12 lg:col-span-8">
                 <PermissionMatrix
-                    role={selectedRole}
+                    role={selectedRole ? { ...selectedRole, dashboard_type: dashboardType } : null}
                     permissions={permissions}
                     editingPerms={editingPerms}
                     onToggle={togglePerm}

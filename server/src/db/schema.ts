@@ -60,10 +60,15 @@ const TENANT_SCHEMA = `
         tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         description TEXT,
+        dashboard_type TEXT DEFAULT 'employee',
         is_system BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(tenant_id, name)
     );
+
+    DO $$ BEGIN
+        ALTER TABLE roles ADD COLUMN IF NOT EXISTS dashboard_type TEXT DEFAULT 'employee';
+    EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  ROLE_PERMISSIONS — Maps roles to permissions              ║
@@ -455,14 +460,25 @@ export const initializeDatabase = async () => {
         // 7. Seed roles for default tenant
         const systemRoles = ['admin', 'hr', 'manager', 'employee'];
         for (const roleName of systemRoles) {
+            const dashType = roleName === 'hr' ? 'admin' : roleName;
             await query(
-                `INSERT INTO roles (tenant_id, name, description, is_system)
-                 VALUES ($1, $2, $3, true)
-                 ON CONFLICT (tenant_id, name) DO NOTHING`,
-                [DEFAULT_TENANT_ID, roleName, `System ${roleName} role`]
+                `INSERT INTO roles (tenant_id, name, description, is_system, dashboard_type)
+                 VALUES ($1, $2, $3, true, $4)
+                 ON CONFLICT (tenant_id, name) DO UPDATE SET dashboard_type = $4`,
+                [DEFAULT_TENANT_ID, roleName, `System ${roleName} role`, dashType]
             );
         }
-        console.log('  ✅ System roles seeded.');
+        // Backfill custom roles that might have NULL dashboard_type
+        await query(`
+            UPDATE roles 
+            SET dashboard_type = CASE 
+                WHEN LOWER(name) LIKE '%admin%' THEN 'admin'
+                WHEN LOWER(name) LIKE '%manager%' THEN 'manager'
+                ELSE 'employee'
+            END
+            WHERE dashboard_type IS NULL
+        `);
+        console.log('  ✅ System roles seeded and dashboard types backfilled.');
 
         // 8. Map permissions to roles
         for (const [roleName, permKeys] of Object.entries(ROLE_PERMISSIONS_MAP)) {

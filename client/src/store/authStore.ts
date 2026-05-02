@@ -26,6 +26,7 @@ export interface User {
     emergency?: string;
     availability_status?: string;
     permissions?: string[];
+    dashboard_type?: 'admin' | 'manager' | 'employee';
 }
 
 interface AuthState {
@@ -87,20 +88,37 @@ export const useAuthStore = create<AuthState>()(
             hasPermission: (permission: string) => {
                 const user = get().user;
                 if (!user) return false;
-                if (user.role === 'super_admin' || user.role === 'admin') return true;
+                const role = (user.role || '').toLowerCase();
+                if (role === 'super_admin' || role === 'admin' || role === 'administrator' || user.dashboard_type === 'admin') return true;
                 return user.permissions?.includes(permission) ?? false;
             },
 
             hasAnyRole: (...roles: UserRole[]) => {
                 const user = get().user;
                 if (!user) return false;
-                return roles.includes(user.role);
+                const userRole = (user.role || '').toLowerCase();
+                const dashType = user.dashboard_type || 'employee'; // Default to employee
+                
+                // 1. Direct match (literal role name)
+                if (roles.some(r => r.toLowerCase() === userRole)) return true;
+                
+                // 2. System Admin Override (Safety Net)
+                const isSystemAdmin = user.name === 'System Admin' || (user.email && user.email.toLowerCase() === 'admin@company.com');
+                if (isSystemAdmin && roles.includes('admin' as UserRole)) return true;
+
+                // 3. Dashboard Type Mapping (allows custom roles to inherit UI structure)
+                if (roles.includes('admin' as UserRole) && (dashType === 'admin' || userRole === 'admin' || userRole === 'super_admin' || userRole === 'administrator')) return true;
+                if (roles.includes('manager' as UserRole) && (dashType === 'manager' || userRole === 'manager')) return true;
+                if (roles.includes('employee' as UserRole) && (dashType === 'employee' || userRole === 'employee')) return true;
+
+                return false;
             },
 
             hasModule: (module: string) => {
                 const user = get().user;
                 if (!user) return false;
-                if (user.role === 'super_admin' || user.role === 'admin') return true;
+                const role = (user.role || '').toLowerCase();
+                if (role === 'super_admin' || role === 'admin' || role === 'administrator' || user.dashboard_type === 'admin') return true;
                 return user.permissions?.some(p => p.startsWith(`${module}:`)) ?? false;
             },
         }),

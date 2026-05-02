@@ -272,7 +272,7 @@ const Topbar: React.FC = () => {
                         <div className="hidden md:block text-left">
                             <p className="text-[12px] font-bold text-slate-800 leading-none">{user?.name?.split(' ')[0]}</p>
                             <p className="text-[9px] font-semibold capitalize mt-0.5" style={{ color: avatarColor }}>
-                                {user?.role?.replace('_', ' ')}
+                                {user?.dashboard_type || user?.role?.replace('_', ' ')}
                             </p>
                         </div>
                         <ChevronDown size={13} className="text-slate-400" />
@@ -302,7 +302,7 @@ const Topbar: React.FC = () => {
                                 <button className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
                                     <Settings size={15} /> Settings
                                 </button>
-                                {['admin', 'super_admin'].includes(user?.role || '') && (
+                                {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'administrator' || user?.dashboard_type === 'admin') && (
                                     <button onClick={() => { navigate('/audit-logs'); setUserMenuOpen(false); }}
                                         className="w-full flex items-center gap-3 px-3 py-2.5 text-[13px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
                                         <Shield size={15} /> Audit Logs

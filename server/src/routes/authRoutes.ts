@@ -12,6 +12,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/db';
+import { RealtimeService } from '../services/realtimeService';
 import {
     generateAccessToken,
     generateRefreshToken,
@@ -52,7 +53,7 @@ router.post('/login', asyncHandler(async (req, res) => {
     // 1. Find user with employee linkage and role/permissions
     const result = await pool.query(
         `SELECT u.*, e.id as employee_id, e.department_id,
-                r.id as role_record_id, r.name as role_name
+                r.id as role_record_id, r.name as role_name, r.dashboard_type
          FROM users u
          LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
          LEFT JOIN roles r ON u.role_id = r.id
@@ -92,8 +93,10 @@ router.post('/login', asyncHandler(async (req, res) => {
     const tenantId = user.tenant_id || 'tenant_default';
     const accessToken = generateAccessToken({
         userId: user.id,
+        email: user.email,
         tenantId,
         role: user.role as UserRole,
+        dashboard_type: user.dashboard_type,
         permissions,
     });
     const refreshToken = generateRefreshToken({
@@ -132,6 +135,7 @@ router.post('/login', asyncHandler(async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
+            dashboard_type: user.dashboard_type || 'employee',
             availability_status: user.availability_status || 'available',
             phone: user.phone || '',
             address: user.address || '',
@@ -193,8 +197,10 @@ router.post('/refresh', asyncHandler(async (req, res) => {
     // 4. Issue new access token
     const newAccessToken = generateAccessToken({
         userId: user.id,
+        email: user.email,
         tenantId: user.tenant_id || decoded.tenantId,
         role: user.role as UserRole,
+        dashboard_type: user.dashboard_type,
         permissions,
     });
 
@@ -242,9 +248,11 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
 
     const result = await pool.query(
         `SELECT u.id, u.name, u.email, u.role, u.phone, u.address, u.emergency,
-                u.tenant_id, u.created_at, u.preferences, u.availability_status, e.id as employee_id
+                u.tenant_id, u.created_at, u.preferences, u.availability_status, 
+                e.id as employee_id, r.dashboard_type
          FROM users u
          LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
+         LEFT JOIN roles r ON u.role_id = r.id
          WHERE u.id = $1 AND u.deleted_at IS NULL`,
         [req.user.userId]
     );
@@ -255,6 +263,7 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
         success: true,
         user: {
             ...result.rows[0],
+            dashboard_type: result.rows[0].dashboard_type || 'employee',
             permissions: req.user.permissions,
         },
     });
@@ -322,6 +331,14 @@ router.put('/status', authenticate, asyncHandler(async (req: AuthenticatedReques
     await pool.query(
         'UPDATE users SET availability_status = $1 WHERE id = $2',
         [status, req.user.userId]
+    );
+
+    // Broadcast update
+    RealtimeService.broadcastStatusUpdate(
+        req.user.tenantId,
+        req.user.userId,
+        req.user.email,
+        status
     );
 
     res.json({ success: true, message: 'Status updated.' });

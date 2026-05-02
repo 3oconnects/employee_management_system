@@ -104,17 +104,21 @@ app.use(globalErrorHandler);
 // ─── SERVER LIFECYCLE ───────────────────────────────────────────────────────
 
 const start = async () => {
-    // ── Start HTTP server immediately ────────────────────────────────────────
-    activeServer = app.listen(port, () => {
-        console.log(`
-🚀 ===================================================
-   EMS BACKEND — SERVER STARTED
-   PORT: ${port}
-   ENV:  ${process.env.NODE_ENV || 'development'}
-   DATE: ${new Date().toLocaleString()}
-   ===================================================
-        `);
-    });
+    // ── Start HTTP server immediately (only if not in Vercel) ────────────────
+    if (process.env.VERCEL) {
+        console.log('☁️ Running in Vercel Serverless environment');
+    } else {
+        activeServer = app.listen(port, () => {
+            console.log(`
+    🚀 ===================================================
+       EMS BACKEND — SERVER STARTED
+       PORT: ${port}
+       ENV:  ${process.env.NODE_ENV || 'development'}
+       DATE: ${new Date().toLocaleString()}
+       ===================================================
+            `);
+        });
+    }
 
     // ── Graceful shutdown ────────────────────────────────────────────────────
     const shutdown = async () => {
@@ -153,3 +157,5 @@ const start = async () => {
 
 let activeServer: any;
 start();
+
+export default app;

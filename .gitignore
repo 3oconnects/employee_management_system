@@ -6,3 +6,4 @@ dist/
 package-lock.json
 build/
 .DS_Store
+.vercel/

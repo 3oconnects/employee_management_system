@@ -2,34 +2,55 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import rateLimit from 'express-rate-limit';
 import { pool } from './config/db';
-import { initDb } from './initDb';
-import { initializeDatabase } from './db/schema';
-import { runMigrationV3 } from './db/migration_v3';
+import { seedPermissionsAndSuperAdmin } from './scripts/seedPermissions';
+
 
 // Routes
-import authRoutes from './routes/authRoutes';
-import userRoutes from './routes/userRoutes';
-import attendanceRoutes from './routes/attendanceRoutes';
-import leaveRoutes from './routes/leaveRoutes';
-import timesheetRoutes from './routes/timesheetRoutes';
-import employeeRoutes from './routes/employeeRoutes';
-import payrollRoutes from './routes/payrollRoutes';
-import reportRoutes from './routes/reportRoutes';
-import claimRoutes from './routes/claimRoutes';
-import approvalRoutes from './routes/approvalRoutes';
-import auditRoutes from './routes/auditRoutes';
-import notificationRoutes from './routes/notificationRoutes';
-import performanceRoutes from './routes/performanceRoutes';
-import documentRoutes from './routes/documentRoutes';
-import settingsRoutes from './routes/settingsRoutes';
-import organizationRoutes from './routes/organizationRoutes';
-import governanceRoutes from './routes/governanceRoutes';
-import realtimeRoutes from './routes/realtimeRoutes';
-import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
+import authRoutes from './modules/auth/auth.routes';
+import userRoutes from './modules/users/users.routes';
+import attendanceRoutes from './modules/attendance/attendance.routes';
+import leaveRoutes from './modules/leaves/leaves.routes';
+import timesheetRoutes from './modules/timesheets/timesheets.routes';
+import employeeRoutes from './modules/employees/employees.routes';
+import payrollRoutes from './modules/payroll/payroll.routes';
+import reportRoutes from './modules/reports/reports.routes';
+import claimRoutes from './modules/claims/claims.routes';
+import approvalRoutes from './modules/approvals/approvals.routes';
+import auditRoutes from './modules/audit';
+import notificationRoutes from './modules/notifications';
+import performanceRoutes from './modules/performance';
+import documentRoutes from './modules/documents/documents.routes';
+import settingsRoutes from './modules/settings';
+import organizationRoutes from './modules/organization/organization.routes';
+import governanceRoutes from './modules/governance';
+import realtimeRoutes from './modules/realtime';
+import { globalErrorHandler, notFoundHandler } from './core/errors/errorHandler';
+import { registerDomainEvents } from './core/events/registry';
 
 const app = express();
 const port = process.env.PORT || 4000;
+
+// ─── RATE LIMITERS ──────────────────────────────────────────────────────────
+
+// Strict limiter for auth endpoints (login / refresh) — 10 attempts per 15 min per IP
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,
+    standardHeaders: true,   // Return RateLimit-* headers
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please try again later.' },
+});
+
+// General API limiter — 300 requests per minute per IP (generous for normal use)
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please try again later.' },
+});
 
 // ─── SECURITY MIDDLEWARE ────────────────────────────────────────────────────
 
@@ -60,29 +81,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Serving static files
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
 
-// ─── API ROUTES ─────────────────────────────────────────────────────────────
+// ─── HEALTH CHECK (no rate limit) ───────────────────────────────────────────
 
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/attendance', attendanceRoutes);
-app.use('/api/v1/leave', leaveRoutes);
-app.use('/api/v1/timesheets', timesheetRoutes);
-app.use('/api/v1/employees', employeeRoutes);
-app.use('/api/v1/payroll', payrollRoutes);
-app.use('/api/v1/reports', reportRoutes);
-app.use('/api/v1/claims', claimRoutes);
-app.use('/api/v1/approvals', approvalRoutes);
-app.use('/api/v1/audit-logs', auditRoutes);
-app.use('/api/v1/notifications', notificationRoutes);
-app.use('/api/v1/performance', performanceRoutes);
-app.use('/api/v1/documents', documentRoutes);
-app.use('/api/v1/settings', settingsRoutes);
-app.use('/api/v1/organization', organizationRoutes);
-app.use('/api/v1/governance', governanceRoutes);
-app.use('/api/v1/realtime', realtimeRoutes);
-
-
-// Health check
 app.get('/api/v1/health', (_req, res) => {
     res.json({
         success: true,
@@ -91,6 +91,30 @@ app.get('/api/v1/health', (_req, res) => {
         timestamp: new Date().toISOString()
     });
 });
+
+// ─── API ROUTES ─────────────────────────────────────────────────────────────
+
+// Auth routes get the strict limiter
+app.use('/api/v1/auth', authLimiter, authRoutes);
+
+// All other API routes get the general limiter
+app.use('/api/v1/users', apiLimiter, userRoutes);
+app.use('/api/v1/attendance', apiLimiter, attendanceRoutes);
+app.use('/api/v1/leave', apiLimiter, leaveRoutes);
+app.use('/api/v1/timesheets', apiLimiter, timesheetRoutes);
+app.use('/api/v1/employees', apiLimiter, employeeRoutes);
+app.use('/api/v1/payroll', apiLimiter, payrollRoutes);
+app.use('/api/v1/reports', apiLimiter, reportRoutes);
+app.use('/api/v1/claims', apiLimiter, claimRoutes);
+app.use('/api/v1/approvals', apiLimiter, approvalRoutes);
+app.use('/api/v1/audit-logs', apiLimiter, auditRoutes);
+app.use('/api/v1/notifications', apiLimiter, notificationRoutes);
+app.use('/api/v1/performance', apiLimiter, performanceRoutes);
+app.use('/api/v1/documents', apiLimiter, documentRoutes);
+app.use('/api/v1/settings', apiLimiter, settingsRoutes);
+app.use('/api/v1/organization', apiLimiter, organizationRoutes);
+app.use('/api/v1/governance', apiLimiter, governanceRoutes);
+app.use('/api/v1/realtime', apiLimiter, realtimeRoutes);
 
 // Root path handler
 app.get('/', (_req, res) => {
@@ -107,8 +131,10 @@ app.use(globalErrorHandler);
 const start = async () => {
     // ── Start HTTP server immediately (only if not in Vercel) ────────────────
     if (process.env.VERCEL) {
+        registerDomainEvents();
         console.log('☁️ Running in Vercel Serverless environment');
     } else {
+        registerDomainEvents();
         activeServer = app.listen(port, () => {
             console.log(`
     🚀 ===================================================
@@ -144,11 +170,10 @@ const start = async () => {
         const res = await pool.query('SELECT NOW()');
         console.log('✅ PostgreSQL connected:', res.rows[0].now);
         
-        // Migrations
-        await initDb();
-        await initializeDatabase();
-        await runMigrationV3();
-        console.log('✅ All schema migrations completed.');
+        console.log('ℹ️ Automatic schema migrations are disabled. Run npm run db:setup to migrate/seed.');
+
+        // ── Seed permissions & fix super-admin role on every startup ─────────
+        await seedPermissionsAndSuperAdmin();
     } catch (dbErr: any) {
         console.error('\n❌ CRITICAL: Database Connection Failed');
         console.error('   Error Details:', dbErr);

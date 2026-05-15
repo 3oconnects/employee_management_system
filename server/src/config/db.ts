@@ -3,8 +3,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Supabase uses self-signed intermediate cert — bypass TLS verification
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// NOTE: TLS verification is disabled per-pool via ssl.rejectUnauthorized=false
+// (scoped to Supabase connections only). The global NODE_TLS_REJECT_UNAUTHORIZED
+// override has been removed — it was disabling TLS for ALL outbound HTTPS calls
+// made by this process (e.g. third-party APIs, webhooks).
 
 const { Pool } = pg;
 
@@ -29,5 +31,3 @@ pool.on('error', (err) => {
 });
 
 export const query = (text: string, params?: any[]) => pool.query(text, params);
-
-

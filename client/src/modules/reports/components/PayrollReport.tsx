@@ -1,5 +1,6 @@
 import React from 'react';
 import { CreditCard, TrendingUp, PieChart, Download } from 'lucide-react';
+import { fmtCurrency } from '../../../utils/formatters';
 
 interface PayrollReportProps {
     data: {
@@ -26,7 +27,7 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({ data, avgSalary, d
                         </button>
                     </div>
                     <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">Total Monthly Payout</p>
-                    <p className="text-3xl font-black text-slate-800 mt-1">₹{data.monthlyPayout.toLocaleString()}</p>
+                    <p className="text-3xl font-black text-slate-800 mt-1">{fmtCurrency(data.monthlyPayout)}</p>
                     <div className="mt-4 flex items-center gap-2 text-[12px] text-emerald-600 font-bold">
                         <TrendingUp size={14} /> +2.4% from last month
                     </div>
@@ -39,7 +40,7 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({ data, avgSalary, d
                         </div>
                     </div>
                     <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">Avg. Annual CTC</p>
-                    <p className="text-3xl font-black text-slate-800 mt-1">₹{(avgSalary).toLocaleString()}</p>
+                    <p className="text-3xl font-black text-slate-800 mt-1">{fmtCurrency(avgSalary)}</p>
                     <p className="mt-4 text-[12px] text-slate-500 font-medium">Standardized across all active roles</p>
                 </div>
             </div>

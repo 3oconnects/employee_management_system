@@ -6,6 +6,23 @@ import {
     AlertCircle, ChevronRight, DollarSign
 } from 'lucide-react';
 
+interface RecentActivity {
+    id: number;
+    user_id: number;
+    action: string;
+    entity_type: string;
+    entity_id: string;
+    created_at: string;
+    user_name: string;
+}
+
+interface Holiday {
+    name: string;
+    date: string;
+    type: string;
+}
+
+
 interface AdminStats {
     totalEmployees: number;
     activeEmployees: number;
@@ -27,8 +44,8 @@ interface AdminStats {
     employmentTypeBreakdown: { type: string; count: number }[];
     monthlyHiringTrend: { month: string; hires: number; exits: number }[];
     payrollTrend: { month: string; amount: number }[];
-    recentActivities: any[];
-    upcomingHolidays: any[];
+    recentActivities: RecentActivity[];
+    upcomingHolidays: Holiday[];
 }
 
 import type { OrgSection } from './OrgSubNav';
@@ -39,12 +56,7 @@ interface AdminDashboardProps {
     section?: OrgSection;
 }
 
-const fmtCurrency = (n: number) => {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-    if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
-    if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}K`;
-    return `₹${n}`;
-};
+import { fmtCurrency } from '../../../utils/formatters';
 
 const DEPT_COLORS = ['#4F46E5','#7C3AED','#2563EB','#059669','#DB2777','#D97706'];
 
@@ -78,9 +90,9 @@ const KpiCard: React.FC<KpiCardProps> = ({ label, value, icon: Icon, iconBg, ico
             )}
             {onClick && <ChevronRight size={14} className="text-slate-200 group-hover:text-indigo-400 transition-colors mt-0.5" />}
         </div>
-        <p className="text-[26px] font-black text-slate-800 leading-none tabular-nums">{value}</p>
+        <p className="text-[26px] font-black text-slate-800 leading-none tabular-nums truncate" title={String(value)}>{value}</p>
         <p className="text-[11px] font-semibold text-slate-500 mt-1.5 uppercase tracking-wide">{label}</p>
-        {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
+        {sub && <p className="text-[11px] text-slate-400 mt-0.5 truncate" title={sub}>{sub}</p>}
     </button>
 );
 

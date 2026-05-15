@@ -99,22 +99,8 @@ const CORE_SCHEMA = `
     ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
     ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{"notifications": {"in_app": true, "email": true}}';
 
-    -- ╔══════════════════════════════════════════════════════════════╗
-    -- ║  NOTIFICATIONS                                              ║
-    -- ╚══════════════════════════════════════════════════════════════╝
-    CREATE TABLE IF NOT EXISTS notifications (
-        id          SERIAL PRIMARY KEY,
-        user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        tenant_id   TEXT    REFERENCES tenants(id) ON DELETE CASCADE,
-        type        TEXT    NOT NULL DEFAULT 'info',
-        title       TEXT    NOT NULL,
-        message     TEXT,
-        is_read     BOOLEAN NOT NULL DEFAULT false,
-        link        TEXT,
-        created_at  TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, tenant_id, is_read);
-
+    -- NOTE: notifications table is defined in NEW_TABLES_SCHEMA below (single source of truth).
+    -- Removed duplicate CREATE TABLE notifications + index from here (Phase 2 cleanup).
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  EMPLOYEES — Core HR data (upgraded)                       ║
@@ -260,7 +246,8 @@ const NEW_TABLES_SCHEMA = `
     );
 
     -- ╔══════════════════════════════════════════════════════════════╗
-    -- ║  NOTIFICATIONS — In-app notification system                ║
+    -- ║  NOTIFICATIONS — In-app notification system (canonical)    ║
+    -- ║  Single source of truth. Do not add another definition.    ║
     -- ╚══════════════════════════════════════════════════════════════╝
     CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,

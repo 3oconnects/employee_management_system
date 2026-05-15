@@ -107,7 +107,6 @@ export const authorize = (allowedRoles: UserRole[]) => {
         }
 
         const userRole = (req.user.role || '').toLowerCase();
-        const userEmail = (req.user.email || '').toLowerCase();
         const dashType = req.user.dashboard_type;
 
         const isAllowed = allowedRoles.some(allowedRole => {
@@ -116,13 +115,13 @@ export const authorize = (allowedRoles: UserRole[]) => {
             // 1. Direct role match
             if (targetRole === userRole) return true;
             
-            // 2. System Admin Override (email-based safety net)
-            if (targetRole === 'admin' && userEmail === 'admin@company.com') return true;
+            // [REMOVED] Hardcoded admin@company.com override for security purposes.
+            // Role and permissions are now purely database-driven.
             
-            // 3. Synonym match
+            // 2. Synonym match
             if (targetRole === 'admin' && (userRole === 'administrator' || userRole === 'super_admin')) return true;
             
-            // 4. Dashboard Type Match (allows custom roles to access relevant routes)
+            // 3. Dashboard Type Match (allows custom roles to access relevant routes)
             if (targetRole === 'admin' && dashType === 'admin') return true;
             if (targetRole === 'manager' && dashType === 'manager') return true;
             

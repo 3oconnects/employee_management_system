@@ -20,11 +20,33 @@ import {
 } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
+import { fmtCurrency } from '../../../utils/formatters';
+
+interface Payslip {
+    id: number;
+    employee: string;
+    employee_id: string;
+    month: string;
+    year: string;
+    net_salary: string | number;
+    paid_at: string;
+}
+
+interface Claim {
+    id: number;
+    employee_id: string;
+    category: string;
+    amount: string | number;
+    description: string;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: string;
+}
+
 
 const EmployeePayroll = () => {
     const { user } = useAuthStore();
-    const [payslips, setPayslips] = useState<any[]>([]);
-    const [claims, setClaims] = useState<any[]>([]);
+    const [payslips, setPayslips] = useState<Payslip[]>([]);
+    const [claims, setClaims] = useState<Claim[]>([]);
     const [loading, setLoading] = useState(true);
     const [showClaimModal, setShowClaimModal] = useState(false);
     const [submittingClaim, setSubmittingClaim] = useState(false);
@@ -200,7 +222,7 @@ const EmployeePayroll = () => {
                                         <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
                                             {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(p.month) - 1]} {p.year}
                                         </p>
-                                        <p className="text-[20px] font-black text-gray-900 tracking-tight mt-1">₹{(Number(p.net_salary) || 0).toLocaleString()}</p>
+                                        <p className="text-[20px] font-black text-gray-900 tracking-tight mt-1 truncate" title={fmtCurrency(Number(p.net_salary))}>{fmtCurrency(Number(p.net_salary))}</p>
 
                                     </div>
                                     <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">

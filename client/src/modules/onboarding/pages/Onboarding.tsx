@@ -43,17 +43,19 @@ const Onboarding: React.FC = () => {
 
     const fetchData = async () => {
         setLoadingData(true);
+        setError('');
         try {
-            const [candRes, mgrRes, deptRes] = await Promise.all([
+            const [candRes, mgrRes, deptRes] = await Promise.allSettled([
                 api.get('/employees', { params: { status: 'onboarding' } }),
                 api.get('/users'),
                 api.get('/reports/departments')
             ]);
-            setCandidates(candRes.data.items || []);
-            setManagers(mgrRes.data.items || []);
-            setDepartments(deptRes.data.items || []);
+            if (candRes.status === 'fulfilled') setCandidates(candRes.value.data.items || []);
+            if (mgrRes.status === 'fulfilled')  setManagers(mgrRes.value.data.items || []);
+            if (deptRes.status === 'fulfilled') setDepartments(deptRes.value.data.items || []);
         } catch (err) {
             console.error('Failed to fetch onboarding data', err);
+            setError('Failed to load onboarding data');
         } finally {
             setLoadingData(false);
         }

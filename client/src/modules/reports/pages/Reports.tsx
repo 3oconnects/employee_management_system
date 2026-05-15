@@ -23,6 +23,7 @@ import { RecentReportsList } from '../components/RecentReportsList';
 import { OrganizationReport } from '../components/OrganizationReport';
 import { PayrollReport } from '../components/PayrollReport';
 import { AttendanceReport } from '../components/AttendanceReport';
+import { fmtCurrency } from '../../../utils/formatters';
 
 interface ReportData {
     headcount: number;
@@ -142,7 +143,7 @@ const Reports: React.FC = () => {
                             />
                             <ReportStatCard 
                                 label="Avg. Monthly Salary" 
-                                value={`\u20B9${(data.avgSalary/12).toLocaleString()}`} 
+                                value={fmtCurrency(data.avgSalary/12)} 
                                 trend="+1.5%" 
                                 up={true} 
                                 icon={Wallet} 

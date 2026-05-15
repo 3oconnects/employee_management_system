@@ -9,6 +9,8 @@ export type ApprovalType =
     | 'team_change'
     | 'compensation_change'
     | 'document_approval'
+    | 'department_creation'
+    | 'team_creation'
     | 'attendance';
 
 export interface RoleChangeMetadata {

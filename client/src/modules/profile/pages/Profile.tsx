@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import {
     User, Mail, Phone, MapPin, Calendar, Briefcase, Building2, Shield, CreditCard,
     FileText, Clock, Edit2, Save, Award, Heart, Globe, Users, Star, CheckCircle,
-    Activity, Loader2, Hash, Target,
+    Activity, Loader2, Hash, Target, Upload, Plus
 } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
@@ -15,6 +15,7 @@ import ExperienceTab from '../components/ExperienceTab';
 import AttendanceTab from '../components/AttendanceTab';
 import SettingsTab   from '../components/SettingsTab';
 import { Check, AlertCircle } from 'lucide-react';
+import { fmtCurrency } from '../../../utils/formatters';
 import type { EduEntry, ExpEntry } from '../../employees/components/modals/shared';
 
 const Profile: React.FC = () => {
@@ -32,6 +33,12 @@ const Profile: React.FC = () => {
     const [eduList,     setEduList]     = useState<EduEntry[]>([]);
     const [expList,     setExpList]     = useState<ExpEntry[]>([]);
     const [toast,       setToast]       = useState<{ msg: string; ok: boolean } | null>(null);
+    const [uploading,   setUploading]   = useState(false);
+    const [showUpModal, setShowUpModal] = useState(false);
+    const [upFile,      setUpFile]      = useState<File | null>(null);
+    const [upType,      setUpType]      = useState('ID Proof');
+    const [previewDoc,  setPreviewDoc]  = useState<any>(null);
+    const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
 
     const notify = (msg: string, ok = true) => {
         setToast({ msg, ok });
@@ -84,6 +91,34 @@ const Profile: React.FC = () => {
             notify(err.response?.data?.message || 'Update failed', false);
         }
         finally { setSaveLoading(false); }
+    };
+
+    const handleUpload = async () => {
+        if (!empId || !upFile) return;
+        setUploading(true);
+        try {
+            await api.post('/documents', {
+                employeeId: empId,
+                documentType: upType,
+                documentName: upFile.name,
+                filePath: `uploads/${upFile.name}`,
+                fileSize: upFile.size
+            });
+            const { data } = await api.get(`/reports/profile/${empId}`);
+            
+            // Link the actual file to its name for a guaranteed session preview
+            const localUrl = URL.createObjectURL(upFile);
+            setLocalPreviews(prev => ({ ...prev, [upFile.name]: localUrl }));
+
+            setProfile(data);
+            setShowUpModal(false);
+            setUpFile(null);
+            notify('Document uploaded successfully');
+        } catch (err: any) {
+            notify(err.response?.data?.message || 'Upload failed', false);
+        } finally {
+            setUploading(false);
+        }
     };
 
     if (loading) return (
@@ -218,18 +253,23 @@ const Profile: React.FC = () => {
                 <Section title="Compensation Details" icon={CreditCard}>
                     {comp ? (<>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            {[{l:'Annual CTC',v:`₹${((comp.annual_ctc||0)/1e5).toFixed(2)}L`,c:'text-indigo-700 bg-indigo-50'},{l:'Monthly Gross',v:`₹${Math.round((comp.annual_ctc||0)/12).toLocaleString('en-IN')}`,c:'text-violet-700 bg-violet-50'},{l:'Basic Salary',v:`₹${Math.round(comp.basic_salary||0).toLocaleString('en-IN')}`,c:'text-emerald-700 bg-emerald-50'},{l:'HRA',v:`₹${Math.round(comp.hra||0).toLocaleString('en-IN')}`,c:'text-amber-700 bg-amber-50'}].map(s => (
-                                <div key={s.l} className={`${s.c.split(' ')[1]} rounded-xl p-4 border border-slate-100`}>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{s.l}</p>
-                                    <p className={`text-xl font-black mt-1 ${s.c.split(' ')[0]}`}>{s.v}</p>
+                            {[
+                                { l: 'Annual CTC',   v: fmtCurrency(comp.annual_ctc),               c: 'text-indigo-700 bg-indigo-50' },
+                                { l: 'Monthly Gross', v: fmtCurrency((comp.annual_ctc || 0) / 12),  c: 'text-violet-700 bg-violet-50' },
+                                { l: 'Basic Salary',  v: fmtCurrency(comp.basic_salary),            c: 'text-emerald-700 bg-emerald-50' },
+                                { l: 'HRA',           v: fmtCurrency(comp.hra),                    c: 'text-amber-700 bg-amber-50' }
+                            ].map(s => (
+                                <div key={s.l} className={`${s.c.split(' ')[1]} rounded-xl p-4 border border-slate-100 min-w-0 overflow-hidden`}>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate">{s.l}</p>
+                                    <p className={`text-xl font-black mt-1 truncate ${s.c.split(' ')[0]}`} title={s.v}>{s.v}</p>
                                 </div>
                             ))}
                         </div>
                         <div className="grid grid-cols-2 gap-x-8 border-t border-slate-100 pt-4">
-                            <InfoRow icon={CreditCard} label="Bank Account" value={comp.bank_account?`●●●●${comp.bank_account.slice(-4)}`:'Not set'}/>
+                            <InfoRow icon={CreditCard} label="Bank Account" value={comp.bank_account ? `●●●●${comp.bank_account.slice(-4)}` : 'Not set'}/>
                             <InfoRow icon={Shield}     label="Tax Regime"   value={comp.tax_regime}/>
-                            <InfoRow icon={Target}     label="Allowances"   value={comp.allowances?`₹${Math.round(comp.allowances).toLocaleString('en-IN')}`:null}/>
-                            <InfoRow icon={Award}      label="Bonus"        value={comp.bonus?`₹${Math.round(comp.bonus).toLocaleString('en-IN')}`:null}/>
+                            <InfoRow icon={Target}     label="Allowances"   value={fmtCurrency(comp.allowances)}/>
+                            <InfoRow icon={Award}      label="Bonus"        value={fmtCurrency(comp.bonus)}/>
                         </div>
                     </>) : <EmptyState icon={CreditCard} text="No compensation data found"/>}
                 </Section>
@@ -267,19 +307,60 @@ const Profile: React.FC = () => {
 
             {/* ── DOCUMENTS ── */}
             {tab === 'documents' && (
-                <Section title="Documents" icon={FileText}>
+                <Section title="Documents" icon={FileText} action={
+                    <div className="flex gap-2">
+                        <input 
+                            type="file" 
+                            id="doc-upload" 
+                            className="hidden" 
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) { setUpFile(file); setShowUpModal(true); }
+                            }}
+                        />
+                        <label 
+                            htmlFor="doc-upload"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all cursor-pointer"
+                        >
+                            <Upload size={12}/> Upload
+                        </label>
+                    </div>
+                }>
                     {profile?.documents?.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {profile.documents.map((doc: any) => (
-                                <div key={doc.id} className="flex items-center gap-3 p-3.5 bg-slate-50 hover:bg-indigo-50 border border-slate-100 rounded-xl transition-all cursor-pointer group">
-                                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 group-hover:bg-indigo-600 group-hover:border-indigo-600 transition-all"><FileText size={16} className="text-slate-400 group-hover:text-white"/></div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[12px] font-semibold text-slate-700 truncate">{doc.document_name}</p>
-                                        <p className="text-[10px] text-slate-400">{doc.document_type} · {new Date(doc.created_at).toLocaleDateString('en-IN')}</p>
+                            {profile.documents.map((doc: any) => {
+                                const isImg = doc.document_name?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                                const backend = api.defaults.baseURL?.replace('/api/v1', '') || 'http://localhost:4000';
+                                const src = localPreviews[doc.document_name] || `${backend}/public/${doc.file_path}`;
+                                
+                                return (
+                                    <div 
+                                        key={doc.id} 
+                                        onClick={() => setPreviewDoc(doc)}
+                                        className="flex items-center gap-3 p-3.5 bg-slate-50 hover:bg-indigo-50 border border-slate-100 rounded-xl transition-all cursor-pointer group"
+                                    >
+                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 group-hover:bg-indigo-600 group-hover:border-indigo-600 transition-all overflow-hidden relative">
+                                            {isImg ? (
+                                                <>
+                                                    <img src={src} alt="" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" onError={(e) => {
+                                                        (e.target as any).style.opacity = '0';
+                                                    }}/>
+                                                    <div className="absolute inset-0 flex items-center justify-center -z-10 bg-slate-50">
+                                                        <Upload size={14} className="text-slate-300"/>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <FileText size={16} className="text-slate-400 group-hover:text-white"/>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[12px] font-semibold text-slate-700 truncate">{doc.document_name}</p>
+                                            <p className="text-[10px] text-slate-400">{doc.document_type} · {new Date(doc.created_at).toLocaleDateString('en-IN')}</p>
+                                        </div>
+                                        <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase ${doc.verified ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{doc.verified ? 'Verified' : 'Pending'}</span>
                                     </div>
-                                    <span className={`px-2 py-1 rounded text-[9px] font-bold uppercase ${doc.verified?'bg-emerald-50 text-emerald-600':'bg-amber-50 text-amber-600'}`}>{doc.verified?'Verified':'Pending'}</span>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ) : <EmptyState icon={FileText} text="No documents uploaded"/>}
                 </Section>
@@ -306,6 +387,120 @@ const Profile: React.FC = () => {
                     initialPreferences={profile?.user?.preferences || user?.preferences} 
                     onNotify={notify} 
                 />
+            )}
+            {/* ── Upload Modal ── */}
+            {showUpModal && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600"><Upload size={18}/></div>
+                                <div><h3 className="text-[16px] font-black text-slate-800">Finalize Upload</h3><p className="text-[11px] text-slate-400 font-medium">Adding to employee records</p></div>
+                            </div>
+                            <button onClick={() => setShowUpModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 transition-colors">✕</button>
+                        </div>
+                        <div className="p-6 space-y-5">
+                            <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl flex items-center gap-3">
+                                <FileText size={20} className="text-indigo-400"/>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[12px] font-bold text-slate-700 truncate">{upFile?.name}</p>
+                                    <p className="text-[10px] text-slate-500">{(upFile?.size || 0) / 1024 > 1024 ? `${((upFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB` : `${((upFile?.size || 0) / 1024).toFixed(1)} KB`}</p>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Document Category</label>
+                                <select 
+                                    value={upType} 
+                                    onChange={(e) => setUpType(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 focus:border-indigo-500 outline-none"
+                                >
+                                    {['ID Proof', 'Educational Certificate', 'Experience Letter', 'Payslip', 'Tax Document', 'Medical Report', 'Other'].map(t => (
+                                        <option key={t} value={t}>{t}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex gap-3">
+                            <button onClick={() => setShowUpModal(false)} className="flex-1 py-3 text-[13px] font-bold text-slate-500 hover:text-slate-700 transition-colors">Cancel</button>
+                            <button 
+                                onClick={handleUpload}
+                                disabled={uploading}
+                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-black rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                {uploading ? <Loader2 size={16} className="animate-spin"/> : <Check size={16}/>}
+                                {uploading ? 'Uploading...' : 'Confirm Upload'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ── Document Preview Modal ── */}
+            {previewDoc && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 lg:p-12 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-5xl h-full max-h-[90vh] flex flex-col overflow-hidden relative">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                    {previewDoc.document_name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? <Upload size={20}/> : <FileText size={20}/>}
+                                </div>
+                                <div>
+                                    <h3 className="text-[18px] font-black text-slate-800">{previewDoc.document_name}</h3>
+                                    <p className="text-[12px] text-slate-400 font-bold uppercase tracking-widest">{previewDoc.document_type} · {previewDoc.file_size}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setPreviewDoc(null)} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all">✕</button>
+                        </div>
+                        
+                        <div className="flex-1 bg-slate-100 overflow-auto p-4 flex items-center justify-center">
+                            {previewDoc.document_name?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                <img 
+                                    src={localPreviews[previewDoc.document_name] || `${api.defaults.baseURL?.replace('/api/v1', '')}/public/${previewDoc.file_path}`} 
+                                    className="max-w-full max-h-full rounded-xl shadow-lg border border-white" 
+                                    alt="Preview"
+                                    onError={(e) => {
+                                        (e.target as any).parentElement.innerHTML = `
+                                            <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-12 flex flex-col items-center text-center gap-6">
+                                                <div class="w-20 h-20 bg-indigo-50 rounded-[1.5rem] flex items-center justify-center text-indigo-400">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-[18px] font-black text-slate-800">Preview Protected</h4>
+                                                    <p class="text-[12px] text-slate-400 mt-2">The file metadata is secured, but the direct preview is currently unavailable in this view.</p>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }}
+                                />
+                            ) : (
+                                <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-12 flex flex-col items-center text-center gap-6">
+                                    <div className="w-24 h-24 bg-slate-50 rounded-[2rem] flex items-center justify-center text-slate-200">
+                                        <FileText size={48}/>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-[20px] font-black text-slate-800">Preview not available for this format</h4>
+                                        <p className="text-[14px] text-slate-400 max-w-md mx-auto mt-2">Currently, we only support live previews for images. For other formats, please download the file to view its content.</p>
+                                    </div>
+                                    <a 
+                                        href={`/api/v1/public/${previewDoc.file_path}`} 
+                                        target="_blank" 
+                                        rel="noreferrer"
+                                        className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-100 hover:scale-105 transition-all"
+                                    >
+                                        Download to View
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-6 bg-white border-t border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className={`w-3 h-3 rounded-full ${previewDoc.verified ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`}/>
+                                <p className="text-[12px] font-bold text-slate-500">{previewDoc.verified ? 'Verified Document' : 'Pending Verification'}</p>
+                            </div>
+                            <button onClick={() => setPreviewDoc(null)} className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-[13px] font-black hover:bg-slate-200 transition-all">Close Viewer</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

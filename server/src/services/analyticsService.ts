@@ -7,9 +7,31 @@
 
 import { pool } from '../config/db';
 
-const T = 'tenant_default'; // Default tenant for now
+
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
+
+interface RecentActivity {
+    id: number;
+    user_id: number;
+    action: string;
+    entity_type: string;
+    entity_id: string;
+    created_at: Date;
+    user_name: string;
+}
+
+interface Holiday {
+    name: string;
+    date: Date;
+    type: string;
+}
+
+interface SalaryDistItem {
+    level: string;
+    count: number;
+    total_ctc: number;
+}
 
 interface AdminDashboardData {
     totalEmployees: number;
@@ -30,11 +52,11 @@ interface AdminDashboardData {
     employmentTypeBreakdown: { type: string; count: number }[];
     monthlyHiringTrend: { month: string; hires: number; exits: number }[];
     payrollTrend: { month: string; amount: number }[];
-    recentActivities: any[];
-    upcomingHolidays: any[];
+    recentActivities: RecentActivity[];
+    upcomingHolidays: Holiday[];
     headcountGrowth: number;
     todayAttendanceLog: any[];
-    salaryDistribution: any[];
+    salaryDistribution: SalaryDistItem[];
     orgMetrics: { units: number; locations: number };
 }
 
@@ -45,7 +67,7 @@ export class AnalyticsService {
     /**
      * Complete admin dashboard — 15+ real metrics from DB
      */
-    static async getAdminDashboard(): Promise<AdminDashboardData> {
+    static async getAdminDashboard(tenantId: string): Promise<AdminDashboardData> {
         // Run each query individually with safe fallbacks so one failing query
         // (e.g. a column not yet migrated) doesn't crash the whole dashboard
         const safeQuery = async (sql: string, params?: any[], fallback: any = { rows: [{}] }) => {
@@ -85,75 +107,79 @@ export class AnalyticsService {
                     COUNT(*) FILTER (WHERE status = 'terminated' OR deleted_at IS NOT NULL) AS inactive,
                     COUNT(*) AS total
                 FROM employees
-            `, [], { rows: [{ active: '0', inactive: '0', total: '0' }] }),
+                WHERE tenant_id = $1
+            `, [tenantId], { rows: [{ active: '0', inactive: '0', total: '0' }] }),
             // 2. New hires this month
             safeQuery(`
                 SELECT COUNT(*) AS count FROM employees
                 WHERE join_date >= DATE_TRUNC('month', CURRENT_DATE)
                 AND deleted_at IS NULL
-            `, [], { rows: [{ count: '0' }] }),
+                AND tenant_id = $1
+            `, [tenantId], { rows: [{ count: '0' }] }),
             // 3. Exits this month
             safeQuery(`
                 SELECT COUNT(*) AS count FROM employees
                 WHERE exit_date >= DATE_TRUNC('month', CURRENT_DATE)
                 AND exit_date IS NOT NULL
-            `, [], { rows: [{ count: '0' }] }),
-            // 4. Payroll
+                AND tenant_id = $1
+            `, [tenantId], { rows: [{ count: '0' }] }),
+            // 4. Payroll - Filter out corrupted data (salaries > 100 Cr)
             safeQuery(`
                 SELECT
                     COALESCE(SUM(annual_ctc), 0) AS total_ctc,
                     COALESCE(AVG(annual_ctc), 0) AS avg_ctc,
                     COUNT(*) AS enrolled
                 FROM payroll_profiles
-            `, [], { rows: [{ total_ctc: '0', avg_ctc: '0', enrolled: '0' }] }),
+                WHERE annual_ctc < 1000000000 AND tenant_id = $1
+            `, [tenantId], { rows: [{ total_ctc: '0', avg_ctc: '0', enrolled: '0' }] }),
             // 5. Pending leave requests (handle both user_id and employee_id schemas)
             safeQuery(`
                 SELECT COUNT(*) AS count FROM leave_requests
-                WHERE status = 'pending'
-            `, [], { rows: [{ count: '0' }] }),
+                WHERE status = 'pending' AND tenant_id = $1
+            `, [tenantId], { rows: [{ count: '0' }] }),
             // 6. Pending timesheets (handle both user_id and employee_id schemas)
             safeQuery(`
                 SELECT COUNT(*) AS count FROM timesheets
-                WHERE status = 'submitted'
-            `, [], { rows: [{ count: '0' }] }),
+                WHERE status = 'submitted' AND tenant_id = $1
+            `, [tenantId], { rows: [{ count: '0' }] }),
             // 7. Today's attendance — handle both check_in and check_in_time column names
             safeQuery(`
                 SELECT COUNT(DISTINCT COALESCE(user_id::text, employee_id)) AS count FROM attendance
-                WHERE COALESCE(check_in, check_in_time)::date = CURRENT_DATE
-            `, [], { rows: [{ count: '0' }] }),
+                WHERE COALESCE(check_in, check_in_time)::date = CURRENT_DATE AND tenant_id = $1
+            `, [tenantId], { rows: [{ count: '0' }] }),
             // 8. On leave today
             safeQuery(`
                 SELECT COUNT(*) AS count FROM leave_requests
-                WHERE status = 'approved'
+                WHERE status = 'approved' AND tenant_id = $1
                 AND CURRENT_DATE BETWEEN start_date AND end_date
-            `, [], { rows: [{ count: '0' }] }),
+            `, [tenantId], { rows: [{ count: '0' }] }),
             // 9. Gender distribution
             safeQuery(`
                 SELECT
                     COUNT(*) FILTER (WHERE LOWER(gender) = 'male') AS male,
                     COUNT(*) FILTER (WHERE LOWER(gender) = 'female') AS female,
                     COUNT(*) FILTER (WHERE LOWER(gender) NOT IN ('male', 'female') OR gender IS NULL) AS other
-                FROM employees WHERE status = 'active'
-            `, [], { rows: [{ male: '0', female: '0', other: '0' }] }),
+                FROM employees WHERE status = 'active' AND tenant_id = $1
+            `, [tenantId], { rows: [{ male: '0', female: '0', other: '0' }] }),
             // 10. Department distribution
             safeQuery(`
                 SELECT
                     COALESCE(department, 'Unassigned') AS name,
                     COUNT(*) AS count
                 FROM employees
-                WHERE status = 'active' AND deleted_at IS NULL
+                WHERE status = 'active' AND deleted_at IS NULL AND tenant_id = $1
                 GROUP BY department
                 ORDER BY count DESC
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 11. Employment type breakdown
             safeQuery(`
                 SELECT
                     COALESCE(employment_type, 'full_time') AS type,
                     COUNT(*) AS count
                 FROM employees
-                WHERE status = 'active'
+                WHERE status = 'active' AND tenant_id = $1
                 GROUP BY employment_type
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 12. Monthly hiring trend (last 6 months)
             safeQuery(`
                 WITH months AS (
@@ -165,34 +191,37 @@ export class AnalyticsService {
                 )
                 SELECT
                     TO_CHAR(m.month, 'Mon YYYY') AS month,
-                    COALESCE(COUNT(e.id) FILTER (WHERE e.join_date >= m.month AND e.join_date < m.month + INTERVAL '1 month'), 0) AS hires,
-                    COALESCE(COUNT(e.id) FILTER (WHERE e.exit_date >= m.month AND e.exit_date < m.month + INTERVAL '1 month'), 0) AS exits
+                    COALESCE(COUNT(e.id) FILTER (WHERE e.join_date >= m.month AND e.join_date < m.month + INTERVAL '1 month' AND e.tenant_id = $1), 0) AS hires,
+                    COALESCE(COUNT(e.id) FILTER (WHERE e.exit_date >= m.month AND e.exit_date < m.month + INTERVAL '1 month' AND e.tenant_id = $1), 0) AS exits
                 FROM months m
                 LEFT JOIN employees e ON (
                     (e.join_date >= m.month AND e.join_date < m.month + INTERVAL '1 month')
                     OR (e.exit_date >= m.month AND e.exit_date < m.month + INTERVAL '1 month')
-                )
+                ) AND e.tenant_id = $1
                 GROUP BY m.month
                 ORDER BY m.month
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 13. Payroll trend (last 6 months)
             safeQuery(`
                 SELECT
                     TO_CHAR(DATE_TRUNC('month', paid_at), 'Mon YYYY') AS month,
                     COALESCE(SUM(net_salary), 0) AS amount
                 FROM payroll_history
-                WHERE paid_at >= CURRENT_DATE - INTERVAL '6 months'
+                WHERE paid_at >= CURRENT_DATE - INTERVAL '6 months' AND tenant_id = $1
                 GROUP BY DATE_TRUNC('month', paid_at)
                 ORDER BY DATE_TRUNC('month', paid_at)
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 14. Recent activity (audit log last 10)
             safeQuery(`
-                SELECT al.*, u.name AS user_name
+                SELECT 
+                    al.id, al.user_id, al.action, al.entity_type, al.entity_id, al.created_at,
+                    u.name AS user_name
                 FROM audit_logs al
                 LEFT JOIN users u ON u.id = al.user_id
+                WHERE al.tenant_id = $1
                 ORDER BY al.created_at DESC
                 LIMIT 10
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 15. Upcoming holidays
             safeQuery(`
                 SELECT name, date, type FROM holidays
@@ -207,21 +236,21 @@ export class AnalyticsService {
                         COALESCE(check_in, check_in_time)::date as d,
                         COUNT(DISTINCT COALESCE(user_id::text, employee_id)) as present
                     FROM attendance
-                    WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days'
+                    WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days' AND tenant_id = $1
                     GROUP BY 1
                 )
                 SELECT 
                     COALESCE(AVG(present), 0) as avg_present,
-                    (SELECT COUNT(DISTINCT COALESCE(check_in, check_in_time)::date) FROM attendance WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days') as working_days
+                    (SELECT COUNT(DISTINCT COALESCE(check_in, check_in_time)::date) FROM attendance WHERE COALESCE(check_in, check_in_time) >= CURRENT_DATE - INTERVAL '30 days' AND tenant_id = $1) as working_days
                 FROM daily_counts
-            `, [], { rows: [{ avg_present: '0', working_days: '1' }] }),
+            `, [tenantId], { rows: [{ avg_present: '0', working_days: '1' }] }),
             // 17. Previous month headcount (for growth %)
             safeQuery(`
                 SELECT COUNT(*) AS count FROM employees
                 WHERE join_date < DATE_TRUNC('month', CURRENT_DATE)
                 AND (exit_date IS NULL OR exit_date >= DATE_TRUNC('month', CURRENT_DATE))
-                AND deleted_at IS NULL
-            `, [], { rows: [{ count: '1' }] }),
+                AND deleted_at IS NULL AND tenant_id = $1
+            `, [tenantId], { rows: [{ count: '1' }] }),
             // 18. Today's attendance log
             safeQuery(`
                 SELECT 
@@ -231,9 +260,9 @@ export class AnalyticsService {
                 FROM employees e
                 LEFT JOIN users u ON u.email = e.email
                 LEFT JOIN attendance a ON (a.user_id = u.id OR a.employee_id = e.id) AND COALESCE(a.check_in, a.check_in_time)::date = CURRENT_DATE
-                WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL
+                WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL AND e.tenant_id = $1
                 ORDER BY a.check_in DESC NULLS LAST, e.name
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 19. Salary distribution
             safeQuery(`
                 SELECT 
@@ -242,9 +271,9 @@ export class AnalyticsService {
                     COALESCE(SUM(pp.annual_ctc), 0) as total_ctc
                 FROM employees e
                 LEFT JOIN payroll_profiles pp ON pp.employee_id = e.id
-                WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL
+                WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL AND e.tenant_id = $1
                 GROUP BY e.position
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 20. Org metrics
             safeQuery(`
                 SELECT 
@@ -369,7 +398,9 @@ export class AnalyticsService {
             `, [userId]),
             // Pending leaves for team
             pool.query(`
-                SELECT lr.*, u.name AS applicant_name, lt.name AS leave_type
+                SELECT 
+                    lr.id, lr.employee_id, lr.type, lr.start_date, lr.end_date, lr.reason, lr.status, lr.created_at,
+                    u.name AS applicant_name, lt.name AS leave_type
                 FROM leave_requests lr
                 JOIN users u ON u.id = lr.user_id
                 JOIN leave_types lt ON lt.id = lr.leave_type_id
@@ -509,7 +540,8 @@ export class AnalyticsService {
             `, [], { rows: [] }),
             // Recent payslip — don't join payroll_runs to avoid run_id mismatch
             safeQuery(`
-                SELECT ph.*
+                SELECT 
+                    ph.id, ph.employee_id, ph.month, ph.year, ph.gross_salary, ph.deductions, ph.net_salary, ph.paid_at
                 FROM payroll_history ph
                 WHERE ph.employee_id = (
                     SELECT e.id FROM employees e JOIN users u ON u.email = e.email WHERE u.id = $1 LIMIT 1
@@ -578,7 +610,7 @@ export class AnalyticsService {
     /**
      * Get employees under a specific manager (team visibility)
      */
-    static async getTeamEmployees(managerId: number, tenantId: string = T) {
+    static async getTeamEmployees(managerId: number) {
         const result = await pool.query(`
             SELECT
                 e.id, e.name, e.department, e.position, e.status,
@@ -612,7 +644,12 @@ export class AnalyticsService {
             leaveBalances,
         ] = await Promise.all([
             pool.query(`
-                SELECT e.*,
+                SELECT 
+                    e.id, e.name, e.department, e.position, e.join_date, e.email, e.status, 
+                    e.gender, e.phone, e.personal_email, e.date_of_birth, e.address_line1, 
+                    e.city, e.state, e.pincode, e.highest_degree, e.field_of_study, 
+                    e.institution, e.graduation_year, e.bank_account_number, e.annual_ctc, 
+                    e.employment_type, e.created_at, e.updated_at,
                     d.name AS department_name, d.code AS department_code,
                     mgr.name AS manager_name, mgr.email AS manager_email
                 FROM employees e
@@ -627,12 +664,12 @@ export class AnalyticsService {
             pool.query('SELECT * FROM performance_reviews WHERE employee_id = $1 ORDER BY created_at DESC LIMIT 5', [employeeId]),
             pool.query(`
                 SELECT
-                    COUNT(DISTINCT date) AS present_days,
-                    COALESCE(AVG(EXTRACT(EPOCH FROM (check_out_time - check_in_time)) / 3600) FILTER (WHERE check_out_time IS NOT NULL), 0) AS avg_hours,
-                    COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM check_in_time) >= 10) AS late_arrivals
+                    COUNT(DISTINCT COALESCE(check_in, check_in_time)::date) AS present_days,
+                    COALESCE(AVG(EXTRACT(EPOCH FROM (COALESCE(check_out, check_out_time, NOW()) - COALESCE(check_in, check_in_time))) / 3600) FILTER (WHERE COALESCE(check_out, check_out_time) IS NOT NULL), 0) AS avg_hours,
+                    COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM COALESCE(check_in, check_in_time)) >= 10) AS late_arrivals
                 FROM attendance
                 WHERE employee_id = $1
-                AND check_in_time >= DATE_TRUNC('month', CURRENT_DATE)
+                AND COALESCE(check_in, check_in_time) >= DATE_TRUNC('month', CURRENT_DATE)
             `, [employeeId]),
             pool.query(`
                 SELECT

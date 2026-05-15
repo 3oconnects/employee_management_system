@@ -50,18 +50,17 @@ const Settings: React.FC = () => {
     };
 
     const loadAll = useCallback(async () => {
-        // We don't set global loading to true here because we want the Overview to be instant.
         try {
-            const [rolesRes, permsRes, usersRes, configRes] = await Promise.all([
+            const [rolesRes, permsRes, usersRes, configRes] = await Promise.allSettled([
                 api.get('/settings/roles'),
                 api.get('/settings/permissions'),
                 api.get('/settings/users'),
                 api.get('/settings/config'),
             ]);
-            setRoles(rolesRes.data.data || []);
-            setPermissions(permsRes.data.data || {});
-            setUsers(usersRes.data.data || []);
-            setConfig(configRes.data.data || {});
+            if (rolesRes.status === 'fulfilled')  setRoles(rolesRes.value.data.data || []);
+            if (permsRes.status === 'fulfilled')  setPermissions(permsRes.value.data.data || {});
+            if (usersRes.status === 'fulfilled')  setUsers(usersRes.value.data.data || []);
+            if (configRes.status === 'fulfilled') setConfig(configRes.value.data.data || {});
         } catch {
             notify('Failed to sync settings', false);
         } finally {

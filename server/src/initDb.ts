@@ -150,6 +150,7 @@ const schema = `
     description TEXT,
     manager_id INTEGER,
     metadata JSONB DEFAULT '{}',
+    tenant_id TEXT DEFAULT 'tenant_default',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -161,8 +162,9 @@ const schema = `
     manager_id INTEGER,
     description TEXT,
     metadata JSONB DEFAULT '{}',
+    tenant_id TEXT DEFAULT 'tenant_default',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(name, department_id)
+    UNIQUE(name, department_id, tenant_id)
   );
 
   CREATE TABLE IF NOT EXISTS reimbursement_claims (
@@ -269,7 +271,9 @@ export const initDb = async () => {
 
     // Organization Metadata
     await pool.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';`).catch(() => {});
+    await pool.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
     await pool.query(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';`).catch(() => {});
+    await pool.query(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
     await pool.query(`ALTER TABLE teams ADD COLUMN IF NOT EXISTS parent_team_id INTEGER REFERENCES teams(id);`).catch(() => {});
 
     // Core Identity & Multi-tenancy
@@ -377,21 +381,13 @@ export const initDb = async () => {
       );
     `).catch(() => {});
 
-    // Create notifications if missing
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id),
-        tenant_id TEXT DEFAULT 'tenant_default',
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        is_read BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `).catch(() => {});
-
-    // Ensure tenant_id exists in notifications (migration)
-    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => {});
+    // NOTE: notifications table is created by db/schema.ts (NEW_TABLES_SCHEMA).
+    // That is the single canonical definition. It includes all required columns:
+    // id, tenant_id, user_id, title, message, type, is_read, link, created_at.
+    // Additive guard only — ensures type and link columns exist if schema.ts ran
+    // first without them (e.g. legacy DB from an older initDb.ts run).
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'info';`).catch(() => {});
+    await pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link TEXT;`).catch(() => {});
 
     // Create holidays if missing
     await pool.query(`
@@ -600,6 +596,12 @@ export const initDb = async () => {
     console.log('✅ Admin credentials and analytics seed data synced.');
   } catch (err) {
     console.error('❌ Error initializing database schema:', err);
+    process.exit(1);
   }
 };
 
+// Execute the initialization
+initDb().then(() => {
+  console.log('🏁 Database setup complete.');
+  process.exit(0);
+});

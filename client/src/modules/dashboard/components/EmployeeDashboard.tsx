@@ -72,7 +72,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
                         <div className={`w-9 h-9 ${card.iconBg} rounded-xl flex items-center justify-center mb-4`}>
                             <card.icon size={17} className={card.iconColor} />
                         </div>
-                        <p className="text-[26px] font-black text-slate-800 leading-none tabular-nums">{card.value}</p>
+                        <p className="text-[26px] font-black text-slate-800 leading-none tabular-nums truncate" title={String(card.value)}>{card.value}</p>
                         <p className="text-[11px] font-semibold text-slate-500 mt-1.5 uppercase tracking-wide">{card.label}</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">{card.sub}</p>
                     </div>

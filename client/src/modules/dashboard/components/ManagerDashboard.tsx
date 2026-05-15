@@ -52,9 +52,9 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ data: d, nav
                                 </span>
                             )}
                         </div>
-                        <p className="text-[26px] font-black text-slate-800 leading-none tabular-nums">{card.value}</p>
+                        <p className="text-[26px] font-black text-slate-800 leading-none tabular-nums truncate" title={String(card.value)}>{card.value}</p>
                         <p className="text-[11px] font-semibold text-slate-500 mt-1.5 uppercase tracking-wide">{card.label}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{card.sub}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5 truncate" title={card.sub}>{card.sub}</p>
                     </div>
                 ))}
             </div>

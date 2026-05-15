@@ -19,9 +19,9 @@ const MainLayout: React.FC = () => {
     return (
         <div className="grid grid-cols-[auto_1fr] h-screen bg-[#F4F5F8] overflow-hidden">
             <Sidebar />
-            <div className="flex flex-col min-w-0 overflow-hidden relative shadow-[-8px_0_32px_rgba(0,0,0,0.02)]">
+            <div className="flex flex-col min-w-0 overflow-hidden relative">
                 <Topbar />
-                <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F8FAFC]">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ background: '#F6F7FB' }}>
                     <div className="min-h-full">
                         <Suspense fallback={<PageSkeleton />}>
                             <Outlet />

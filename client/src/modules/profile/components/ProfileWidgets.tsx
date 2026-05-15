@@ -25,7 +25,7 @@ export const Section: React.FC<{title:string; icon?:React.ElementType; action?:R
 
 export const StatBox: React.FC<{label:string; value:string|number; color:string}> = ({label,value,color}) => (
     <div className={`text-center py-4 rounded-xl border border-slate-100 ${color.includes('bg-') ? color.split(' ').find(c=>c.startsWith('bg-')) : 'bg-slate-50'}`}>
-        <p className={`text-xl font-black ${color.split(' ').find(c=>c.startsWith('text-')) || 'text-slate-800'}`}>{value}</p>
+        <p className={`text-xl font-black truncate px-2 ${color.split(' ').find(c=>c.startsWith('text-')) || 'text-slate-800'}`} title={String(value)}>{value}</p>
         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-1">{label}</p>
     </div>
 );

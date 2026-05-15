@@ -25,6 +25,6 @@ export const ReportStatCard: React.FC<ReportStatCardProps> = ({
             </div>
         </div>
         <p className="text-[12px] font-semibold text-slate-500 mb-1">{label}</p>
-        <p className="text-2xl font-black text-slate-800 tracking-tight">{value}</p>
+        <p className="text-2xl font-black text-slate-800 tracking-tight truncate" title={value}>{value}</p>
     </div>
 );

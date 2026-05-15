@@ -24,7 +24,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, trend, isUp, icon: Ic
             )}
         </div>
         <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</div>
-        <div className="text-2xl font-black text-slate-900 tracking-tight">{value}</div>
+        <div className="text-2xl font-black text-slate-900 tracking-tight truncate" title={value}>{value}</div>
     </div>
 );
 

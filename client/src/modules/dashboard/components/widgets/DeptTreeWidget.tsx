@@ -179,7 +179,7 @@ const DeptTreeWidget: React.FC = () => {
                     api.get('/reports/departments'),
                     api.get('/employees', { params: { limit: 500 } }),
                 ]);
-                const departments = dRes.data || [];
+                const departments = dRes.data?.items || dRes.data || [];
                 const employees: any[] = eRes.data?.items || eRes.data || [];
 
                 const enriched: DeptData[] = departments.map((d: any) => {

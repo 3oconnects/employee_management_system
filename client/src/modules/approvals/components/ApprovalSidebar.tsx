@@ -31,13 +31,13 @@ const ApprovalSidebar: React.FC<ApprovalSidebarProps> = ({
                 <div className="bg-white border border-slate-100 rounded-2xl p-1.5 shadow-sm space-y-1">
                     {[
                         { id: 'all', label: 'All Requests', icon: Inbox, color: 'text-slate-400' },
-                        { id: 'department_creation', label: 'Division Blueprint', icon: Building2, color: 'text-indigo-600' },
-                        { id: 'team_creation', label: 'Squad Blueprint', icon: Layers, color: 'text-indigo-400' },
-                        { id: 'role_change', label: 'Role Changes', icon: Shield, color: 'text-indigo-500' },
-                        { id: 'leave', label: 'Leaves', icon: Calendar, color: 'text-amber-500' },
-                        { id: 'team_change', label: 'Team Changes', icon: Users, color: 'text-sky-500' },
-                        { id: 'promotion', label: 'Promotions', icon: Briefcase, color: 'text-emerald-500' },
-                        { id: 'attendance', label: 'Attendance', icon: Clock, color: 'text-violet-500' },
+                        { id: 'department_creation', label: 'Department Requests', icon: Building2, color: 'text-indigo-600' },
+                        { id: 'team_creation', label: 'Team Requests', icon: Layers, color: 'text-indigo-400' },
+                        { id: 'role_change', label: 'Role Request', icon: Shield, color: 'text-indigo-500' },
+                        { id: 'leave', label: 'Leave Request', icon: Calendar, color: 'text-amber-500' },
+                        { id: 'team_change', label: 'Team Request', icon: Users, color: 'text-sky-500' },
+                        { id: 'promotion', label: 'Promotion Request', icon: Briefcase, color: 'text-emerald-500' },
+                        { id: 'attendance', label: 'Attendance Request', icon: Clock, color: 'text-violet-500' },
                     ].map(t => (
                         <button 
                             key={t.id}

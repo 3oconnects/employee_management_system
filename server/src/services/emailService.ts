@@ -13,6 +13,7 @@ export interface EmailOptions {
     to: string;
     subject: string;
     html: string;
+    tenantId?: string;
 }
 
 interface SmtpConfig {
@@ -26,12 +27,14 @@ interface SmtpConfig {
 
 // ─── LOAD SMTP CONFIG ────────────────────────────────────────────────────────
 
-const getSmtpConfig = async (): Promise<SmtpConfig | null> => {
+const getSmtpConfig = async (tenantId?: string): Promise<SmtpConfig | null> => {
     // Try DB first
     try {
-        const res = await pool.query(
-            `SELECT key, value FROM app_config WHERE category = 'email' AND tenant_id = 'tenant_default'`
-        );
+        if (tenantId) {
+            const res = await pool.query(
+                `SELECT key, value FROM app_config WHERE category = 'email' AND tenant_id = $1`,
+                [tenantId]
+            );
         if (res.rows.length > 0) {
             const cfg: Record<string, string> = {};
             for (const row of res.rows) cfg[row.key] = row.value;
@@ -45,8 +48,9 @@ const getSmtpConfig = async (): Promise<SmtpConfig | null> => {
                     secure: cfg['smtp_secure'] === 'true',
                 };
             }
+            }
         }
-    } catch { /* app_config table may not exist yet — fall through */ }
+    } catch (err) { /* app_config table may not exist yet — fall through */ }
 
     // Fall back to env
     if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -65,7 +69,7 @@ const getSmtpConfig = async (): Promise<SmtpConfig | null> => {
 // ─── SEND EMAIL ──────────────────────────────────────────────────────────────
 
 export const sendEmail = async (opts: EmailOptions): Promise<boolean> => {
-    const smtpConfig = await getSmtpConfig();
+    const smtpConfig = await getSmtpConfig(opts.tenantId);
     if (!smtpConfig) {
         console.warn('[EmailService] No SMTP config found. Email not sent to:', opts.to);
         return false;

@@ -10,17 +10,23 @@ dotenv.config();
 
 const { Pool } = pg;
 
+const dbUrl = process.env.DATABASE_URL || '';
+const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
+
 export const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    connectionString: dbUrl,
+    ssl: isLocal ? false : { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 30000,
 });
 
+const directUrl = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
+const isDirectLocal = directUrl.includes('localhost') || directUrl.includes('127.0.0.1');
+
 export const directPool = new Pool({
-    connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    connectionString: directUrl,
+    ssl: isDirectLocal ? false : { rejectUnauthorized: false },
     max: 3,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 30000,

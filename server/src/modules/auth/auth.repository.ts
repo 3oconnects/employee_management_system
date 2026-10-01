@@ -4,12 +4,15 @@ export class AuthRepository {
     async findUserByEmail(email: string) {
         const result = await pool.query(
             `SELECT u.*, e.id as employee_id, e.department_id,
+                    COALESCE(u.role_id, r.id, 4) as role_id,
                     r.id as role_record_id, r.name as role_name, r.dashboard_type
              FROM users u
-             LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
-             LEFT JOIN roles r ON u.role_id = r.id
-             WHERE LOWER(u.email) = LOWER($1) AND u.is_active = true AND u.deleted_at IS NULL`,
-            [email]
+             LEFT JOIN employees e ON LOWER(u.email) = LOWER(e.email) AND u.tenant_id = e.tenant_id
+             LEFT JOIN roles r ON COALESCE(u.role_id, 4) = r.id
+             WHERE (LOWER(u.email) = LOWER($1) OR (e.personal_email IS NOT NULL AND LOWER(e.personal_email) = LOWER($1)))
+               AND u.is_active = true AND u.deleted_at IS NULL
+             LIMIT 1`,
+            [email.trim()]
         );
         const row = result.rows[0];
         if (!row) return row;
@@ -26,9 +29,9 @@ export class AuthRepository {
 
     async findUserById(id: number) {
         const result = await pool.query(
-            `SELECT u.*, r.id as role_record_id, r.name as role_name, r.dashboard_type 
+            `SELECT u.*, COALESCE(u.role_id, 4) as role_id, r.id as role_record_id, r.name as role_name, r.dashboard_type 
              FROM users u 
-             LEFT JOIN roles r ON u.role_id = r.id 
+             LEFT JOIN roles r ON COALESCE(u.role_id, 4) = r.id 
              WHERE u.id = $1 AND u.is_active = true AND u.deleted_at IS NULL`,
             [id]
         );
@@ -44,6 +47,7 @@ export class AuthRepository {
     async findUserProfile(id: number) {
         const result = await pool.query(
             `SELECT u.id, u.name, u.email, u.role, u.phone, u.address, u.emergency,
+                    COALESCE(u.avatar_url, e.avatar_url) as avatar_url,
                     u.tenant_id, u.created_at, u.preferences, u.availability_status, 
                     e.id as employee_id, r.dashboard_type
              FROM users u
@@ -81,11 +85,16 @@ export class AuthRepository {
                  address = COALESCE($3, address),
                  emergency = COALESCE($4, emergency),
                  preferences = COALESCE($5, preferences),
+                 avatar_url = COALESCE($6, avatar_url),
                  updated_at = NOW()
-             WHERE id = $6
-             RETURNING id, name, email, role, phone, address, emergency, preferences`,
-            [data.name, data.phone || null, data.address || null, data.emergency || null, data.preferences || null, id]
+             WHERE id = $7
+             RETURNING id, name, email, role, phone, address, emergency, preferences, avatar_url`,
+            [data.name, data.phone || null, data.address || null, data.emergency || null, data.preferences || null, data.avatar_url || data.avatarUrl || null, id]
         );
+        if (data.avatar_url || data.avatarUrl) {
+            const av = data.avatar_url || data.avatarUrl;
+            await pool.query('UPDATE employees SET avatar_url = $1 WHERE user_id = $2 OR LOWER(email) = (SELECT LOWER(email) FROM users WHERE id = $2)', [av, id]);
+        }
         return result.rows[0];
     }
 
@@ -107,5 +116,62 @@ export class AuthRepository {
     async getPassword(id: number) {
         const user = await pool.query('SELECT password FROM users WHERE id = $1', [id]);
         return user.rows[0]?.password;
+    }
+
+    async findUserWithEmployee(email: string) {
+        const res = await pool.query(
+            `SELECT u.id, u.name, u.email, u.tenant_id, e.id as employee_id, 
+                    COALESCE(e.department, d.name, 'General') as department
+             FROM users u
+             LEFT JOIN employees e ON LOWER(u.email) = LOWER(e.email) AND u.tenant_id = e.tenant_id
+             LEFT JOIN departments d ON e.department_id = d.id
+             WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL
+             LIMIT 1`,
+            [email]
+        );
+        return res.rows[0] || null;
+    }
+
+    async createPasswordResetApproval(data: { id: string; employeeId: string; metadata: any; tenantId: string }) {
+        await pool.query(
+            `INSERT INTO approvals (id, employee_id, type, status, metadata, requested_by, tenant_id)
+             VALUES ($1, $2, 'password_reset', 'pending', $3, $4, $5)`,
+            [data.id, data.employeeId, JSON.stringify(data.metadata), data.metadata.email, data.tenantId]
+        );
+    }
+
+    async getLatestPasswordResetApproval(email: string) {
+        const res = await pool.query(
+            `SELECT id, status, metadata, created_at 
+             FROM approvals 
+             WHERE type = 'password_reset' AND LOWER(metadata->>'email') = LOWER($1)
+             ORDER BY created_at DESC 
+             LIMIT 1`,
+            [email]
+        );
+        return res.rows[0] || null;
+    }
+
+    async completePasswordReset(email: string, hashedPassword: string, approvalId: string) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query(
+                `UPDATE users 
+                 SET password = $1, temp_password = NULL, is_password_temp = false, updated_at = NOW() 
+                 WHERE LOWER(email) = LOWER($2)`,
+                [hashedPassword, email]
+            );
+            await client.query(
+                `UPDATE approvals SET status = 'completed' WHERE id = $1`,
+                [approvalId]
+            );
+            await client.query('COMMIT');
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
     }
 }

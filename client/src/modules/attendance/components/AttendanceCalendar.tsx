@@ -47,9 +47,9 @@ export const AttendanceCalendar: React.FC<Props> = ({
     calDays.forEach(d => { counts[d.status] = (counts[d.status] || 0) + 1; });
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col justify-between">
             {/* ── Header ── */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center">
                         <Calendar size={14} className="text-white"/>
@@ -70,7 +70,7 @@ export const AttendanceCalendar: React.FC<Props> = ({
             </div>
 
             {/* ── Mini summary strip ── */}
-            <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+            <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100 flex-shrink-0">
                 {[
                     { label: 'Present',  val: counts['present']  || 0, cls: 'text-indigo-600' },
                     { label: 'Half Day', val: counts['half_day'] || 0, cls: 'text-amber-500'  },
@@ -85,7 +85,7 @@ export const AttendanceCalendar: React.FC<Props> = ({
             </div>
 
             {/* ── Calendar grid ── */}
-            <div className="p-4">
+            <div className="p-4 flex-1 flex flex-col justify-between">
                 {/* Day headers */}
                 <div className="grid grid-cols-7 mb-1.5">
                     {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
@@ -118,7 +118,7 @@ export const AttendanceCalendar: React.FC<Props> = ({
                 </div>
 
                 {/* Legend */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-x-4 gap-y-1.5">
+                <div className="mt-auto pt-3 border-t border-slate-100 flex flex-wrap gap-x-4 gap-y-1.5">
                     {LEGEND.map(l => (
                         <span key={l.key} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-wide">
                             <span className={`w-2 h-2 rounded-full ${l.dot} border border-white shadow-sm`}/>

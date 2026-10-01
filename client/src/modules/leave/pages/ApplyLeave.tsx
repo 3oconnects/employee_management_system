@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarDays, ClipboardList, Plus, X } from 'lucide-react';
+import { CalendarDays, Plus, X } from 'lucide-react';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import { LeaveBalances } from '../components/LeaveBalances';
@@ -122,7 +122,7 @@ const ApplyLeave: React.FC = () => {
     };
 
     return (
-        <div className="p-6 space-y-8 page-enter max-w-[1600px] mx-auto">
+        <div className="p-6 space-y-5 page-enter max-w-[1600px] mx-auto">
 
             {/* ── Page Header ──────────────────────────────── */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -149,14 +149,13 @@ const ApplyLeave: React.FC = () => {
             {/* ── Quota Balances ───────────────────────────── */}
             <LeaveBalances balances={balances} />
 
-            {/* ── Default View: Audit History ──────────────── */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2.5 px-1">
-                    <ClipboardList size={16} className="text-indigo-600" />
-                    <h3 className="text-[12px] font-black text-[#0F172A] uppercase tracking-[0.15em]">Leave History</h3>
-                </div>
-                <LeaveRequests requests={requests} onEdit={handleEdit} onCancel={handleCancel} />
-            </div>
+            {/* ── Leave Transaction History & Cards ──────────── */}
+            <LeaveRequests 
+                requests={requests} 
+                onEdit={handleEdit} 
+                onCancel={handleCancel} 
+                onRequestNew={handleOpenModal}
+            />
 
             {/* ── Request Modal (via Portal) ────────────────── */}
             {isModalOpen && createPortal(

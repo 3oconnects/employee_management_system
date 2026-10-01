@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, ChevronRight, LayoutGrid, ShieldCheck, Search, Plus } from 'lucide-react';
+import { Layers, ChevronRight, LayoutGrid, ShieldCheck, Search, Plus, List as ListIcon } from 'lucide-react';
 
 interface OrganizationHeaderProps {
     activeView: 'list' | 'grid' | 'graph';
@@ -33,16 +33,16 @@ const OrganizationHeader: React.FC<OrganizationHeaderProps> = ({
             <div className="flex items-center gap-3">
                 <div className="flex p-1 bg-slate-100 rounded-xl mr-2">
                     <button 
-                        onClick={() => setActiveView('list')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                    >
-                        <LayoutGrid size={12} className="rotate-90" /> List
-                    </button>
-                    <button 
                         onClick={() => setActiveView('grid')}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                     >
                         <LayoutGrid size={12} /> Grid
+                    </button>
+                    <button 
+                        onClick={() => setActiveView('list')}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                        <ListIcon size={12} /> List
                     </button>
                     <button 
                         onClick={() => setActiveView('graph')}

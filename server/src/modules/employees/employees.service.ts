@@ -1,9 +1,22 @@
 import { EmployeesRepository } from './employees.repository';
+import { 
+    extractEmployeeProfileUpdates, 
+    extractEmployeeUserUpdates, 
+    extractEmployeePayrollUpdates 
+} from './employees.submodels';
 import { PasswordService } from '../../core/security/password.service';
-import { sendEmail, buildWelcomeEmail } from '../../services/emailService';
+import { 
+    sendEmail, 
+    buildWelcomeEmail, 
+    sendCandidateWelcomeAndOffer,
+    sendEmployeeActionNotification,
+    EmployeeActionChange
+} from '../../services/emailService';
 import { NotificationService } from '../../services/notificationService';
 import { withTransaction } from '../../database/transaction';
 import { AppError } from '../../core/errors/AppError';
+import { pool } from '../../config/db';
+import { AnalyticsService } from '../../services/analyticsService';
 
 // ─── BULK UPLOAD CONSTANTS ───────────────────────────────────────────────────
 //
@@ -27,8 +40,53 @@ export class EmployeesService {
 
     async createEmployee(tenantId: string, data: any) {
         return withTransaction(async (client) => {
-            const count = await this.repo.countTotalEmployees(client);
-            const newId = `EMP${(count + 1).toString().padStart(3, '0')}`;
+            if (data.email) {
+                const existingEmp = await client.query(
+                    'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1)',
+                    [data.email.trim()]
+                );
+                if (existingEmp.rows.length > 0) {
+                    throw AppError.conflict(`An employee with email '${data.email}' already exists (${existingEmp.rows[0].id} - ${existingEmp.rows[0].name}).`);
+                }
+
+                const existingUser = await client.query(
+                    'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1)',
+                    [data.email.trim()]
+                );
+                if (existingUser.rows.length > 0) {
+                    throw AppError.conflict(`A login account with email '${data.email}' already exists.`);
+                }
+            }
+
+            if (data.personalEmail && data.personalEmail.trim()) {
+                const cleanPersonal = data.personalEmail.trim().toLowerCase();
+                const existingPersonal = await client.query(
+                    'SELECT id, name, email FROM employees WHERE LOWER(email) = $1 OR LOWER(COALESCE(personal_email, \'\')) = $1 LIMIT 1',
+                    [cleanPersonal]
+                );
+                if (existingPersonal.rows.length > 0) {
+                    throw AppError.conflict(`Personal email '${data.personalEmail}' is already registered to employee ${existingPersonal.rows[0].id} (${existingPersonal.rows[0].name}).`);
+                }
+
+                const existingPersonalUser = await client.query(
+                    'SELECT id, name, email FROM users WHERE LOWER(email) = $1 LIMIT 1',
+                    [cleanPersonal]
+                );
+                if (existingPersonalUser.rows.length > 0) {
+                    throw AppError.conflict(`Personal email '${data.personalEmail}' is already registered to user account (${existingPersonalUser.rows[0].name}).`);
+                }
+            }
+
+            // Derive next collision-resistant employee ID
+            const lastEmp = await client.query(
+                "SELECT id FROM employees WHERE id ~ '^EMP[0-9]+$' ORDER BY CAST(SUBSTRING(id FROM 4) AS INTEGER) DESC LIMIT 1"
+            );
+            let nextNum = 1;
+            if (lastEmp.rows.length > 0) {
+                const lastNum = parseInt(lastEmp.rows[0].id.replace('EMP', ''), 10);
+                if (!isNaN(lastNum)) nextNum = lastNum + 1;
+            }
+            const newId = `EMP${nextNum.toString().padStart(3, '0')}`;
             
             const empStatus = data.status || 'onboarding';
             const finalPosition = data.position || (data.department ? `${data.department} Staff` : 'Member');
@@ -55,14 +113,36 @@ export class EmployeesService {
                 const tempPassword = Math.random().toString(36).slice(-10).toUpperCase();
                 const hashedPassword = await PasswordService.hash(tempPassword);
                 
-                await this.repo.createUserAccount(client, data.name, data.email, hashedPassword, 'employee', tenantId);
+                // Submodel: Role & User account creation
+                const roleInfo = await this.repo.ensureRoleExists(client, data.role || 'employee', tenantId);
+                await this.repo.createUserAccount(client, data.name, data.email, hashedPassword, roleInfo.name, tenantId, true, roleInfo.id);
 
-                const loginUrl = process.env.APP_URL || 'http://localhost:5173';
-                await sendEmail({
-                    to: data.email,
-                    subject: '🎉 Welcome to the Team — Your Account is Ready',
-                    html: buildWelcomeEmail({ name: data.name, email: data.email, tempPassword, role: 'employee', loginUrl }),
-                    tenantId
+                const loginUrl = `${process.env.APP_URL || 'http://localhost:5173'}/login`;
+                
+                // Instantly dispatch the official Offer Letter (PDF + HTML)
+                // along with welcome message and one-time password to the candidate
+                await sendCandidateWelcomeAndOffer({
+                    employeeId: newId,
+                    name: data.name,
+                    email: data.email,
+                    personalEmail: data.personalEmail,
+                    position: finalPosition,
+                    department: data.department,
+                    joinDate: data.joinDate,
+                    phone: data.phone,
+                    address: data.addressLine1,
+                    city: data.city,
+                    state: data.state,
+                    employmentType: data.employmentType,
+                    annualCTC: data.annualCTC,
+                    internshipStipend: data.internshipStipend,
+                    reportingManager: data.reportingManagerName || data.reportingManagerId,
+                    tempPassword,
+                    loginUrl,
+                    issueDate: new Date().toISOString(),
+                    expiryDays: 7, // 7 days validity window
+                }, tenantId).catch(err => {
+                    console.error('[EmployeeService] Failed to send welcome & offer letter email:', err);
                 });
             }
 
@@ -88,60 +168,140 @@ export class EmployeesService {
             const current = await this.repo.findById(id, tenantId);
             if (!current) throw AppError.notFound('Employee');
 
-            const FIELD_MAP: Record<string,string> = {
-                personalEmail:      'personal_email',
-                dateOfBirth:        'date_of_birth',
-                addressLine1:       'address_line1',
-                joinDate:           'join_date',
-                employmentType:     'employment_type',
-                bloodGroup:         'blood_group',
-                maritalStatus:      'marital_status',
-                educationHistory:   'education_history',
-                experienceHistory:  'experience_history',
-                reportingManagerId: 'reporting_manager_id',
-                annualCTC:          'annual_ctc',
-                taxRegime:          'tax_regime',
-                bankAccountNumber:  'bank_account_number',
-                highestDegree:      'highest_degree',
-                fieldOfStudy:       'field_of_study',
-                institution:        'institution',
-                graduationYear:     'graduation_year',
-                internshipStartDate: 'internship_start_date',
-                internshipEndDate:   'internship_end_date',
-                internshipStipend:   'internship_stipend',
-                internshipSupervisor: 'internship_supervisor',
-                internshipCollege:    'internship_college',
-                department_id:        'department_id',
-                team_id:              'team_id',
-            };
-            const BLOCKED = new Set(['id','created_at','updated_at','tenant_id', 'reportingManagerName']);
-            const mapped: Record<string,any> = {};
-            for (const [k,v] of Object.entries(updates)) {
-                if (BLOCKED.has(k)) continue;
-                mapped[FIELD_MAP[k] || k] = (v === "" ? null : v);
-            }
-            const fields = Object.keys(mapped);
-            if (fields.length > 0) {
-                const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
-                const params = fields.map(f => mapped[f]);
-                await this.repo.update(client, id, tenantId, setClause, [...params, id, tenantId]);
+            // 1. Email check if changing email
+            if (updates.email && updates.email.trim().toLowerCase() !== current.email?.toLowerCase()) {
+                const existing = await client.query(
+                    'SELECT id FROM employees WHERE LOWER(email) = LOWER($1) AND id != $2',
+                    [updates.email.trim(), id]
+                );
+                if (existing.rows.length > 0) {
+                    throw AppError.conflict(`Email '${updates.email}' is already in use by employee ${existing.rows[0].id}.`);
+                }
             }
 
-            if (updates.name || updates.department || updates.position || updates.annualCTC || updates.annual_ctc || updates.department_id || updates.team_id) {
+            // 2. Submodel: Employee Profile (core employees table fields)
+            const profileUpdates = extractEmployeeProfileUpdates(updates);
+            if (Object.keys(profileUpdates).length > 0) {
+                await this.repo.updateEmployeeProfile(client, id, tenantId, profileUpdates);
+            }
+
+            // 3. Submodel: User Account & Roles (users and roles tables)
+            const userSubmodel = extractEmployeeUserUpdates(updates);
+            const targetEmail = (userSubmodel.email || current.email || '').trim();
+
+            if (userSubmodel.avatarUrl !== undefined && targetEmail) {
+                await this.repo.updateUserAvatar(client, targetEmail, userSubmodel.avatarUrl, tenantId);
+            }
+
+            if (userSubmodel.email && userSubmodel.email.toLowerCase() !== current.email?.toLowerCase()) {
+                await this.repo.updateUserEmail(client, userSubmodel.email, current.email, tenantId);
+            }
+
+            if (userSubmodel.role && targetEmail) {
+                const roleInfo = await this.repo.ensureRoleExists(client, userSubmodel.role, tenantId);
+                await this.repo.updateUserRole(client, targetEmail, roleInfo.name, roleInfo.id, tenantId);
+            }
+
+            // 4. Submodel: Payroll & Compensation (payroll_profiles table)
+            const payrollUpdates = extractEmployeePayrollUpdates(updates);
+            if (
+                payrollUpdates.name !== undefined ||
+                payrollUpdates.department !== undefined ||
+                payrollUpdates.position !== undefined ||
+                payrollUpdates.annual_ctc !== undefined ||
+                payrollUpdates.department_id !== undefined ||
+                payrollUpdates.team_id !== undefined
+            ) {
                 await this.repo.updatePayrollProfile(client, id, tenantId, [
-                    updates.name, 
-                    updates.department, 
-                    updates.position, 
-                    updates.annualCTC || updates.annual_ctc, 
-                    updates.department_id,
-                    updates.team_id,
+                    payrollUpdates.name || null,
+                    payrollUpdates.department || null,
+                    payrollUpdates.position || null,
+                    payrollUpdates.annual_ctc || null,
+                    payrollUpdates.department_id ?? null,
+                    payrollUpdates.team_id ?? null,
                     id,
                     tenantId
                 ]);
             }
 
-            if (updates.email && updates.email !== current.email) {
-                await this.repo.updateUserEmail(client, updates.email, current.email, tenantId);
+            // 5. Track career actions (promotions, designation updates, role upgrades, department transfers, compensation increments)
+            const changes: EmployeeActionChange[] = [];
+
+            // Position change / Promotion
+            if (updates.position && updates.position.trim() && updates.position.trim() !== (current.position || '').trim()) {
+                changes.push({
+                    field: 'position',
+                    label: 'Position / Designation',
+                    from: current.position || 'Unassigned',
+                    to: updates.position.trim(),
+                    isPromotion: true,
+                });
+            }
+
+            // Role change / System access upgrade
+            if (updates.role && updates.role.trim() && updates.role.trim().toLowerCase() !== (current.role || '').trim().toLowerCase()) {
+                const isPromo = ['manager', 'admin', 'lead', 'super_admin', 'director', 'head'].some(r => updates.role.toLowerCase().includes(r));
+                changes.push({
+                    field: 'role',
+                    label: 'System Access & Role',
+                    from: current.role || 'employee',
+                    to: updates.role.trim(),
+                    isPromotion: isPromo,
+                });
+            }
+
+            // Department change / Transfer
+            if (updates.department && updates.department.trim() && updates.department.trim().toLowerCase() !== (current.department || current.department_name || '').trim().toLowerCase()) {
+                changes.push({
+                    field: 'department',
+                    label: 'Department',
+                    from: current.department || current.department_name || 'Unassigned',
+                    to: updates.department.trim(),
+                });
+            }
+
+            // Employment Status change (e.g. Onboarding -> Active)
+            if (updates.status && updates.status.trim() && updates.status.trim().toLowerCase() !== (current.status || '').trim().toLowerCase()) {
+                changes.push({
+                    field: 'status',
+                    label: 'Employment Status',
+                    from: current.status || 'Active',
+                    to: updates.status.trim(),
+                    isPromotion: updates.status.toLowerCase() === 'active' && current.status?.toLowerCase() === 'onboarding',
+                });
+            }
+
+            // Compensation change
+            const newCTC = updates.annualCTC !== undefined ? Number(updates.annualCTC) : (updates.annual_ctc !== undefined ? Number(updates.annual_ctc) : undefined);
+            if (newCTC !== undefined && !isNaN(newCTC) && Number(current.annual_ctc) !== newCTC) {
+                changes.push({
+                    field: 'annual_ctc',
+                    label: 'Annual CTC (Gross)',
+                    from: current.annual_ctc ? `₹${Number(current.annual_ctc).toLocaleString('en-IN')}` : 'Not Specified',
+                    to: `₹${newCTC.toLocaleString('en-IN')}`,
+                    isPromotion: newCTC > (Number(current.annual_ctc) || 0),
+                });
+            }
+
+            // Dispatch instant action / promotion email notification
+            if (changes.length > 0) {
+                const targetWorkEmail = (updates.email || current.email || '').trim();
+                const targetPersonalEmail = current.personal_email || (updates.personalEmail || updates.personal_email || null);
+                
+                sendEmployeeActionNotification({
+                    employeeId: current.id,
+                    name: updates.name || current.name,
+                    email: targetWorkEmail,
+                    personalEmail: targetPersonalEmail,
+                    changes,
+                    newPosition: updates.position || current.position,
+                    newRole: updates.role || current.role,
+                    newDepartment: updates.department || current.department,
+                    newStatus: updates.status || current.status,
+                    tenantId,
+                }, tenantId).catch(err => {
+                    console.error('[EmployeesService] Failed to send instant promotion/action email:', err);
+                });
             }
 
             return { success: true };
@@ -251,5 +411,125 @@ export class EmployeesService {
         }
 
         return { inserted, skipped, total: employees.length, aborted: false, results };
+    }
+
+    async checkEmailAvailability(tenantId: string, email?: string, name?: string) {
+        let available = true;
+        let conflictWith: any = null;
+        let message = 'Email is available.';
+
+        if (email && email.trim()) {
+            const cleanEmail = email.trim().toLowerCase();
+            const emp = await this.repo.findByAnyEmail(cleanEmail);
+            if (emp) {
+                available = false;
+                conflictWith = { id: emp.id, name: emp.name };
+                message = `Email is already associated with employee ${emp.id} (${emp.name}) as ${emp.matched_type} email.`;
+            } else {
+                const user = await this.repo.findUserByEmail(cleanEmail);
+                if (user) {
+                    available = false;
+                    conflictWith = { id: user.id, name: user.name };
+                    message = `Email is already registered to user account (${user.name}).`;
+                }
+            }
+        }
+
+        // Generate 3 unique suggestions with @ozofi.com if name is provided
+        const suggestions: string[] = [];
+        if (name && name.trim()) {
+            const domain = 'ozofi.com';
+            const tokens = name.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+            const candidates: string[] = [];
+            if (tokens.length === 1) {
+                candidates.push(`${tokens[0]}@${domain}`);
+                candidates.push(`${tokens[0]}.work@${domain}`);
+                candidates.push(`${tokens[0]}01@${domain}`);
+                candidates.push(`${tokens[0]}02@${domain}`);
+            } else if (tokens.length >= 2) {
+                const first = tokens[0];
+                const last = tokens[tokens.length - 1];
+                candidates.push(`${first}.${last}@${domain}`);
+                candidates.push(`${first}@${domain}`);
+                if (last.length > 1) {
+                    candidates.push(`${first[0]}.${last}@${domain}`);
+                }
+                candidates.push(`${first}${last}@${domain}`);
+                candidates.push(`${first}.${last}01@${domain}`);
+            }
+
+            for (const cand of candidates) {
+                if (suggestions.length >= 3) break;
+                const empExists = await this.repo.findByEmail(cand);
+                const userExists = await this.repo.findUserByEmail(cand);
+                if (!empExists && !userExists) {
+                    suggestions.push(cand);
+                }
+            }
+        }
+
+        return {
+            available,
+            conflictWith,
+            message,
+            suggestions
+        };
+    }
+
+    async getEmployeeProfileByUserIdOrEmail(userId?: number, email?: string, tenantId?: string) {
+        const res = await pool.query(
+            `SELECT id FROM employees 
+             WHERE (LOWER(email) = LOWER($1) OR user_id = $2 OR (personal_email IS NOT NULL AND LOWER(personal_email) = LOWER($1)))
+               AND ($3::text IS NULL OR tenant_id = $3)
+             ORDER BY created_at DESC LIMIT 1`,
+            [email || '', userId || 0, tenantId || null]
+        );
+        if (res.rows.length === 0) {
+            throw AppError.notFound('Employee profile not found.');
+        }
+        return AnalyticsService.getEmployeeProfile(res.rows[0].id);
+    }
+
+    async isEmployeeOwner(employeeId: string, email?: string, userId?: number): Promise<boolean> {
+        const res = await pool.query(
+            `SELECT id FROM employees 
+             WHERE id = $1 AND (LOWER(email) = LOWER($2) OR user_id = $3 OR (personal_email IS NOT NULL AND LOWER(personal_email) = LOWER($2)))`,
+            [employeeId, email || '', userId || 0]
+        );
+        return res.rows.length > 0;
+    }
+
+    async getEducation(employeeId: string) {
+        return this.repo.findEducation(employeeId);
+    }
+
+    async saveEducation(employeeId: string, entries: any[]) {
+        return withTransaction(async (client) => {
+            return this.repo.replaceEducation(client, employeeId, entries);
+        });
+    }
+
+    async getExperience(employeeId: string) {
+        return this.repo.findExperience(employeeId);
+    }
+
+    async saveExperience(employeeId: string, entries: any[]) {
+        return withTransaction(async (client) => {
+            return this.repo.replaceExperience(client, employeeId, entries);
+        });
+    }
+
+    async getEmergencyContacts(employeeId: string) {
+        return this.repo.findEmergencyContacts(employeeId);
+    }
+
+    async saveEmergencyContacts(employeeId: string, tenantId: string, contacts: any[]) {
+        return withTransaction(async (client) => {
+            return this.repo.replaceEmergencyContacts(client, employeeId, tenantId, contacts);
+        });
+    }
+
+    async deleteEmployee(employeeId: string, tenantId: string) {
+        return this.repo.delete(employeeId, tenantId);
     }
 }

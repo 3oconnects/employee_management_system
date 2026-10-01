@@ -43,9 +43,9 @@ export const AttendanceHero: React.FC<Props> = ({
 
                 {/* ── Left: Timer Hub ── */}
                 <div className="lg:col-span-4 p-10 flex flex-col items-center justify-center bg-gradient-to-b from-primary/5 to-transparent border-b lg:border-b-0 lg:border-r border-primary-light/20 gap-6">
-                    {/* SVG Ring */}
-                    <div className="relative w-44 h-44 flex items-center justify-center">
-                        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
+                    {/* SVG Ring with comfortable breathing room */}
+                    <div className="relative w-48 h-48 sm:w-52 sm:h-52 flex items-center justify-center">
+                        <svg className="absolute inset-0 w-full h-full -rotate-90 p-0.5" viewBox="0 0 128 128">
                             {/* Track */}
                             <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="4" className="text-primary-light/10"/>
                             {/* Progress */}
@@ -62,27 +62,28 @@ export const AttendanceHero: React.FC<Props> = ({
                                 </linearGradient>
                             </defs>
                         </svg>
-                        {/* No backdrop pulse — clean ring only */}
-                        <div className="flex flex-col items-center gap-0 z-10 -mt-2">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Today</p>
-                            <p className={`text-[32px] font-bold font-mono tracking-tighter tabular-nums leading-none ${isIn ? 'text-primary' : 'text-primary-light/30'}`}>
+                        
+                        {/* Centered Content with zero overlap & balanced typography */}
+                        <div className="flex flex-col items-center justify-center text-center z-10 px-4">
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.18em] mb-1">
+                                Total Today
+                            </span>
+                            <span className={`text-[23px] sm:text-[25px] font-extrabold font-mono tracking-tight tabular-nums leading-none ${isIn ? 'text-primary' : 'text-primary-light/30'}`}>
                                 {isIn ? totalTimerStr : '00:00:00'}
-                            </p>
+                            </span>
                             
-                            {isIn && (
-                                <div className="mt-4 flex flex-col items-center border-t border-slate-100 pt-3.5 w-full">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <Zap size={9} className="text-indigo-400 animate-pulse"/>
-                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Active Session</span>
+                            {isIn ? (
+                                <div className="mt-3 flex flex-col items-center border-t border-slate-100/90 pt-2.5 w-28">
+                                    <div className="flex items-center gap-1 mb-1">
+                                        <Zap size={9} className="text-indigo-500 animate-pulse"/>
+                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Active Session</span>
                                     </div>
-                                    <p className="text-[14px] font-bold font-mono text-indigo-500 tabular-nums">
+                                    <span className="text-[13px] font-bold font-mono text-indigo-600 tabular-nums leading-none">
                                         {sessionTimerStr}
-                                    </p>
+                                    </span>
                                 </div>
-                            )}
-
-                            {!isIn && (
-                                <div className="mt-5 flex items-center gap-1.5 opacity-40">
+                            ) : (
+                                <div className="mt-3 flex items-center gap-1.5 opacity-40">
                                     <Zap size={10} className="text-slate-400"/>
                                     <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">
                                         Standby
@@ -179,54 +180,132 @@ export const AttendanceHero: React.FC<Props> = ({
                 {/* ── Right: Today's Timeline ── */}
                 <div className="lg:col-span-4 p-8 bg-slate-50/30 flex flex-col gap-4">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Today's Timeline</h4>
-                        <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{todayHistory?.length || 0} Slots</span>
+                        <div className="flex items-center gap-2">
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Today's Timeline</h4>
+                            {isIn && (
+                                <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"/> Live
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                            {(() => {
+                                const list = Array.isArray(todayHistory) ? [...todayHistory] : [];
+                                if (isIn && checkInTime && !list.some(s => !(s.check_out_time || s.check_out))) {
+                                    list.unshift({ check_in_time: checkInTime });
+                                }
+                                return `${list.length} Slot${list.length === 1 ? '' : 's'}`;
+                            })()}
+                        </span>
                     </div>
 
-                    <div className="flex-1 space-y-3 overflow-y-auto max-h-[180px] pr-1 custom-scrollbar">
-                        {todayHistory && todayHistory.length > 0 ? (
-                            todayHistory.map((s, i) => {
+                    <div className="flex-1 space-y-3 overflow-y-auto max-h-[190px] pr-1 custom-scrollbar">
+                        {(() => {
+                            const list = Array.isArray(todayHistory) ? [...todayHistory] : [];
+                            if (isIn && checkInTime && !list.some(s => !(s.check_out_time || s.check_out))) {
+                                list.unshift({
+                                    check_in_time: checkInTime,
+                                    check_out_time: null,
+                                    status: 'present',
+                                    isLive: true
+                                });
+                            }
+
+                            if (list.length === 0) {
+                                return (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-2 opacity-60 py-10">
+                                        <Activity size={24} strokeWidth={1.5} className="text-slate-400"/>
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">No sessions recorded yet</p>
+                                    </div>
+                                );
+                            }
+
+                            return list.map((s, i) => {
                                 const inT = s.check_in_time || s.check_in;
                                 const outT = s.check_out_time || s.check_out;
-                                const isCurrent = !outT && i === 0 && isIn;
+                                const isCurrent = !outT && (s.isLive || (i === 0 && isIn));
+                                const durationMs = outT 
+                                    ? (new Date(outT).getTime() - new Date(inT).getTime()) 
+                                    : (isCurrent ? elapsed : 0);
+                                const durationH = Math.floor(durationMs / 3600000);
+                                const durationM = Math.floor((durationMs % 3600000) / 60000);
+                                const durationStr = durationH > 0 ? `${durationH}h ${durationM}m` : `${durationM}m`;
+                                const slotProgressPct = Math.min(100, Math.max(8, (durationMs / (9 * 3600000)) * 100));
+
                                 return (
-                                    <div key={i} className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm relative">
-                                        {isCurrent && <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"/>}
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <div className="flex items-center gap-1.5">
-                                                <LogIn size={10} className="text-emerald-500"/>
-                                                <span className="text-[11px] font-bold text-slate-700">
-                                                    {new Date(inT).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                                </span>
+                                    <div 
+                                        key={i} 
+                                        className={`bg-white rounded-xl border p-3.5 shadow-sm relative transition-all duration-300 hover:shadow-md ${
+                                            isCurrent 
+                                                ? 'border-indigo-300/80 ring-2 ring-indigo-500/10 shadow-indigo-500/5' 
+                                                : 'border-slate-100 hover:border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                                                    <LogIn size={11} strokeWidth={2.5}/>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">Punch In</p>
+                                                    <p className="text-[11px] font-black text-slate-800 tabular-nums">
+                                                        {inT ? new Date(inT).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <LogOut size={10} className={outT ? 'text-rose-400' : 'text-slate-300'}/>
-                                                <span className="text-[11px] font-bold text-slate-600">
-                                                    {outT ? new Date(outT).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'Active'}
-                                                </span>
+
+                                            <div className="flex items-center gap-2 text-right">
+                                                <div>
+                                                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">
+                                                        {outT ? 'Punch Out' : 'Current Status'}
+                                                    </p>
+                                                    <p className={`text-[11px] font-black tabular-nums ${outT ? 'text-slate-700' : 'text-indigo-600'}`}>
+                                                        {outT 
+                                                            ? new Date(outT).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+                                                            : 'Active Now'
+                                                        }
+                                                    </p>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-md flex items-center justify-center shadow-xs ${
+                                                    outT ? 'bg-rose-50 text-rose-500' : 'bg-indigo-50 text-indigo-600'
+                                                }`}>
+                                                    <LogOut size={11} strokeWidth={2.5}/>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="h-1 bg-slate-50 rounded-full overflow-hidden">
-                                            <div className={`h-full rounded-full ${isCurrent ? 'bg-indigo-400' : 'bg-slate-200'}`} style={{width: outT ? '100%' : '60%'}}/>
+
+                                        {/* Duration & Progress track */}
+                                        <div className="flex items-center justify-between text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                            <span className="flex items-center gap-1.5">
+                                                <span className={`w-1.5 h-1.5 rounded-full ${isCurrent ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}/>
+                                                {isCurrent ? 'Ongoing Shift' : `Completed Slot`}
+                                            </span>
+                                            <span className="font-mono text-slate-600 lowercase">{durationStr}</span>
+                                        </div>
+
+                                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full rounded-full transition-all duration-700 ${
+                                                    isCurrent 
+                                                        ? 'bg-gradient-to-r from-indigo-500 to-emerald-400' 
+                                                        : 'bg-indigo-500'
+                                                }`} 
+                                                style={{ width: `${outT ? 100 : slotProgressPct}%` }}
+                                            />
                                         </div>
                                     </div>
                                 );
-                            })
-                        ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-2 opacity-50 py-10">
-                                <Activity size={24} strokeWidth={1.5}/>
-                                <p className="text-[9px] font-bold uppercase tracking-widest">No sessions yet</p>
-                            </div>
-                        )}
+                            });
+                        })()}
                     </div>
 
-                    <div className="mt-auto bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+                    <div className="mt-auto bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
                             <TrendingUp size={14}/>
                         </div>
                         <div>
                             <h4 className="text-[11px] font-bold text-slate-800">Monthly Target</h4>
-                            <p className="text-[9px] text-slate-400 font-medium tracking-tight">≈ 22 working days · 198h</p>
+                            <p className="text-[9px] text-slate-400 font-medium tracking-tight">≈ 22 working days · 198h standard</p>
                         </div>
                     </div>
                 </div>

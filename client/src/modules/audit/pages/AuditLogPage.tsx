@@ -70,7 +70,7 @@ const AuditLogPage: React.FC = () => {
                     </div>
                     <div>
                         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Audit Logs</h1>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">System Traceability & Compliance Matrix</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">Track all system events and actions</p>
                     </div>
                 </div>
 
@@ -206,7 +206,7 @@ const AuditLogPage: React.FC = () => {
                             <div className="grid grid-cols-2 gap-8">
                                 <div className="space-y-6">
                                     <section className="space-y-1.5">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operational Action</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</p>
                                         <span className={`px-2 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider border
                                             ${selectedLog.action.includes('DELETE') ? 'bg-rose-50 text-rose-600 border-rose-100' : 
                                               selectedLog.action.includes('CREATE') ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
@@ -217,7 +217,7 @@ const AuditLogPage: React.FC = () => {
                                     <section className="space-y-1.5">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Affected Entity</p>
                                         <p className="text-[15px] font-black text-slate-800">{selectedLog.entity_type}</p>
-                                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tight">Global Identifier: {selectedLog.entity_id}</p>
+                                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tight">Entity ID: {selectedLog.entity_id}</p>
                                     </section>
                                 </div>
                                 <div className="space-y-6">
@@ -234,7 +234,7 @@ const AuditLogPage: React.FC = () => {
                                         </div>
                                     </section>
                                     <section className="space-y-1.5">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Temporal Signature</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timestamp</p>
                                         <p className="text-[14px] font-bold text-slate-700 flex items-center gap-2">
                                             <Clock size={14} className="text-slate-300" />
                                             {new Date(selectedLog.created_at).toLocaleString()}

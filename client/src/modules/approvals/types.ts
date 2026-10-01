@@ -11,7 +11,8 @@ export type ApprovalType =
     | 'document_approval'
     | 'department_creation'
     | 'team_creation'
-    | 'attendance';
+    | 'attendance'
+    | 'password_reset';
 
 export interface RoleChangeMetadata {
     current_role: string;

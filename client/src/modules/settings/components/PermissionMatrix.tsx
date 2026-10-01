@@ -34,6 +34,10 @@ const MODULE_LABELS: Record<string, string> = {
     profile: '👤 Profile',
     audit: '🔍 Audit Log',
     settings: '⚙️ Settings',
+    documents: '📁 Documents',
+    governance: '🏛️ Governance',
+    organization: '🏢 Organization',
+    claims: '💳 Claims & Expenses',
 };
 
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
@@ -65,7 +69,7 @@ const PermissionMatrix: React.FC<Props> = ({
                         )}
                     </div>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                        {Object.values(editingPerms).length} / {Object.values(permissions).flat().length} permissions enabled
+                        {editingPerms.size} / {Object.values(permissions).flat().length} permissions enabled
                         · {role.user_count} user{role.user_count !== 1 ? 's' : ''}
                     </p>
                 </div>

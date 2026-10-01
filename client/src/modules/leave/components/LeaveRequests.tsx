@@ -1,5 +1,5 @@
-import React from 'react';
-import { CalendarDays, Clock, CheckCircle, XCircle, AlertCircle, Edit3, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { CalendarDays, Clock, CheckCircle, XCircle, AlertCircle, Edit3, Trash2, LayoutGrid, List as ListIcon, Calendar, ArrowRight, MessageSquare, Plus } from 'lucide-react';
 
 interface LeaveRequest {
     id: string;
@@ -14,107 +14,298 @@ interface LeaveRequestsProps {
     requests: LeaveRequest[];
     onEdit?: (req: LeaveRequest) => void;
     onCancel?: (id: string) => void;
+    onRequestNew?: () => void;
 }
 
-const statusMeta: Record<string, { label: string; bg: string; text: string; icon: React.ElementType }> = {
-    pending:  { label: 'Pending Audit',  bg: 'bg-amber-50',   text: 'text-amber-600',  icon: Clock },
-    approved: { label: 'Verified',       bg: 'bg-emerald-50', text: 'text-emerald-600',icon: CheckCircle },
-    rejected: { label: 'Declined',       bg: 'bg-rose-50',    text: 'text-rose-600',   icon: XCircle },
+const statusMeta: Record<string, { label: string; bg: string; text: string; border: string; dot: string; icon: React.ElementType }> = {
+    pending:  { label: 'Pending Audit',  bg: 'bg-amber-50',   text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400', icon: Clock },
+    approved: { label: 'Verified',       bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', icon: CheckCircle },
+    rejected: { label: 'Declined',       bg: 'bg-rose-50',    text: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500', icon: XCircle },
 };
 
 function getStatus(s: string) {
-    return statusMeta[s] ?? { label: s, bg: 'bg-slate-50', text: 'text-slate-500', icon: AlertCircle };
+    return statusMeta[s] ?? { label: s, bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', dot: 'bg-slate-400', icon: AlertCircle };
 }
 
-export const LeaveRequests: React.FC<LeaveRequestsProps> = ({ requests, onEdit, onCancel }) => {
+const calcDurationDays = (start: string, end: string) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 1;
+    const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1;
+    return Math.max(1, diff);
+};
+
+export const LeaveRequests: React.FC<LeaveRequestsProps> = ({ requests, onEdit, onCancel, onRequestNew }) => {
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+
+    const counts = useMemo(() => {
+        return {
+            all: requests.length,
+            pending: requests.filter(r => r.status === 'pending').length,
+            approved: requests.filter(r => r.status === 'approved').length,
+            rejected: requests.filter(r => r.status === 'rejected').length,
+        };
+    }, [requests]);
+
+    const filteredRequests = useMemo(() => {
+        if (statusFilter === 'all') return requests;
+        return requests.filter(r => r.status === statusFilter);
+    }, [requests, statusFilter]);
+
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
+            {/* ── Control Header ── */}
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-[14px] font-black text-[#0F172A] uppercase tracking-tight">Personal Transaction History</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Chronological log of leave lifecycle</p>
+                    <h2 className="text-[14px] font-black text-slate-900 uppercase tracking-tight">Personal Transaction History</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Chronological log of leave lifecycle & approvals</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Status Filter Tabs */}
+                    <div className="flex p-1 bg-slate-100 rounded-xl">
+                        {(['all', 'pending', 'approved', 'rejected'] as const).map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => setStatusFilter(tab)}
+                                className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                    statusFilter === tab 
+                                        ? 'bg-white text-indigo-600 shadow-xs' 
+                                        : 'text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                {tab === 'all' ? 'All' : tab === 'pending' ? 'Pending' : tab === 'approved' ? 'Verified' : 'Declined'}
+                                <span className="ml-1 opacity-70">({counts[tab]})</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* View Switcher Toggle: GRID (Option 1) | LIST */}
+                    <div className="flex p-1 bg-slate-100 rounded-xl">
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                viewMode === 'grid' 
+                                    ? 'bg-white text-indigo-600 shadow-xs' 
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            <LayoutGrid size={12} /> Grid
+                        </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                viewMode === 'list' 
+                                    ? 'bg-white text-indigo-600 shadow-xs' 
+                                    : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                        >
+                            <ListIcon size={12} /> List
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-slate-50/50 text-[9px] font-black text-slate-500 uppercase tracking-[0.15em] border-b border-slate-100">
-                            <th className="px-6 py-4">Classification</th>
-                            <th className="px-6 py-4">Commencement</th>
-                            <th className="px-6 py-4">Conclusion</th>
-                            <th className="px-6 py-4">Justification</th>
-                            <th className="px-6 py-4">Status</th>
-                            <th className="px-6 py-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {requests.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="py-24 text-center">
-                                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-200 mx-auto mb-4">
-                                        <CalendarDays size={32} />
+            {/* ── Content Area ── */}
+            {filteredRequests.length === 0 ? (
+                <div className="py-20 text-center flex flex-col items-center justify-center p-6">
+                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mb-4 shadow-xs">
+                        <CalendarDays size={28} />
+                    </div>
+                    <p className="text-[14px] font-bold text-slate-900">No Requests Found</p>
+                    <p className="text-[11px] text-slate-400 font-medium mt-1 max-w-sm">
+                        {statusFilter === 'all' 
+                            ? 'Your leave history is currently empty. Submit your first leave request when ready.'
+                            : `No ${statusFilter} leave requests match the current filter.`}
+                    </p>
+                    {onRequestNew && statusFilter === 'all' && (
+                        <button
+                            onClick={onRequestNew}
+                            className="mt-4 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-sm"
+                        >
+                            <Plus size={14} /> Request Absence
+                        </button>
+                    )}
+                </div>
+            ) : viewMode === 'grid' ? (
+                /* ── Card / Grid View ── */
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredRequests.map(r => {
+                        const s = getStatus(r.status);
+                        const isPending = r.status === 'pending';
+                        const days = calcDurationDays(r.start_date, r.end_date);
+
+                        return (
+                            <div 
+                                key={r.id} 
+                                className="bg-white rounded-2xl border border-slate-100 hover:border-slate-200 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between group"
+                            >
+                                <div>
+                                    {/* Top Row: Classification & Status Pill */}
+                                    <div className="flex items-center justify-between gap-2 mb-3.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shadow-xs"/>
+                                            <h4 className="text-[13px] font-black text-slate-900 tracking-tight">
+                                                {r.leave_type_name}
+                                            </h4>
+                                        </div>
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${s.bg} ${s.text} ${s.border}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                                            {s.label}
+                                        </span>
                                     </div>
-                                    <p className="text-[13px] font-bold text-slate-900">No Requests Identified</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mt-1.5">Your leave history is currently empty</p>
-                                </td>
+
+                                    {/* Dates & Duration Banner */}
+                                    <div className="bg-slate-50/70 rounded-xl p-3.5 border border-slate-100 mb-3">
+                                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 mb-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <Calendar size={12} className="text-indigo-600" />
+                                                <span>{new Date(r.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                            </div>
+                                            <ArrowRight size={12} className="text-slate-400" />
+                                            <div className="flex items-center gap-1.5">
+                                                <span>{new Date(r.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                            <span>Schedule Span</span>
+                                            <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
+                                                {days} {days === 1 ? 'Day' : 'Days'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Justification Box */}
+                                    <div className="space-y-1 mb-4">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                            <MessageSquare size={10} /> Justification
+                                        </p>
+                                        <p className="text-[12px] text-slate-600 font-medium line-clamp-2 italic bg-slate-50/40 p-2.5 rounded-lg border border-slate-100" title={r.reason}>
+                                            "{r.reason}"
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Footer & Actions */}
+                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                        Ref #{String(r.id).slice(0, 6)}
+                                    </span>
+
+                                    {isPending ? (
+                                        <div className="flex items-center gap-1.5">
+                                            {onEdit && (
+                                                <button
+                                                    onClick={() => onEdit(r)}
+                                                    className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-slate-200/80"
+                                                    title="Edit Request"
+                                                >
+                                                    <Edit3 size={11} /> Edit
+                                                </button>
+                                            )}
+                                            {onCancel && (
+                                                <button
+                                                    onClick={() => onCancel(r.id)}
+                                                    className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200/80"
+                                                    title="Cancel Request"
+                                                >
+                                                    <Trash2 size={11} /> Cancel
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Finalized
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* ── Table / List View ── */
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50/50 text-[9px] font-black text-slate-500 uppercase tracking-[0.15em] border-b border-slate-100">
+                                <th className="px-6 py-4">Classification</th>
+                                <th className="px-6 py-4">Commencement</th>
+                                <th className="px-6 py-4">Conclusion</th>
+                                <th className="px-6 py-4">Duration</th>
+                                <th className="px-6 py-4">Justification</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
-                        ) : (
-                            requests.map(r => {
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {filteredRequests.map(r => {
                                 const s = getStatus(r.status);
-                                const Icon = s.icon;
                                 const isPending = r.status === 'pending';
+                                const days = calcDurationDays(r.start_date, r.end_date);
 
                                 return (
                                     <tr key={r.id} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-6 py-4">
-                                            <p className="text-[13px] font-bold text-slate-900">{r.leave_type_name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded-full bg-indigo-600"/>
+                                                <p className="text-[13px] font-bold text-slate-900">{r.leave_type_name}</p>
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 text-slate-600 font-semibold text-[12px]">
-                                            {new Date(r.start_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+                                            {new Date(r.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                         </td>
                                         <td className="px-6 py-4 text-slate-600 font-semibold text-[12px]">
-                                            {new Date(r.end_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+                                            {new Date(r.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-600 font-bold text-[11px]">
+                                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                                                {days} {days === 1 ? 'Day' : 'Days'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <p className="text-[12px] text-slate-400 font-medium max-w-[200px] truncate" title={r.reason}>{r.reason}</p>
+                                            <p className="text-[12px] text-slate-500 font-medium max-w-[220px] truncate" title={r.reason}>{r.reason}</p>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${s.bg} ${s.text}`}>
-                                                <Icon size={10} />
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${s.bg} ${s.text} ${s.border}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
                                                 {s.label}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {isPending && (
-                                                    <>
+                                            {isPending ? (
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    {onEdit && (
                                                         <button 
-                                                            onClick={() => onEdit?.(r)}
-                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                            onClick={() => onEdit(r)}
+                                                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-slate-200/80"
                                                             title="Edit Request"
                                                         >
-                                                            <Edit3 size={14} />
+                                                            <Edit3 size={13} />
                                                         </button>
+                                                    )}
+                                                    {onCancel && (
                                                         <button 
-                                                            onClick={() => onCancel?.(r.id)}
-                                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                                            onClick={() => onCancel(r.id)}
+                                                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all border border-slate-200/80"
                                                             title="Cancel Request"
                                                         >
-                                                            <Trash2 size={14} />
+                                                            <Trash2 size={13} />
                                                         </button>
-                                                    </>
-                                                )}
-                                            </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 font-bold">—</span>
+                                            )}
                                         </td>
                                     </tr>
                                 );
-                            })
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };

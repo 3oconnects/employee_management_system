@@ -161,13 +161,15 @@ const RegularizePanel: React.FC<{ userId: any }> = ({ userId }) => {
     const [outT, setOutT] = useState('');
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
             await api.post('/attendance/regularize', { userId, date, check_in_time: inT, check_out_time: outT, reason });
-            alert('Regularization request submitted!');
+            setSubmitted(true);
+            setTimeout(() => setSubmitted(false), 4000);
             setDate(''); setInT(''); setOutT(''); setReason('');
         } catch (err: any) {
             alert(err.response?.data?.error || 'Submission failed');
@@ -177,52 +179,83 @@ const RegularizePanel: React.FC<{ userId: any }> = ({ userId }) => {
     };
 
     return (
-        <div className="rounded-2xl bg-white border border-slate-100 flex flex-col gap-0 shadow-2xl shadow-slate-200/50 overflow-hidden relative h-full group transition-all duration-500 hover:shadow-indigo-500/10">
-            <div className="p-8 pb-6 border-b border-slate-50 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 group-hover:bg-indigo-100 transition-colors" />
-                <div className="relative">
-                    <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 mb-4">
-                        <Clock size={18} />
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col justify-between transition-all duration-300">
+            {/* ── Header (exact match with Shift Visualization) ── */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-100">
+                        <Clock size={14} />
                     </div>
-                    <h3 className="text-[18px] font-black text-slate-800 tracking-tight">Request Regularization</h3>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Manual Attendance Correction</p>
+                    <div>
+                        <h3 className="text-[13px] font-bold text-slate-800">Request Regularization</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Manual Attendance Correction</p>
+                    </div>
                 </div>
+                {submitted && (
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 animate-pulse">
+                        Submitted!
+                    </span>
+                )}
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 flex-1 flex flex-col gap-5">
-                <div className="space-y-1.5">
+            {/* ── Form Body (compact, balanced proportions) ── */}
+            <form onSubmit={handleSubmit} className="p-5 flex-1 flex flex-col justify-between gap-3">
+                <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Affected Date</label>
-                    <input required type="date" value={date} onChange={e => setDate(e.target.value)} 
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
+                    <input 
+                        required 
+                        type="date" 
+                        value={date} 
+                        onChange={e => setDate(e.target.value)} 
+                        className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 text-[12px] font-medium text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                    />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Check In</label>
-                        <input required type="time" value={inT} onChange={e => setInT(e.target.value)} 
-                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
+                        <input 
+                            required 
+                            type="time" 
+                            value={inT} 
+                            onChange={e => setInT(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                        />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Check Out</label>
-                        <input type="time" value={outT} onChange={e => setOutT(e.target.value)} 
-                            className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all"/>
+                        <input 
+                            type="time" 
+                            value={outT} 
+                            onChange={e => setOutT(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all"
+                        />
                     </div>
                 </div>
 
-                <div className="space-y-1.5 flex-1 min-h-[100px]">
+                <div className="space-y-1 flex-1 flex flex-col min-h-[58px]">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Reason for Adjustment</label>
-                    <textarea required value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Forgot to check in, System error..."
-                        className="w-full h-full min-h-[100px] bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[12px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/5 transition-all resize-none"/>
+                    <textarea 
+                        required 
+                        value={reason} 
+                        onChange={e => setReason(e.target.value)} 
+                        placeholder="e.g. Forgot to check in, System error..."
+                        className="w-full flex-1 min-h-[52px] bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 text-[12px] font-medium text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
+                    />
                 </div>
 
-                <button disabled={loading} type="submit" 
-                    className="w-full bg-slate-900 text-white rounded-2xl py-4 text-[13px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                <button 
+                    disabled={loading} 
+                    type="submit" 
+                    className="w-full bg-slate-900 text-white rounded-xl py-2.5 text-[11px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md shadow-slate-900/10 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 flex-shrink-0"
+                >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
                     Submit Request
                 </button>
             </form>
 
-            <div className="px-8 py-4 bg-slate-50/50 border-t border-slate-50">
+            {/* ── Footer ── */}
+            <div className="px-5 py-2.5 bg-slate-50/50 border-t border-slate-100 flex-shrink-0">
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">Requests are subject to manager approval</p>
             </div>
         </div>
@@ -311,6 +344,36 @@ const Attendance: React.FC = () => {
         if (liveHrs > 0) copy[todayKey] = Math.max(copy[todayKey] || 0, liveHrs);
         return copy;
     }, [weeklyDays, attendance?.totalHours]);
+
+    const todaySessions = useMemo(() => {
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = today.getMonth();
+        const d = today.getDate();
+
+        const fromHistory = (history || []).filter(h => {
+            const timeVal = h.check_in_time || h.check_in || h.date;
+            if (!timeVal) return false;
+            const parsed = new Date(timeVal);
+            return !isNaN(parsed.getTime()) &&
+                   parsed.getFullYear() === y &&
+                   parsed.getMonth() === m &&
+                   parsed.getDate() === d;
+        });
+
+        if (attendance?.status === 'IN' && attendance?.checkInTime) {
+            const alreadyHasOpen = fromHistory.some(s => !(s.check_out_time || s.check_out));
+            if (!alreadyHasOpen) {
+                fromHistory.unshift({
+                    check_in_time: attendance.checkInTime,
+                    check_out_time: null,
+                    status: 'present',
+                    isLive: true
+                });
+            }
+        }
+        return fromHistory;
+    }, [history, attendance?.status, attendance?.checkInTime]);
 
     const handleAttendance = async () => {
         if (!userId || actionLoading) return;
@@ -406,18 +469,18 @@ const Attendance: React.FC = () => {
                 checkInTime={attendance?.checkInTime}
                 totalHours={attendance?.totalHours}
                 sessions={attendance?.sessions}
-                todayHistory={history.filter(h => (h.check_in_time || h.check_in || '').slice(0, 10) === new Date().toISOString().slice(0, 10))}
+                todayHistory={todaySessions}
             />
 
             {/* ── Summary Cards ── */}
-            {summary && <AttendanceSummary summary={summary}/>}
+            {summary && <AttendanceSummary summary={summary} attendance={attendance}/>}
 
             {/* ── Weekly Chart ── */}
             <WeeklyChart days={liveWeeklyDays} history={history}/>
 
             {/* ── Calendar + Regularization ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
-                <div className="lg:col-span-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-stretch">
+                <div className="lg:col-span-8 flex flex-col">
                     <AttendanceCalendar
                         monthLabel={monthLabel}
                         viewYear={viewYear}
@@ -433,7 +496,7 @@ const Attendance: React.FC = () => {
                         }}
                     />
                 </div>
-                <div className="lg:col-span-4">
+                <div className="lg:col-span-4 flex flex-col">
                     <RegularizePanel userId={userId}/>
                 </div>
             </div>

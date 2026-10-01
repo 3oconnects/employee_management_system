@@ -18,7 +18,9 @@ export interface AddEmployeeForm {
     department: string; // Keep for legacy/string storage
     department_id?: string;
     team_id?: string;
-    position: string; joinDate: string;
+    position: string; 
+    role?: string;
+    joinDate: string;
     employmentType: string; status: string;
     addressLine1: string; city: string; state: string; pincode: string;
     reportingManagerId: string; reportingManagerName: string;
@@ -33,7 +35,9 @@ export interface EditEmployeeForm {
     department: string;
     department_id?: string;
     team_id?: string;
-    position: string; status: string; joinDate: string;
+    position: string; 
+    role?: string;
+    status: string; joinDate: string;
     reportingManagerId?: string; reportingManagerName?: string;
 }
 

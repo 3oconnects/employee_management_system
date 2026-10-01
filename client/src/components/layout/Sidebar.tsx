@@ -4,7 +4,7 @@ import {
     LayoutDashboard, UserPlus, Users, Clock, CalendarDays,
     CreditCard, ClipboardList, BarChart2, Shield,
     Settings, Layers, ChevronLeft, ChevronRight, ChevronDown,
-    PlusCircle, History, ListFilter, CheckCircle2
+    PlusCircle, History, ListFilter, CheckCircle2, User
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -34,7 +34,8 @@ const sidebarSections: MenuSection[] = [
         title: 'Overview',
         items: [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: [], module: 'dashboard' },
-            { icon: CheckCircle2, label: 'Approvals', path: '/approvals', roles: ['admin','hr','manager','super_admin'], module: 'approvals' },
+            { icon: User,            label: 'My Profile', path: '/profile',   roles: ['admin','hr','manager','employee','super_admin'], module: 'profile' },
+            { icon: CheckCircle2,    label: 'Approvals',  path: '/approvals', roles: ['admin','hr','manager','super_admin'], module: 'approvals' },
         ]
     },
     {
@@ -96,6 +97,11 @@ const Sidebar: React.FC = () => {
         if (item.roles.length === 0) return true;
         if (!hasAnyRole(...(item.roles as any))) return false;
         if (hasAnyRole('admin', 'super_admin')) return true;
+
+        // Core self-service employee modules are always available to employees and managers
+        const coreModules = ['dashboard', 'attendance', 'leave', 'timesheet', 'payroll', 'profile'];
+        if (item.module && coreModules.includes(item.module)) return true;
+
         if (item.module) return hasModule(item.module);
         return true;
     };
@@ -130,7 +136,7 @@ const Sidebar: React.FC = () => {
                         </div>
                         <div className="ml-3 flex-1 min-w-0">
                             <p className="text-[14px] font-black text-white leading-none tracking-tight">AURA</p>
-                            <p className="text-[9px] font-bold text-indigo-400/50 uppercase tracking-[0.18em] mt-0.5">Personnel Hub</p>
+                            <p className="text-[10px] font-bold text-indigo-400/70 uppercase tracking-[0.18em] mt-0.5">Personnel Hub</p>
                         </div>
                         <button
                             onClick={() => setCollapsed(true)}
@@ -151,7 +157,7 @@ const Sidebar: React.FC = () => {
                     return (
                         <div key={section.title} className="space-y-0.5">
                             {!collapsed && (
-                                <p className="px-2.5 text-[9px] font-black text-white/15 uppercase tracking-[0.28em] mb-2">
+                                <p className="px-2.5 text-[10px] font-black text-white/30 uppercase tracking-[0.28em] mb-2">
                                     {section.title}
                                 </p>
                             )}
@@ -282,7 +288,7 @@ const Sidebar: React.FC = () => {
                         </div>
                         <div className="min-w-0 flex-1">
                             <p className="text-[11px] font-bold text-white/70 truncate leading-none">{user?.name?.split(' ')[0]}</p>
-                            <p className="text-[9px] text-white/25 capitalize mt-0.5 truncate">{user?.role?.replace('_', ' ')}</p>
+                            <p className="text-[10px] text-white/25 capitalize mt-0.5 truncate">{user?.role?.replace('_', ' ')}</p>
                         </div>
                     </div>
                 )}

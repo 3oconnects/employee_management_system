@@ -35,9 +35,9 @@ const ALL_PERMISSIONS: { module: string; action: string; description: string }[]
     // Reports
     { module: 'reports',      action: 'view',    description: 'Access reports and analytics dashboards' },
     // Leaves
-    { module: 'leaves',       action: 'apply',   description: 'Apply for leave' },
-    { module: 'leaves',       action: 'approve', description: 'Approve or reject leave requests' },
-    { module: 'leaves',       action: 'manage',  description: 'Full leave management (types, balances, policies)' },
+    { module: 'leave',        action: 'apply',   description: 'Apply for leave' },
+    { module: 'leave',        action: 'approve', description: 'Approve or reject leave requests' },
+    { module: 'leave',        action: 'manage',  description: 'Full leave management (types, balances, policies)' },
     // Attendance
     { module: 'attendance',   action: 'read',    description: 'View attendance records' },
     { module: 'attendance',   action: 'manage',  description: 'Manage and regularize attendance' },
@@ -50,8 +50,8 @@ const ALL_PERMISSIONS: { module: string; action: string; description: string }[]
     { module: 'profile',      action: 'read',    description: 'View own profile' },
     { module: 'profile',      action: 'edit',    description: 'Edit own profile details' },
     // Timesheets
-    { module: 'timesheets',   action: 'submit',  description: 'Submit timesheets for approval' },
-    { module: 'timesheets',   action: 'approve', description: 'Approve or reject timesheets' },
+    { module: 'timesheet',    action: 'submit',  description: 'Submit timesheets for approval' },
+    { module: 'timesheet',    action: 'approve', description: 'Approve or reject timesheets' },
     // Claims / Expenses
     { module: 'claims',       action: 'submit',  description: 'Submit expense/reimbursement claims' },
     { module: 'claims',       action: 'approve', description: 'Approve expense claims' },
@@ -139,8 +139,7 @@ export async function seedPermissionsAndSuperAdmin(): Promise<void> {
             const fixed = await client.query(
                 `UPDATE users
                  SET role_id        = $1,
-                     role           = 'super_admin',
-                     dashboard_type = 'admin'
+                     role           = 'super_admin'
                  WHERE LOWER(email) = 'admin@company.com'
                    AND deleted_at IS NULL
                  RETURNING id, email`,

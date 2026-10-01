@@ -165,6 +165,24 @@ const start = async () => {
     process.on('SIGTERM', shutdown);
     process.on('SIGINT', shutdown);
 
+    // Prevent sudden process exits on transient PostgreSQL socket drops / ECONNRESET
+    process.on('uncaughtException', (err: any) => {
+        if (
+            err?.message?.includes('Connection terminated') ||
+            err?.code === 'ECONNRESET' ||
+            err?.code === 'EPIPE' ||
+            err?.code === 'ETIMEDOUT'
+        ) {
+            console.warn('⚠️ [Process] Safely handled transient socket disconnect:', err.message);
+            return;
+        }
+        console.error('💥 [Process] Uncaught Exception:', err);
+    });
+
+    process.on('unhandledRejection', (reason: any) => {
+        console.warn('⚠️ [Process] Unhandled Rejection:', reason?.message || reason);
+    });
+
     // ── Run schema migrations in background ──────────────────────────────────
     try {
         const res = await pool.query('SELECT NOW()');

@@ -62,23 +62,15 @@ const Approvals: React.FC = () => {
     };
 
     return (
-        <div className="p-6 max-w-[1600px] mx-auto space-y-6 animate-in fade-in duration-500">
+        <div className="p-6 max-w-[1600px] mx-auto space-y-6">
             {/* ── Page Header ── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-[28px] font-black text-slate-900 tracking-tight leading-none">Approvals Hub</h1>
-                    <p className="text-[12px] font-bold text-slate-400 mt-1.5 uppercase tracking-widest">Workflow Command Center</p>
+                    <h1 className="text-2xl font-bold text-slate-900">Approvals</h1>
+                    <p className="text-sm text-slate-500 mt-0.5">Review and action pending approval requests</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex -space-x-2">
-                        {[1, 2, 3].map(i => (
-                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[9px] font-black text-slate-400 shadow-sm">
-                                AD
-                            </div>
-                        ))}
-                    </div>
-                    <div className="h-6 w-px bg-slate-200 mx-2" />
-                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[11px] font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm uppercase tracking-wider">
+                <div>
+                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-50 transition-all">
                         Export Logs
                     </button>
                 </div>
@@ -105,37 +97,47 @@ const Approvals: React.FC = () => {
 
             {/* ── Sidebar + Content Layout ── */}
             <div className="flex gap-6 relative">
-                <ApprovalSidebar 
-                    filterType={filterType}
-                    setFilterType={setFilterType}
-                    isCollapsed={isSidebarCollapsed}
-                    setIsCollapsed={setIsSidebarCollapsed}
-                />
+                {(() => {
+                    const categoryCounts = requests.reduce((acc, req) => {
+                        acc[req.type] = (acc[req.type] || 0) + 1;
+                        return acc;
+                    }, {} as Record<string, number>);
+
+                    return (
+                        <ApprovalSidebar 
+                            filterType={filterType}
+                            setFilterType={setFilterType}
+                            isCollapsed={isSidebarCollapsed}
+                            setIsCollapsed={setIsSidebarCollapsed}
+                            counts={categoryCounts}
+                        />
+                    );
+                })()}
 
                 {/* ── Main Content Area ── */}
                 <div className="flex-1 min-w-0">
                     {error && (
-                        <div className="mb-4 p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-3 animate-in slide-in-from-top-2">
-                            <AlertCircle size={16} className="text-rose-500 mt-0.5" />
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                            <AlertCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="text-[11px] font-bold text-rose-900 uppercase tracking-wider">Connectivity Failure</p>
-                                <p className="text-[10px] text-rose-800/70 mt-0.5">{error}</p>
+                                <p className="text-sm font-semibold text-red-800">Failed to load approvals</p>
+                                <p className="text-xs text-red-700 mt-0.5">{error}</p>
                             </div>
                         </div>
                     )}
                     
                     {loading ? (
-                        <div className="bg-white border border-slate-100 rounded-2xl p-16 flex flex-col items-center justify-center shadow-sm">
-                            <Loader2 size={24} className="text-indigo-600 animate-spin mb-4" />
-                            <p className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Synchronizing Workflow Engine...</p>
+                        <div className="bg-white border border-slate-200 rounded-lg p-16 flex flex-col items-center justify-center">
+                            <Loader2 size={22} className="text-indigo-600 animate-spin mb-3" />
+                            <p className="text-sm text-slate-500">Loading approvals...</p>
                         </div>
                     ) : requests.length === 0 ? (
-                        <div className="bg-white border border-slate-100 rounded-2xl p-16 flex flex-col items-center justify-center text-center shadow-sm">
-                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-5">
-                                <Inbox size={32} className="text-slate-200" />
+                        <div className="bg-white border border-slate-200 rounded-lg p-16 flex flex-col items-center justify-center text-center">
+                            <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                                <Inbox size={24} className="text-slate-400" />
                             </div>
-                            <h3 className="text-[16px] font-black text-slate-800">Clear for Now!</h3>
-                            <p className="text-[12px] text-slate-400 mt-2 max-w-xs">No pending approvals found. Enjoy the empty inbox or check the action history for past decisions.</p>
+                            <h3 className="text-base font-semibold text-slate-700">No approvals found</h3>
+                            <p className="text-sm text-slate-400 mt-1.5 max-w-xs">There are no {activeTab === 'pending' ? 'pending' : 'completed'} approval requests at this time.</p>
                         </div>
                     ) : (
                         <div className={viewMode === 'teams' ? "grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 pb-20" : "flex-1 space-y-6 pb-20"}>
@@ -163,7 +165,7 @@ const Approvals: React.FC = () => {
                                     viewMode={viewMode}
                                     avatars={deptRequests.map(r => r.employee_name)}
                                 >
-                                    <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-1.5"}>
+                                    <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-3"}>
                                         {deptRequests.map(req => (
                                             <ApprovalCard 
                                                 key={req.id}
@@ -172,7 +174,7 @@ const Approvals: React.FC = () => {
                                                 setExpandedId={setExpandedId}
                                                 handleAction={handleAction}
                                                 acting={acting}
-                                                viewMode={viewMode === 'teams' ? 'list' : viewMode}
+                                                viewMode={viewMode}
                                                 activeTab={activeTab}
                                                 getTypeIcon={getTypeIcon}
                                                 getTypeName={getTypeName}

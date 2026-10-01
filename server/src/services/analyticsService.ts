@@ -646,6 +646,7 @@ export class AnalyticsService {
             pool.query(`
                 SELECT 
                     e.id, e.name, e.department, e.position, e.join_date, e.email, e.status, 
+                    e.avatar_url,
                     e.gender, e.phone, e.personal_email, e.date_of_birth, e.address_line1, 
                     e.city, e.state, e.pincode, e.highest_degree, e.field_of_study, 
                     e.institution, e.graduation_year, e.bank_account_number, e.annual_ctc, 

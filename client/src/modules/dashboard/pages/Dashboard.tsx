@@ -126,7 +126,7 @@ const Dashboard:React.FC = () => {
         try{const{data}=await api.post('/attendance/check-in',{userId:user.id});
             setAtt({status:'IN',checkIn:data.checkIn??data.check_in??new Date().toISOString()});
             setStatus('available');}
-        catch(e:any){alert(e?.response?.data?.error||'Check-in failed');}
+        catch(e:any){setErr(e?.response?.data?.error||'Check-in failed. Please try again.');}
         finally{setBusy(false);}
     };
 
@@ -134,7 +134,7 @@ const Dashboard:React.FC = () => {
         if(!user?.id||busy)return;setBusy(true);
         try{await api.post('/attendance/check-out',{userId:user.id});
             setAtt(p=>({...p,status:'OUT',checkIn:null}));setElapsed(0);setStatus('offline');}
-        catch(e:any){alert(e?.response?.data?.error||'Check-out failed');}
+        catch(e:any){setErr(e?.response?.data?.error||'Check-out failed. Please try again.');}
         finally{setBusy(false);}
     };
 
@@ -163,8 +163,14 @@ const Dashboard:React.FC = () => {
                                         {/* Avatar + status picker */}
                                         <div className="flex items-end justify-between">
                                             <div className="relative">
-                                                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-[18px] font-black text-white shadow-lg ring-4 ring-white"
-                                                    style={{backgroundColor:c}}>{ini}</div>
+                                                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-[18px] font-black text-white shadow-lg ring-4 ring-white overflow-hidden"
+                                                    style={{backgroundColor:c}}>
+                                                    {user?.avatar_url ? (
+                                                        <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        ini
+                                                    )}
+                                                </div>
                                                 <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${cur.dot} ${cur.pulse?'animate-pulse':''}`}/>
                                             </div>
                                             <div className="relative mb-1" ref={sRef}>
@@ -223,7 +229,7 @@ const Dashboard:React.FC = () => {
                                         {/* Attendance widget */}
                                         <div className="pt-3 border-t border-slate-100">
                                             <div className="flex items-center justify-between mb-2.5">
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Today's Attendance</p>
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Today's Attendance</p>
                                                 {(att.sessions_today??0)>0&&(
                                                     <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                                                         {att.sessions_today} session{(att.sessions_today??0)>1?'s':''} · {att.total_hours_today}h
@@ -237,13 +243,13 @@ const Dashboard:React.FC = () => {
                                                 <div className="flex-1 min-w-0">
                                                     {isIn?(
                                                         <>
-                                                            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Clocked In</p>
+                                                            <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide">Clocked In</p>
                                                             <p className="text-[20px] font-black text-emerald-700 tabular-nums font-mono leading-tight">{fmt(elapsed)}</p>
                                                             <p className="text-[9px] text-emerald-500 mt-0.5">Since {att.checkIn?new Date(att.checkIn).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}):'—'}</p>
                                                         </>
                                                     ):(
                                                         <>
-                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Not Checked In</p>
+                                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Not Checked In</p>
                                                             <p className="text-[15px] font-bold text-slate-700 tabular-nums mt-0.5"><LiveClock/></p>
                                                             {(att.sessions_today??0)>0&&<p className="text-[9px] text-slate-400 mt-0.5">Ready to clock back in</p>}
                                                         </>
@@ -256,6 +262,7 @@ const Dashboard:React.FC = () => {
                                                 {busy?<Loader2 size={14} className="animate-spin"/>:isIn?<LogOutIcon size={14}/>:<LogIn size={14}/>}
                                                 {busy?'Processing…':isIn?'Check Out':'Check In'}
                                             </button>
+                                            {err && <p className="text-[11px] text-rose-500 font-medium text-center mt-2">{err}</p>}
                                         </div>
                                     </div>
                                 </div>

@@ -1,0 +1,18 @@
+# Database Connection (Supabase)
+# Pooler connection (Transaction mode - port 6543 / Session mode - port 5432)
+DATABASE_URL="postgresql://postgres.[PROJECT_REF]:[PASSWORD]@[HOST]:6543/postgres"
+
+# Direct connection (Direct database access - port 5432)
+DIRECT_URL="postgresql://postgres.[PROJECT_REF]:[PASSWORD]@[HOST]:5432/postgres"
+
+# Supabase Project URL
+SUPABASE_URL="https://[PROJECT_REF].supabase.co"
+SUPABASE_ANON_KEY="your-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+
+# Server Configuration
+PORT=4000
+NODE_ENV=development
+JWT_SECRET=ems_super_secret_jwt_key
+JWT_REFRESH_SECRET=ems_super_secret_refresh_key
+APP_URL=http://localhost:5173

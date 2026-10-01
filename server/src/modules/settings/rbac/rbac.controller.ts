@@ -3,7 +3,7 @@ import { RBACService } from './rbac.service';
 import { AuthenticatedRequest } from '../../../types';
 
 const service = new RBACService();
-const DEFAULT_TENANT = 'default';
+const DEFAULT_TENANT = 'tenant_default';
 
 export const getPermissions = async (_req: AuthenticatedRequest, res: Response) => {
     const { grouped, flat } = await service.getPermissions();

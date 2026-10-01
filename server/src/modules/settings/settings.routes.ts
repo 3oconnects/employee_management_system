@@ -13,7 +13,7 @@ const router = express.Router();
 router.use(authenticate);
 router.use(authorize(['admin', 'super_admin', 'hr', 'settings:manage']));
 
-const DEFAULT_TENANT = 'default';
+const DEFAULT_TENANT = 'tenant_default';
 
 // ─── ENSURE app_config TABLE EXISTS ─────────────────────────────────────────
 const ensureAppConfigTable = async () => {
@@ -27,7 +27,7 @@ const ensureAppConfigTable = async () => {
             updated_at TIMESTAMP DEFAULT NOW(),
             UNIQUE(tenant_id, category, key)
         )
-    `).catch(() => {});
+    `).catch(() => { });
 };
 
 // ─── GET /settings/permissions ───────────────────────────────────────────────
@@ -52,14 +52,14 @@ router.get('/roles', asyncHandler(async (req: AuthenticatedRequest, res) => {
                     COUNT(DISTINCT u.id) as user_count
              FROM roles r
              LEFT JOIN users u ON u.role_id = r.id
-             WHERE r.tenant_id = $1 OR r.tenant_id IS NULL
+             WHERE r.tenant_id = $1 OR r.tenant_id = 'tenant_default' OR r.tenant_id = 'default' OR r.tenant_id IS NULL
              GROUP BY r.id ORDER BY r.is_system DESC, r.name`,
             [tenantId]
         );
         const permResult = await pool.query(
             `SELECT rp.role_id, p.module, p.action FROM role_permissions rp
              JOIN permissions p ON p.id = rp.permission_id
-             JOIN roles r ON r.id = rp.role_id AND (r.tenant_id = $1 OR r.tenant_id IS NULL)`,
+             JOIN roles r ON r.id = rp.role_id AND (r.tenant_id = $1 OR r.tenant_id = 'tenant_default' OR r.tenant_id = 'default' OR r.tenant_id IS NULL)`,
             [tenantId]
         );
         const permsByRole: Record<number, string[]> = {};
@@ -89,7 +89,7 @@ router.post('/roles', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { name, description, dashboard_type = 'employee', permissions = [] } = req.body;
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
     if (!name?.trim()) throw AppError.badRequest('Role name is required.');
-    
+
     try {
         const roleResult = await pool.query(
             `INSERT INTO roles (tenant_id, name, description, dashboard_type, is_system)
@@ -117,27 +117,41 @@ router.put('/roles/:id', asyncHandler(async (req: AuthenticatedRequest, res) => 
     const { id } = req.params;
     const { name, description, dashboard_type } = req.body;
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
+
+    // Check if role exists
+    const existing = await pool.query(
+        `SELECT id, is_system, name FROM roles 
+         WHERE id=$1 AND (tenant_id = $2 OR tenant_id = 'tenant_default' OR tenant_id = 'default' OR tenant_id IS NULL)`,
+        [id, tenantId]
+    );
+    if (existing.rows.length === 0) throw AppError.notFound('Role not found.');
+
+    const role = existing.rows[0];
+
+    // For system roles, protect system name from being overwritten, but allow dashboard_type and description
+    const targetName = role.is_system ? role.name : (name || role.name);
+
     const result = await pool.query(
         `UPDATE roles SET 
-            name=COALESCE($1,name), 
-            description=COALESCE($2,description),
-            dashboard_type=COALESCE($3,dashboard_type)
-         WHERE id=$4 AND tenant_id=$5 AND is_system=false RETURNING *`,
-        [name || null, description || null, dashboard_type || null, id, tenantId]
+            name = $1, 
+            description = COALESCE($2, description),
+            dashboard_type = COALESCE($3, dashboard_type)
+         WHERE id = $4 RETURNING *`,
+        [targetName, description || null, dashboard_type || null, id]
     );
-    if (result.rows.length === 0) throw AppError.notFound('Role not found or is a system role.');
     res.json({ success: true, data: result.rows[0] });
 }));
 
 // ─── DELETE /settings/roles/:id ──────────────────────────────────────────────
 router.delete('/roles/:id', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { id } = req.params;
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) throw AppError.unauthorized('No tenant context');
+    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
     const usersOnRole = await pool.query('SELECT COUNT(*) FROM users WHERE role_id=$1', [id]);
     if (parseInt(usersOnRole.rows[0].count) > 0) throw AppError.badRequest('Cannot delete role: users still assigned.');
     const result = await pool.query(
-        'DELETE FROM roles WHERE id=$1 AND tenant_id=$2 AND is_system=false RETURNING id',
+        `DELETE FROM roles 
+         WHERE id=$1 AND (tenant_id=$2 OR tenant_id='tenant_default' OR tenant_id='default' OR tenant_id IS NULL) AND is_system=false 
+         RETURNING id`,
         [id, tenantId]
     );
     if (result.rows.length === 0) throw AppError.notFound('Role not found or is a system role.');
@@ -149,8 +163,12 @@ router.put('/roles/:id/permissions', asyncHandler(async (req: AuthenticatedReque
     const { id } = req.params;
     const { permissions = [] } = req.body;
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const roleCheck = await pool.query('SELECT id FROM roles WHERE id=$1 AND tenant_id=$2', [id, tenantId]);
-    if (roleCheck.rows.length === 0) throw AppError.notFound('Role');
+    const roleCheck = await pool.query(
+        `SELECT id FROM roles 
+         WHERE id=$1 AND (tenant_id = $2 OR tenant_id = 'tenant_default' OR tenant_id = 'default' OR tenant_id IS NULL)`,
+        [id, tenantId]
+    );
+    if (roleCheck.rows.length === 0) throw AppError.notFound('Role not found.');
     await pool.query('DELETE FROM role_permissions WHERE role_id=$1', [id]);
     for (const permKey of permissions) {
         const [module, action] = permKey.split(':');
@@ -193,7 +211,7 @@ router.get('/users', asyncHandler(async (req: AuthenticatedRequest, res) => {
 router.post('/users', asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { name, email, password, role = 'employee', role_id, send_welcome_email = false } = req.body;
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    
+
     if (!name || !email) throw AppError.badRequest('Name and email are required.');
 
     const existing = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
@@ -302,7 +320,7 @@ router.put('/users/:id/password', asyncHandler(async (req: AuthenticatedRequest,
     const tenantId = req.user?.tenantId || DEFAULT_TENANT;
 
     if (!password) throw AppError.badRequest('Password is required.');
-    
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
         `UPDATE users SET password=$1, temp_password=$2, is_password_temp=true

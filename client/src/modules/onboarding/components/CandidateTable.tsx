@@ -5,6 +5,8 @@ interface CandidateTableProps {
     candidates: any[];
     loading: boolean;
     onEdit: (c: any) => void;
+    searchQuery?: string;
+    onClearSearch?: () => void;
 }
 
 const fmtId = (id: string) => {
@@ -14,7 +16,7 @@ const fmtId = (id: string) => {
     return `EMP-${id.slice(0, 6).toUpperCase()}`;
 };
 
-export const CandidateTable: React.FC<CandidateTableProps> = ({ candidates, loading, onEdit }) => {
+export const CandidateTable: React.FC<CandidateTableProps> = ({ candidates, loading, onEdit, searchQuery, onClearSearch }) => {
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex-1 flex flex-col">
             <div className="overflow-x-auto no-scrollbar flex-1">
@@ -46,14 +48,43 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({ candidates, load
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                        {candidates.length === 0 ? (
+                        {loading ? (
+                            <tr>
+                                <td colSpan={10} className="py-20 text-center">
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                        <div className="w-8 h-8 border-3 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                                        <p className="text-xs font-bold text-slate-500">Loading candidates...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : candidates.length === 0 ? (
                             <tr>
                                 <td colSpan={10} className="py-24 text-center">
-                                    <div className="flex flex-col items-center opacity-30">
-                                        <UserIcon size={40} className="text-slate-300 mb-4" />
-                                        <p className="text-[13px] font-black text-slate-900 uppercase tracking-tight">Zero Pipeline</p>
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1"> recruitment funnel offline</p>
-                                    </div>
+                                    {searchQuery ? (
+                                        <div className="flex flex-col items-center max-w-sm mx-auto">
+                                            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mb-3">
+                                                <UserIcon size={24} />
+                                            </div>
+                                            <p className="text-sm font-bold text-slate-800 tracking-tight">No candidates found</p>
+                                            <p className="text-xs text-slate-500 mt-1 mb-4 text-center">
+                                                No results match &quot;{searchQuery}&quot;. Try adjusting your search term or filters.
+                                            </p>
+                                            {onClearSearch && (
+                                                <button
+                                                    onClick={onClearSearch}
+                                                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-colors"
+                                                >
+                                                    Clear filters
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center opacity-40">
+                                            <UserIcon size={40} className="text-slate-300 mb-4" />
+                                            <p className="text-[13px] font-black text-slate-900 uppercase tracking-tight">Zero Pipeline</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">recruitment funnel offline</p>
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         ) : (

@@ -6,19 +6,21 @@ import {
     Users, UserCheck, AlertCircle, Zap, Globe, Cpu, Layers, ShieldAlert 
 } from 'lucide-react';
 import api from '../../../services/api';
+import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 
 const DEMO_ACCOUNTS = [
-    { label: 'System Root', email: 'admin@company.com',   icon: Shield,    color: 'bg-indigo-600', password: 'admin123'  },
-    { label: 'Executive', email: 'sarah@example.com',   icon: Users,     color: 'bg-purple-600', password: 'password'  },
-    { label: 'Operator',  email: 'michael@example.com', icon: UserCheck, color: 'bg-emerald-600', password: 'password' },
+    { label: 'Admin',      email: 'admin@company.com',       icon: Shield,    color: 'bg-indigo-600', password: 'Admin@123' },
+    { label: 'HR Manager', email: 'priya@company.com',       icon: Users,     color: 'bg-purple-600', password: 'Admin@123' },
+    { label: 'Employee',   email: 'alex.rivers@company.com', icon: UserCheck, color: 'bg-emerald-600', password: 'Admin@123' },
 ];
 
 const LoginPage: React.FC = () => {
-    const [email, setEmail]               = useState('admin@company.com');
-    const [password, setPassword]         = useState('admin123');
-    const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading]       = useState(false);
-    const [error, setError]               = useState<string | null>(null);
+    const [email, setEmail]                             = useState('admin@company.com');
+    const [password, setPassword]                       = useState('Admin@123');
+    const [showPassword, setShowPassword]               = useState(false);
+    const [isLoading, setIsLoading]                     = useState(false);
+    const [error, setError]                             = useState<string | null>(null);
+    const [showForgotPassword, setShowForgotPassword]   = useState(false);
 
     const { setAuth, isAuthenticated, user } = useAuthStore();
     const navigate  = useNavigate();
@@ -88,14 +90,14 @@ const LoginPage: React.FC = () => {
                     <div className="space-y-6">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-lg">
                             <Zap size={14} className="text-indigo-400 fill-indigo-400" />
-                            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Protocol Active</span>
+                            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Platform Active</span>
                         </div>
                         <h2 className="text-4xl font-black text-white leading-[1.1] tracking-tight">
-                            ENTERPRISE<br />
-                            <span className="text-indigo-400">COMMAND CENTER.</span>
+                            Workforce<br />
+                            <span className="text-indigo-400">Management Platform.</span>
                         </h2>
                         <p className="text-slate-400 font-medium leading-relaxed max-w-sm">
-                            Access the neural interface for multi-tenant workforce management, automated fiscal processing, and real-time operational traceability.
+                            Manage your team, time, attendance, and payroll — all in one place.
                         </p>
                     </div>
                 </div>
@@ -124,8 +126,8 @@ const LoginPage: React.FC = () => {
             <div className="flex-1 flex flex-col items-center justify-center p-8 lg:p-24 bg-white relative">
                 <div className="w-full max-w-md space-y-10">
                     <div className="space-y-2">
-                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Identity Access</h3>
-                        <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest">Enter Credentials to Initialize</p>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Sign In</h3>
+                        <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest">Enter your credentials to continue</p>
                     </div>
 
                     {/* ── ERROR FEEDBACK ── */}
@@ -135,7 +137,7 @@ const LoginPage: React.FC = () => {
                                 <ShieldAlert size={16} className="text-rose-600" />
                             </div>
                             <div className="space-y-1">
-                                <p className="text-[12px] font-black text-rose-900 uppercase tracking-tight">Identity Breach / Protocol Failure</p>
+                                <p className="text-[12px] font-black text-rose-900 uppercase tracking-tight">Sign-in Failed</p>
                                 <p className="text-[13px] font-bold text-rose-600/90 leading-tight">{error}</p>
                             </div>
                         </div>
@@ -143,7 +145,7 @@ const LoginPage: React.FC = () => {
 
                     <form onSubmit={handleLogin} className="space-y-6">
                         <div className="space-y-2">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Interface ID (Email)</label>
+                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
                             <div className="relative group">
                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={18} />
                                 <input 
@@ -159,8 +161,14 @@ const LoginPage: React.FC = () => {
 
                         <div className="space-y-2">
                             <div className="flex justify-between items-center px-1">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Secure Key</label>
-                                <button type="button" className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors">Reset Key</button>
+                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Password</label>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowForgotPassword(true)}
+                                    className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+                                >
+                                    Forgot Password?
+                                </button>
                             </div>
                             <div className="relative group">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={18} />
@@ -188,9 +196,9 @@ const LoginPage: React.FC = () => {
                             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 py-4 rounded-2xl text-white text-[14px] font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
                         >
                             {isLoading ? (
-                                <><Loader2 className="animate-spin" size={18} /> Synchronizing...</>
+                                <><Loader2 className="animate-spin" size={18} /> Signing in...</>
                             ) : (
-                                <><LogIn size={18} /> Authenticate Session</>
+                                <><LogIn size={18} /> Sign In</>
                             )}
                         </button>
                     </form>
@@ -198,7 +206,7 @@ const LoginPage: React.FC = () => {
                     <div className="space-y-6">
                         <div className="flex items-center gap-4">
                             <div className="flex-1 h-px bg-slate-100" />
-                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Quick Access Tokens</span>
+                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Demo Accounts</span>
                             <div className="flex-1 h-px bg-slate-100" />
                         </div>
 
@@ -225,6 +233,17 @@ const LoginPage: React.FC = () => {
                     </p>
                 </div>
             </div>
+
+            {/* Forgot Password Modal with Admin Approval Workflow */}
+            <ForgotPasswordModal
+                isOpen={showForgotPassword}
+                onClose={() => setShowForgotPassword(false)}
+                initialEmail={email}
+                onResetSuccess={(newPass, resetEmail) => {
+                    setEmail(resetEmail);
+                    setPassword(newPass);
+                }}
+            />
         </div>
     );
 };

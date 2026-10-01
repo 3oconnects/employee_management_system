@@ -5,17 +5,22 @@ export class EmployeesRepository {
         const { search, limit, offset, status, departmentId, teamId } = options;
         
         let sql = `
-            SELECT e.*, d.name as department_name, m.name as manager_name, 
+            SELECT e.*, 
+                   COALESCE(e.avatar_url, u.avatar_url) as avatar_url,
+                   d.name as department_name, m.name as manager_name, 
                    u.availability_status,
+                   COALESCE(r.name, u.role, 'employee') as role,
+                   u.role_id,
                    CASE WHEN a.id IS NOT NULL THEN true ELSE false END as is_checked_in
             FROM employees e
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN users m ON e.reporting_manager_id = m.id
-            LEFT JOIN users u ON e.email = u.email AND e.tenant_id = u.tenant_id
+            LEFT JOIN users u ON e.email = u.email AND (e.tenant_id = u.tenant_id OR u.tenant_id = 'tenant_default' OR u.tenant_id = 'default')
+            LEFT JOIN roles r ON u.role_id = r.id
             LEFT JOIN attendance a ON u.id = a.user_id AND a.check_in::date = CURRENT_DATE
-            WHERE e.tenant_id = $1
+            WHERE e.tenant_id = $1 AND e.deleted_at IS NULL
         `;
-        let countSql = 'SELECT COUNT(*) FROM employees e WHERE e.tenant_id = $1';
+        let countSql = 'SELECT COUNT(*) FROM employees e WHERE e.tenant_id = $1 AND e.deleted_at IS NULL';
         const params: any[] = [tenantId];
         let pIndex = 2;
 
@@ -78,10 +83,17 @@ export class EmployeesRepository {
         return res.rows[0];
     }
 
-    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string) {
+    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string, isPasswordTemp: boolean = true, roleId: number | null = null) {
         await client.query(
-            'INSERT INTO users (name, email, password, role, tenant_id) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (email) DO NOTHING',
-            [name, email, hashedPassword, role, tenantId]
+            `INSERT INTO users (name, email, password, role, tenant_id, is_password_temp, is_active, role_id) 
+             VALUES ($1, $2, $3, $4, $5, $6, true, COALESCE($7, (SELECT id FROM roles WHERE LOWER(name) = LOWER($4) LIMIT 1))) 
+             ON CONFLICT (email) DO UPDATE 
+             SET password = EXCLUDED.password, 
+                 is_password_temp = EXCLUDED.is_password_temp,
+                 role = EXCLUDED.role,
+                 role_id = COALESCE($7, EXCLUDED.role_id, users.role_id, (SELECT id FROM roles WHERE LOWER(name) = LOWER(EXCLUDED.role) LIMIT 1), 4),
+                 is_active = true`,
+            [name, email, hashedPassword, role, tenantId, isPasswordTemp, roleId]
         );
     }
 
@@ -96,12 +108,81 @@ export class EmployeesRepository {
     }
 
     async findById(id: string, tenantId: string) {
-        const res = await pool.query('SELECT * FROM employees WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+        const res = await pool.query(`
+            SELECT e.*, 
+                   COALESCE(r.name, u.role, 'employee') as role,
+                   u.role_id
+            FROM employees e
+            LEFT JOIN users u ON e.email = u.email AND (e.tenant_id = u.tenant_id OR u.tenant_id = 'tenant_default' OR u.tenant_id = 'default')
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE e.id = $1 AND (e.tenant_id = $2 OR e.tenant_id = 'tenant_default' OR e.tenant_id = 'default')
+        `, [id, tenantId]);
         return res.rows[0];
     }
 
     async update(client: any, id: string, tenantId: string, setClause: string, params: any[]) {
-        await client.query(`UPDATE employees SET ${setClause}, updated_at = NOW() WHERE id = $${params.length - 1} AND tenant_id = $${params.length}`, params);
+        await client.query(`UPDATE employees SET ${setClause}, updated_at = NOW() WHERE id = $${params.length - 1} AND (tenant_id = $${params.length} OR tenant_id = 'tenant_default' OR tenant_id = 'default')`, params);
+    }
+
+    async updateEmployeeProfile(client: any, id: string, tenantId: string, fields: Record<string, any>) {
+        const keys = Object.keys(fields);
+        if (keys.length === 0) return;
+        const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+        const params = keys.map(k => fields[k]);
+        params.push(id, tenantId);
+        await client.query(
+            `UPDATE employees SET ${setClause}, updated_at = NOW() WHERE id = $${params.length - 1} AND (tenant_id = $${params.length} OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
+            params
+        );
+    }
+
+    async ensureRoleExists(client: any, roleName: string, tenantId: string): Promise<{ id: number; name: string }> {
+        const trimmed = roleName.trim();
+        const existingRole = await client.query(
+            `SELECT id, name FROM roles 
+             WHERE LOWER(name) = LOWER($1) AND (tenant_id = $2 OR tenant_id = 'tenant_default' OR tenant_id = 'default')
+             LIMIT 1`,
+            [trimmed, tenantId]
+        );
+        if (existingRole.rows.length > 0) {
+            return { id: existingRole.rows[0].id, name: existingRole.rows[0].name };
+        }
+
+        const newRole = await client.query(
+            `INSERT INTO roles (tenant_id, name, description, dashboard_type, is_system)
+             VALUES ($1, $2, $3, $4, false)
+             RETURNING id, name`,
+            [tenantId, trimmed, `${trimmed} role`, 'employee']
+        );
+        const createdRole = newRole.rows[0];
+
+        const basePerms = await client.query(
+            `SELECT id FROM permissions WHERE module IN ('attendance', 'leave', 'timesheet', 'profile') AND action = 'view'`
+        );
+        for (const p of basePerms.rows) {
+            await client.query(
+                `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [createdRole.id, p.id]
+            );
+        }
+
+        return createdRole;
+    }
+
+    async updateUserRole(client: any, email: string, roleName: string, roleId: number, tenantId: string) {
+        await client.query(
+            `UPDATE users 
+             SET role = $1, role_id = $2, updated_at = NOW() 
+             WHERE LOWER(email) = LOWER($3) AND (tenant_id = $4 OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
+            [roleName, roleId, email.trim(), tenantId]
+        );
+    }
+
+    async updateUserAvatar(client: any, email: string, avatarUrl: string, tenantId: string) {
+        await client.query(
+            `UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE LOWER(email) = LOWER($2) AND (tenant_id = $3 OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
+            [avatarUrl, email.trim(), tenantId]
+        );
     }
 
     async updatePayrollProfile(client: any, employeeId: string, tenantId: string, updates: any[]) {
@@ -113,12 +194,192 @@ export class EmployeesRepository {
                  annual_ctc = COALESCE($4, annual_ctc),
                  department_id = COALESCE($5, department_id),
                  team_id = COALESCE($6, team_id)
-             WHERE employee_id = $7 AND tenant_id = $8`,
+             WHERE employee_id = $7 AND (tenant_id = $8 OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
             updates
         );
     }
 
     async updateUserEmail(client: any, newEmail: string, oldEmail: string, tenantId: string) {
-        await client.query('UPDATE users SET email = $1 WHERE email = $2 AND tenant_id = $3', [newEmail, oldEmail, tenantId]);
+        await client.query(
+            `UPDATE users SET email = $1, updated_at = NOW() WHERE LOWER(email) = LOWER($2) AND (tenant_id = $3 OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
+            [newEmail.trim(), oldEmail.trim(), tenantId]
+        );
+    }
+
+    async findEducation(employeeId: string) {
+        const res = await pool.query(
+            'SELECT * FROM employee_education WHERE employee_id = $1 ORDER BY year DESC, id DESC',
+            [employeeId]
+        );
+        if (res.rows.length > 0) return res.rows;
+        const emp = await pool.query('SELECT education_history FROM employees WHERE id = $1', [employeeId]);
+        return emp.rows[0]?.education_history || [];
+    }
+
+    async replaceEducation(client: any, employeeId: string, entries: any[]) {
+        await client.query('DELETE FROM employee_education WHERE employee_id = $1', [employeeId]);
+        for (const e of entries) {
+            await client.query(
+                `INSERT INTO employee_education (employee_id, degree, field, institution, year, grade)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [employeeId, e.degree || '', e.field || '', e.institution || '', e.year ? String(e.year) : '', e.grade || '']
+            );
+        }
+        const latest = entries[0];
+        await client.query(
+            `UPDATE employees 
+             SET education_history = $1,
+                 highest_degree = COALESCE($2, highest_degree),
+                 field_of_study = COALESCE($3, field_of_study),
+                 institution = COALESCE($4, institution),
+                 graduation_year = COALESCE($5, graduation_year)
+             WHERE id = $6`,
+            [
+                JSON.stringify(entries),
+                latest?.degree || null,
+                latest?.field || null,
+                latest?.institution || null,
+                latest?.year ? String(latest.year) : null,
+                employeeId
+            ]
+        );
+        return entries;
+    }
+
+    async findExperience(employeeId: string) {
+        const res = await pool.query(
+            'SELECT * FROM employee_experience WHERE employee_id = $1 ORDER BY start_date DESC NULLS LAST, id DESC',
+            [employeeId]
+        );
+        if (res.rows.length > 0) return res.rows;
+        const emp = await pool.query('SELECT experience_history FROM employees WHERE id = $1', [employeeId]);
+        return emp.rows[0]?.experience_history || [];
+    }
+
+    async replaceExperience(client: any, employeeId: string, entries: any[]) {
+        await client.query('DELETE FROM employee_experience WHERE employee_id = $1', [employeeId]);
+        for (const e of entries) {
+            await client.query(
+                `INSERT INTO employee_experience (employee_id, job_title, company, start_date, end_date, is_current, description)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [
+                    employeeId,
+                    e.jobTitle || e.job_title || '',
+                    e.company || '',
+                    e.startDate || e.start_date || null,
+                    e.endDate || e.end_date || null,
+                    Boolean(e.current || e.is_current),
+                    e.description || ''
+                ]
+            );
+        }
+        await client.query(
+            `UPDATE employees SET experience_history = $1 WHERE id = $2`,
+            [JSON.stringify(entries), employeeId]
+        );
+        return entries;
+    }
+
+    async findEmergencyContacts(employeeId: string) {
+        const res = await pool.query(
+            'SELECT * FROM employee_emergency_contacts WHERE employee_id = $1 ORDER BY is_primary DESC, id ASC',
+            [employeeId]
+        );
+        return res.rows;
+    }
+
+    async replaceEmergencyContacts(client: any, employeeId: string, tenantId: string, contacts: any[]) {
+        await client.query('DELETE FROM employee_emergency_contacts WHERE employee_id = $1', [employeeId]);
+        for (const c of contacts) {
+            await client.query(
+                `INSERT INTO employee_emergency_contacts (tenant_id, employee_id, name, relationship, phone, email, address, is_primary)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [tenantId, employeeId, c.name, c.relationship, c.phone, c.email || null, c.address || null, Boolean(c.is_primary)]
+            );
+        }
+        return contacts;
+    }
+
+    async findByEmail(email: string) {
+        const res = await pool.query(
+            'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email]
+        );
+        return res.rows[0] || null;
+    }
+
+    async findByAnyEmail(email: string) {
+        const res = await pool.query(
+            `SELECT id, name, email, personal_email,
+                    CASE WHEN LOWER(email) = LOWER($1) THEN 'work' ELSE 'personal' END as matched_type
+             FROM employees 
+             WHERE LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1) 
+             LIMIT 1`,
+            [email]
+        );
+        return res.rows[0] || null;
+    }
+
+    async findUserByEmail(email: string) {
+        const res = await pool.query(
+            'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email]
+        );
+        return res.rows[0] || null;
+    }
+
+    async delete(id: string, tenantId: string) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            
+            // Clean up child tables referencing this employee
+            await client.query('DELETE FROM employee_education WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM employee_experience WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM employee_emergency_contacts WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM employee_documents WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM employee_roles WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM performance_reviews WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM timesheets WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM leave_requests WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM approvals WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM payroll_profiles WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM payroll_entries WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM payroll_history WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM reimbursement_claims WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM claims WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM loans WHERE employee_id = $1', [id]);
+
+            // Unlink manager references
+            await client.query('UPDATE employees SET manager_id = NULL WHERE manager_id = $1', [id]);
+
+            // Get employee email
+            const empRes = await client.query('SELECT email FROM employees WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+            const empEmail = empRes.rows[0]?.email;
+
+            // Delete the employee
+            const res = await client.query('DELETE FROM employees WHERE id = $1 AND tenant_id = $2 RETURNING id', [id, tenantId]);
+
+            // If an associated user exists, deactivate or delete user
+            if (empEmail && empEmail !== 'admin@company.com') {
+                await client.query('UPDATE users SET is_active = false, deleted_at = NOW() WHERE email = $1 AND tenant_id = $2', [empEmail, tenantId]);
+            }
+
+            await client.query('COMMIT');
+            return (res.rowCount ?? 0) > 0;
+        } catch (err) {
+            await client.query('ROLLBACK');
+            console.error('[EmployeesRepository.delete] Hard delete failed, falling back to soft delete:', err);
+            // Fallback to soft delete
+            const softRes = await pool.query(
+                "UPDATE employees SET deleted_at = NOW(), status = 'terminated' WHERE id = $1 AND tenant_id = $2 RETURNING id",
+                [id, tenantId]
+            );
+            return ((softRes.rowCount ?? 0) > 0);
+        } finally {
+            client.release();
+        }
     }
 }
+
+

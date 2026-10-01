@@ -1,6 +1,8 @@
 import { ApprovalsRepository } from './approvals.repository';
 import { withTransaction } from '../../database/transaction';
 import { AppError } from '../../core/errors/AppError';
+import { pool } from '../../config/db';
+import { sendEmployeeActionNotification } from '../../services/emailService';
 
 export class ApprovalsService {
     private repo: ApprovalsRepository;
@@ -29,24 +31,61 @@ export class ApprovalsService {
         } else if (type === 'onboarding') {
             const empStatus = action === 'approve' ? 'active' : 'rejected';
             await this.repo.updateEmployeeStatus(id, empStatus, tenantId);
+            
+            if (action === 'approve') {
+                const empRes = await pool.query(
+                    'SELECT id, name, email, personal_email, position, department FROM employees WHERE id = $1',
+                    [id]
+                );
+                if (empRes.rows.length > 0) {
+                    const emp = empRes.rows[0];
+                    sendEmployeeActionNotification({
+                        employeeId: emp.id,
+                        name: emp.name,
+                        email: emp.email,
+                        personalEmail: emp.personal_email,
+                        changes: [{
+                            field: 'status',
+                            label: 'Employment Status',
+                            from: 'Onboarding',
+                            to: 'Active & Confirmed',
+                            isPromotion: true,
+                        }],
+                        newPosition: emp.position,
+                        newDepartment: emp.department,
+                        newStatus: 'active',
+                        tenantId,
+                    }, tenantId).catch(err => console.error('[ApprovalsService] Failed to send onboarding approval email:', err));
+                }
+            }
         } else if (type === 'timesheet') {
             await this.repo.updateTimesheetStatus(id, status, tenantId);
         } else if (type === 'claim') {
             await this.repo.updateClaimStatus(id, status, tenantId);
-        } else if (type === 'department_creation' && action === 'approve') {
-            const meta = await this.repo.getApprovalMetadata(id, tenantId);
-            if (!meta) throw AppError.notFound('Approval not found');
+        } else if (type === 'department_creation') {
+            if (action === 'approve') {
+                const meta = await this.repo.getApprovalMetadata(id, tenantId);
+                if (!meta) throw AppError.notFound('Department creation approval not found or missing metadata');
 
-            await withTransaction(async (client) => {
-                await this.repo.executeDepartmentCreation(id, meta, status, tenantId, client);
-            });
-        } else if (type === 'team_creation' && action === 'approve') {
-            const meta = await this.repo.getApprovalMetadata(id, tenantId);
-            if (!meta) throw AppError.notFound('Approval not found');
+                await withTransaction(async (client) => {
+                    await this.repo.executeDepartmentCreation(id, meta, status, tenantId, client);
+                });
+            } else {
+                // Reject: just mark as rejected, no department gets created
+                await this.repo.updateApprovalStatus(id, status, tenantId);
+            }
+        } else if (type === 'team_creation') {
+            if (action === 'approve') {
+                const meta = await this.repo.getApprovalMetadata(id, tenantId);
+                if (!meta) throw AppError.notFound('Team creation approval not found or missing metadata');
 
-            await withTransaction(async (client) => {
-                await this.repo.executeTeamCreation(id, meta, status, tenantId, client);
-            });
+                await withTransaction(async (client) => {
+                    await this.repo.executeTeamCreation(id, meta, status, tenantId, client);
+                });
+            } else {
+                // Reject: just mark as rejected, no team gets created
+                await this.repo.updateApprovalStatus(id, status, tenantId);
+            }
         } else {
             await this.repo.updateApprovalStatus(id, status, tenantId);
         }

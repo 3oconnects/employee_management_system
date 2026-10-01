@@ -15,12 +15,35 @@ interface Props {
 const EditEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, setForm, loading, error }) => {
     const [departments, setDepartments] = useState<any[]>([]);
     const [teams, setTeams] = useState<any[]>([]);
+    const [roles, setRoles] = useState<any[]>([]);
+    const [isCustomRole, setIsCustomRole] = useState(false);
 
     useEffect(() => {
         if (show) {
-            api.get('/organization/departments').then(res => setDepartments(res.data.data || []));
+            api.get('/organization/departments').then(res => {
+                const list = res.data.data || [];
+                setDepartments(list);
+                setForm(f => {
+                    if ((!f.department_id || f.department_id === '') && f.department) {
+                        const matched = list.find((d: any) => d.name.toLowerCase() === f.department.toLowerCase());
+                        if (matched) {
+                            return { ...f, department_id: matched.id.toString() };
+                        }
+                    }
+                    return f;
+                });
+            });
+            api.get('/employees/roles').then(res => {
+                const list = res.data.data || [];
+                setRoles(list);
+                if (form.role && !list.some((r: any) => r.name.toLowerCase() === form.role?.toLowerCase())) {
+                    setIsCustomRole(true);
+                } else {
+                    setIsCustomRole(false);
+                }
+            }).catch(() => {});
         }
-    }, [show]);
+    }, [show, form.role]);
 
     useEffect(() => {
         if (show && form.department_id) {
@@ -113,18 +136,77 @@ const EditEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, set
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <Field label="Position / Role *">
+                        <Field label="Position / Job Title *">
                             <input required type="text" value={form.position}
+                                placeholder="e.g. Senior Software Engineer"
                                 onChange={e => setForm(f => ({...f, position: e.target.value}))} className={inputCls}/>
                         </Field>
-                        <Field label="Reporting Manager">
-                            <ManagerPicker 
-                                value={form.reportingManagerId || ''} 
-                                displayName={form.reportingManagerName || ''}
-                                onChange={(id, name) => setForm(f => ({...f, reportingManagerId: id, reportingManagerName: name}))}
-                            />
+                        <Field label="System Role & Permissions *">
+                            <div className="space-y-1">
+                                {!isCustomRole ? (
+                                    <select 
+                                        value={form.role || 'employee'} 
+                                        onChange={(e) => {
+                                            if (e.target.value === '__custom__') {
+                                                setIsCustomRole(true);
+                                                setForm(f => ({ ...f, role: '' }));
+                                            } else {
+                                                setForm(f => ({ ...f, role: e.target.value }));
+                                            }
+                                        }} 
+                                        className={`${inputCls} appearance-none cursor-pointer font-medium`}
+                                    >
+                                        {roles.length === 0 && (
+                                            <>
+                                                <option value="employee">Employee (Default)</option>
+                                                <option value="manager">Manager</option>
+                                                <option value="hr">HR</option>
+                                                <option value="admin">Admin</option>
+                                            </>
+                                        )}
+                                        {roles.map((r: any) => (
+                                            <option key={r.id} value={r.name}>
+                                                {r.name.replace(/_/g, ' ')} {r.is_system ? '(System)' : ''}
+                                            </option>
+                                        ))}
+                                        <option value="__custom__">+ Enter New / Custom Role...</option>
+                                    </select>
+                                ) : (
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="text"
+                                            placeholder="Enter role name"
+                                            value={form.role || ''}
+                                            onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+                                            className={inputCls}
+                                            autoFocus
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsCustomRole(false);
+                                                setForm(f => ({ ...f, role: 'employee' }));
+                                            }}
+                                            className="px-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-bold whitespace-nowrap"
+                                        >
+                                            Existing
+                                        </button>
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                    Mapped to permissions in <span className="text-indigo-600 font-semibold">Roles & Perms</span>.
+                                </p>
+                            </div>
                         </Field>
                     </div>
+
+                    <Field label="Reporting Manager">
+                        <ManagerPicker 
+                            value={form.reportingManagerId || ''} 
+                            displayName={form.reportingManagerName || ''}
+                            onChange={(id, name) => setForm(f => ({...f, reportingManagerId: id, reportingManagerName: name}))}
+                        />
+                    </Field>
 
                     <Field label="Status">
                         <div className="grid grid-cols-3 gap-2">

@@ -281,13 +281,21 @@ const Topbar: React.FC = () => {
                         onClick={() => { setUserMenuOpen(!userMenuOpen); setNotifOpen(false); }}
                         className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-xl hover:bg-slate-100/80 transition-all group"
                     >
-                        {/* Colored avatar */}
-                        <div
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0 shadow-sm"
-                            style={{ backgroundColor: avatarColor }}
-                        >
-                            {initials}
-                        </div>
+                        {/* Avatar photo or colored initials */}
+                        {user?.avatar_url ? (
+                            <img
+                                src={user.avatar_url}
+                                alt={user?.name || 'Profile'}
+                                className="w-7 h-7 rounded-lg object-cover flex-shrink-0 shadow-sm ring-1 ring-slate-200"
+                            />
+                        ) : (
+                            <div
+                                className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0 shadow-sm"
+                                style={{ backgroundColor: avatarColor }}
+                            >
+                                {initials}
+                            </div>
+                        )}
                         {/* Name + Role */}
                         <div className="hidden md:block text-left">
                             <p className="text-[12px] font-bold text-slate-700 leading-none">{user?.name?.split(' ')[0]}</p>
@@ -304,12 +312,20 @@ const Topbar: React.FC = () => {
                             <div className="relative">
                                 <div className="h-10" style={{ background: `linear-gradient(135deg, ${avatarColor}45, ${avatarColor}18)` }} />
                                 <div className="px-4 pb-3 -mt-4">
-                                    <div
-                                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[12px] font-black text-white ring-2 ring-white shadow-sm"
-                                        style={{ backgroundColor: avatarColor }}
-                                    >
-                                        {initials}
-                                    </div>
+                                    {user?.avatar_url ? (
+                                        <img
+                                            src={user.avatar_url}
+                                            alt={user?.name || 'Profile'}
+                                            className="w-9 h-9 rounded-xl object-cover ring-2 ring-white shadow-sm"
+                                        />
+                                    ) : (
+                                        <div
+                                            className="w-9 h-9 rounded-xl flex items-center justify-center text-[12px] font-black text-white ring-2 ring-white shadow-sm"
+                                            style={{ backgroundColor: avatarColor }}
+                                        >
+                                            {initials}
+                                        </div>
+                                    )}
                                     <p className="text-[13px] font-bold text-slate-900 mt-2 leading-tight">{user?.name}</p>
                                     <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
                                 </div>

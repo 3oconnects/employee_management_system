@@ -9,66 +9,78 @@ interface ApprovalTeamCardProps {
     avatars: string[];
 }
 
-const ApprovalTeamCard: React.FC<ApprovalTeamCardProps> = ({ 
-    dept, 
-    requestCount, 
-    viewMode, 
-    children,
-    avatars 
-}) => {
-    const getDeptIcon = (name: string) => {
-        const n = name.toLowerCase();
-        if (n.includes('engineering') || n.includes('tech')) return <Code size={20} />;
-        if (n.includes('manage')) return <Briefcase size={20} />;
-        if (n.includes('hr') || n.includes('people')) return <UserCircle size={20} />;
-        return <Settings size={20} />;
-    };
+const getDeptIcon = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes('engineering') || n.includes('tech')) return <Code size={16} />;
+    if (n.includes('manage')) return <Briefcase size={16} />;
+    if (n.includes('hr') || n.includes('people')) return <UserCircle size={16} />;
+    return <Settings size={16} />;
+};
 
+const ApprovalTeamCard: React.FC<ApprovalTeamCardProps> = ({
+    dept,
+    requestCount,
+    viewMode,
+    children,
+    avatars
+}) => {
+    // Non-teams view: simple section header
     if (viewMode !== 'teams') {
         return (
-            <div className="space-y-4">
+            <div className="space-y-3">
                 <div className="flex items-center gap-3 px-1 py-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
-                    <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">{dept}</h3>
-                    <div className="h-px bg-slate-100 flex-1" />
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{requestCount} Items</span>
+                    <div className="w-1.5 h-4 rounded-full bg-indigo-600" />
+                    <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider">{dept}</h3>
+                    <div className="h-px bg-slate-200/80 flex-1" />
+                    <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {requestCount} {requestCount === 1 ? 'item' : 'items'}
+                    </span>
                 </div>
-                {children}
+                <div className="space-y-2.5">
+                    {children}
+                </div>
             </div>
         );
     }
 
+    // Teams card view
     return (
-        <div className="group bg-white border border-slate-100 rounded-[28px] p-5 shadow-2xl shadow-slate-200/40 hover:shadow-indigo-500/10 transition-all duration-500 border-b-4 border-b-slate-50 hover:border-b-indigo-500 flex flex-col h-full">
-            <div className="flex items-start justify-between mb-5">
-                <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white group-hover:rotate-6 transition-all duration-500 shadow-sm group-hover:shadow-lg group-hover:shadow-indigo-500/30">
+        <div className="bg-white border border-slate-200/90 rounded-2xl flex flex-col h-full hover:border-slate-300 hover:shadow-md transition-all overflow-hidden shadow-xs">
+            {/* Card header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/40">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center shadow-xs">
                         {getDeptIcon(dept)}
                     </div>
                     <div>
-                        <h3 className="text-[18px] font-black text-slate-800 tracking-tight leading-none">{dept}</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mt-1.5 flex items-center gap-2">
-                            <Users size={10} className="text-indigo-400" />
-                            {requestCount} Workflows
+                        <h3 className="text-sm font-bold text-slate-800 leading-tight">{dept}</h3>
+                        <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                            <Users size={11} />
+                            <span>{requestCount} pending {requestCount === 1 ? 'request' : 'requests'}</span>
                         </p>
                     </div>
                 </div>
-                
-                <div className="flex -space-x-2.5 opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+
+                <div className="flex -space-x-2">
                     {avatars.slice(0, 3).map((name, i) => (
-                        <div key={i} className="w-8 h-8 rounded-full border-[3px] border-white bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 shadow-sm transition-transform hover:-translate-y-1">
-                            {name.charAt(0)}
+                        <div
+                            key={i}
+                            className="w-7 h-7 rounded-full border-2 border-white bg-gradient-to-tr from-slate-200 to-slate-300 flex items-center justify-center text-xs font-bold text-slate-700 shadow-xs"
+                            title={name}
+                        >
+                            {name.charAt(0).toUpperCase()}
                         </div>
                     ))}
                     {avatars.length > 3 && (
-                        <div className="w-8 h-8 rounded-full border-[3px] border-white bg-indigo-50 flex items-center justify-center text-[9px] font-black text-indigo-600 shadow-sm">
+                        <div className="w-7 h-7 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 shadow-xs">
                             +{avatars.length - 3}
                         </div>
                     )}
                 </div>
             </div>
-            
-            <div className="flex-1 overflow-y-auto max-h-[280px] pr-2 custom-scrollbar space-y-1.5">
+
+            {/* Card body — scrollable request list */}
+            <div className="flex-1 overflow-y-auto max-h-[560px] p-3.5 space-y-3 custom-scrollbar bg-slate-50/20">
                 {children}
             </div>
         </div>

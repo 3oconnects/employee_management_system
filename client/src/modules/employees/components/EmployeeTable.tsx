@@ -1,26 +1,32 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Users, Search, UserPlus, Mail, ChevronLeft, ChevronRight,
-    Loader2, Briefcase, Building2, Pencil, Eye,
-    Download, Calendar, LayoutGrid, List, GitBranch, ChevronDown, Hash
+    Loader2, Briefcase, Building2, Pencil, Eye, Trash2, AlertTriangle, X,
+    Download, Calendar, LayoutGrid, List, GitBranch, ChevronDown, Hash,
+    Phone, MessageSquare, Sparkles, Check, BellRing, ExternalLink, ShieldCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import debounce from 'lodash/debounce';
+import { toast } from '../../../components/ui';
 import { AddEmployeeModal, EditEmployeeModal } from './modals/EmployeeModals';
-import { EditEmployeeForm } from './modals/shared';
+import { AddEmployeeForm, EditEmployeeForm } from './modals/shared';
 import BulkUploadModal from './modals/BulkUploadModal';
 
 interface Employee {
     id: string; user_id?: number | null; name: string; email: string; position: string;
+    role?: string; role_id?: number | null;
     department: string; department_name?: string;
+    department_id?: string | number | null;
+    team_id?: string | number | null;
     status: 'active' | 'onboarding' | 'terminated';
     join_date: string; manager_id?: string | null;
     reporting_manager_id?: string | null;
     manager_name?: string | null;
     availability_status?: 'available' | 'busy' | 'away' | 'offline' | 'dnd' | 'break';
     is_checked_in?: boolean;
+    avatar_url?: string;
 }
 interface TreeNode extends Employee { children: TreeNode[]; }
 
@@ -48,8 +54,12 @@ const TreeNode: React.FC<{node:TreeNode;depth:number}> = ({node,depth}) => {
         <div className={depth>0?'ml-5 border-l border-slate-100 pl-3':''}>
             <button onClick={()=>setOpen(!open)}
                 className="w-full flex items-center gap-3 py-2 px-2 rounded-xl hover:bg-slate-50 transition-all text-left group">
-                <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
-                    style={{backgroundColor:color}}>{ini(node.name)}</div>
+                {node.avatar_url ? (
+                    <img src={node.avatar_url} alt={node.name} className="w-8 h-8 rounded-xl object-cover flex-shrink-0" />
+                ) : (
+                    <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+                        style={{backgroundColor:color}}>{ini(node.name)}</div>
+                )}
                 <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-bold text-slate-800 truncate">{node.name}</p>
                     <p className="text-[10px] text-slate-400 truncate">{node.position||'Employee'} · {node.department||node.department_name||''}</p>
@@ -144,12 +154,12 @@ const EmployeeTable: React.FC = () => {
     /* Modals */
     const [showAdd,setShowAdd]   = useState(false);
     const [showBulk,setShowBulk] = useState(false);
-    const [addForm,setAddForm]=useState({name:'',email:'',phone:'',dateOfBirth:'',gender:'',personalEmail:'',department:'',position:'',joinDate:'',employmentType:'full_time',status:'onboarding',addressLine1:'',city:'',state:'',pincode:'',reportingManagerId:'',reportingManagerName:'',annualCTC:'',bankAccountNumber:'',taxRegime:'New',highestDegree:'',fieldOfStudy:'',institution:'',graduationYear:'',internshipStartDate:'',internshipEndDate:'',internshipStipend:'',internshipSupervisor:'',internshipCollege:''});
+    const [addForm,setAddForm]=useState<AddEmployeeForm>({name:'',email:'',phone:'',dateOfBirth:'',gender:'',personalEmail:'',department:'',position:'',role:'employee',joinDate:'',employmentType:'full_time',status:'onboarding',addressLine1:'',city:'',state:'',pincode:'',reportingManagerId:'',reportingManagerName:'',annualCTC:'',bankAccountNumber:'',taxRegime:'New',highestDegree:'',fieldOfStudy:'',institution:'',graduationYear:'',internshipStartDate:'',internshipEndDate:'',internshipStipend:'',internshipSupervisor:'',internshipCollege:''});
     const [addLoading,setAddLoading]=useState(false);
     const [addError,setAddError]=useState('');
     const [showEdit,setShowEdit]=useState(false);
     const [editId,setEditId]=useState<string|null>(null);
-    const [editForm,setEditForm]=useState<EditEmployeeForm>({name:'',email:'',department:'',position:'',status:'',joinDate:'',reportingManagerId:'',reportingManagerName:''});
+    const [editForm,setEditForm]=useState<EditEmployeeForm>({name:'',email:'',department:'',position:'',role:'employee',status:'',joinDate:'',reportingManagerId:'',reportingManagerName:''});
     const [editLoading,setEditLoading]=useState(false);
     const [editError,setEditError]=useState('');
 
@@ -161,6 +171,7 @@ const EmployeeTable: React.FC = () => {
                 dateOfBirth:addForm.dateOfBirth||undefined, gender:addForm.gender||undefined,
                 personalEmail:addForm.personalEmail||undefined,
                 department:addForm.department, position:addForm.position||undefined,
+                role:addForm.role||'employee',
                 joinDate:addForm.joinDate, employmentType:addForm.employmentType,
                 status:addForm.status,
                 addressLine1:addForm.addressLine1||undefined, city:addForm.city||undefined,
@@ -178,7 +189,7 @@ const EmployeeTable: React.FC = () => {
                 internshipCollege:addForm.internshipCollege||undefined,
             });
             setShowAdd(false);
-            setAddForm({name:'',email:'',phone:'',dateOfBirth:'',gender:'',personalEmail:'',department:'',position:'',joinDate:'',employmentType:'full_time',status:'onboarding',addressLine1:'',city:'',state:'',pincode:'',reportingManagerId:'',reportingManagerName:'',annualCTC:'',bankAccountNumber:'',taxRegime:'New',highestDegree:'',fieldOfStudy:'',institution:'',graduationYear:'',internshipStartDate:'',internshipEndDate:'',internshipStipend:'',internshipSupervisor:'',internshipCollege:''});
+            setAddForm({name:'',email:'',phone:'',dateOfBirth:'',gender:'',personalEmail:'',department:'',position:'',role:'employee',joinDate:'',employmentType:'full_time',status:'onboarding',addressLine1:'',city:'',state:'',pincode:'',reportingManagerId:'',reportingManagerName:'',annualCTC:'',bankAccountNumber:'',taxRegime:'New',highestDegree:'',fieldOfStudy:'',institution:'',graduationYear:'',internshipStartDate:'',internshipEndDate:'',internshipStipend:'',internshipSupervisor:'',internshipCollege:''});
             refresh();}
         catch(err:any){setAddError(err.response?.data?.message||'Failed');}
         finally{setAddLoading(false);}
@@ -189,7 +200,10 @@ const EmployeeTable: React.FC = () => {
             name:emp.name,
             email:emp.email,
             department:emp.department||emp.department_name||'',
+            department_id: emp.department_id ? String(emp.department_id) : '',
+            team_id: emp.team_id ? String(emp.team_id) : '',
             position:emp.position,
+            role:emp.role||'employee',
             status:emp.status||'active',
             joinDate:emp.join_date?new Date(emp.join_date).toISOString().slice(0,10):'',
             reportingManagerId: emp.reporting_manager_id || '',
@@ -203,7 +217,10 @@ const EmployeeTable: React.FC = () => {
                 name:editForm.name,
                 email:editForm.email,
                 department:editForm.department,
+                department_id: editForm.department_id ? Number(editForm.department_id) : undefined,
+                team_id: editForm.team_id ? Number(editForm.team_id) : undefined,
                 position:editForm.position,
+                role:editForm.role||'employee',
                 status:editForm.status,
                 join_date:editForm.joinDate,
                 reporting_manager_id: editForm.reportingManagerId
@@ -211,6 +228,35 @@ const EmployeeTable: React.FC = () => {
             setShowEdit(false);fetchEmp(searchTerm,page);}
         catch(err:any){setEditError(err.response?.data?.message||'Failed');}
         finally{setEditLoading(false);}
+    };
+
+    const [showDelete, setShowDelete] = useState<Employee | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [deleteError, setDeleteError] = useState('');
+
+    // Reachout Coming Soon State
+    const [reachoutModal, setReachoutModal] = useState<{ channel: 'call' | 'text' | 'mail'; emp: Employee } | null>(null);
+    const [notifiedChannels, setNotifiedChannels] = useState<Record<string, boolean>>({});
+
+    const handleReachout = (channel: 'call' | 'text' | 'mail', employee: Employee) => {
+        setReachoutModal({ channel, emp: employee });
+        const channelLabel = channel === 'call' ? 'Direct Voice Call' : channel === 'text' ? 'Instant Messaging' : 'In-App Mail';
+        toast.info(`${channelLabel} is coming soon!`);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!showDelete) return;
+        setDeleteLoading(true);
+        setDeleteError('');
+        try {
+            await api.delete(`/employees/${showDelete.id}`);
+            setShowDelete(null);
+            refresh();
+        } catch (err: any) {
+            setDeleteError(err.response?.data?.message || 'Failed to delete employee.');
+        } finally {
+            setDeleteLoading(false);
+        }
     };
 
     const filtered=employees.filter(e=>{
@@ -412,9 +458,13 @@ const EmployeeTable: React.FC = () => {
 
                                         {/* Avatar — half overlapping hero */}
                                         <Link to={`/profile/${emp.id}`}
-                                            className="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center text-[20px] font-black text-white shadow-xl ring-4 ring-white/30 mb-[-28px] transition-transform group-hover:scale-105 select-none"
+                                            className="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center text-[20px] font-black text-white shadow-xl ring-4 ring-white/30 mb-[-28px] transition-transform group-hover:scale-105 select-none overflow-hidden"
                                             style={{background:`linear-gradient(145deg,${color},${color}bb)`}}>
-                                            {ini(emp.name)}
+                                            {emp.avatar_url ? (
+                                                <img src={emp.avatar_url} alt={emp.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                ini(emp.name)
+                                            )}
                                         </Link>
                                     </div>
 
@@ -445,12 +495,48 @@ const EmployeeTable: React.FC = () => {
                                                     <Building2 size={9}/>{emp.department||emp.department_name}
                                                 </span>
                                             )}
+                                            {emp.role&&(
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-100/80 capitalize" title={`System Role: ${emp.role}`}>
+                                                    <ShieldCheck size={9}/>{emp.role.replace(/_/g, ' ')}
+                                                </span>
+                                            )}
                                         </div>
 
                                         {/* Email */}
-                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-3">
+                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-2.5">
                                             <Mail size={10} className="text-slate-300 flex-shrink-0"/>
                                             <span className="truncate">{emp.email}</span>
+                                        </div>
+
+                                        {/* ── Quick Reachout Action Strip ── */}
+                                        <div className="grid grid-cols-3 gap-1.5 mb-3">
+                                            <button 
+                                                type="button" 
+                                                onClick={(e) => { e.stopPropagation(); handleReachout('call', emp); }}
+                                                className="py-1 px-1.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 text-slate-600 hover:text-blue-600 text-[10px] font-bold flex items-center justify-center gap-1 transition-all shadow-2xs group/btn"
+                                                title={`Call ${emp.name}`}
+                                            >
+                                                <Phone size={10} className="text-blue-500 group-hover/btn:scale-110 transition-transform" strokeWidth={2.4} />
+                                                <span>Call</span>
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={(e) => { e.stopPropagation(); handleReachout('text', emp); }}
+                                                className="py-1 px-1.5 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 text-[10px] font-bold flex items-center justify-center gap-1 transition-all shadow-2xs group/btn"
+                                                title={`Message ${emp.name}`}
+                                            >
+                                                <MessageSquare size={10} className="text-indigo-500 group-hover/btn:scale-110 transition-transform" strokeWidth={2.4} />
+                                                <span>Text</span>
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={(e) => { e.stopPropagation(); handleReachout('mail', emp); }}
+                                                className="py-1 px-1.5 rounded-xl bg-slate-50 hover:bg-violet-50 border border-slate-100 hover:border-violet-200 text-slate-600 hover:text-violet-600 text-[10px] font-bold flex items-center justify-center gap-1 transition-all shadow-2xs group/btn"
+                                                title={`Email ${emp.name}`}
+                                            >
+                                                <Mail size={10} className="text-violet-500 group-hover/btn:scale-110 transition-transform" strokeWidth={2.4} />
+                                                <span>Mail</span>
+                                            </button>
                                         </div>
 
                                         {/* Footer */}
@@ -470,6 +556,11 @@ const EmployeeTable: React.FC = () => {
                                                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600 transition-all"
                                                     title="Edit">
                                                     <Pencil size={11}/>
+                                                </button>
+                                                <button onClick={()=>setShowDelete(emp)}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-rose-200/60 text-slate-400 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                                    title="Delete employee">
+                                                    <Trash2 size={11}/>
                                                 </button>
                                             </div>
                                         </div>
@@ -501,7 +592,11 @@ const EmployeeTable: React.FC = () => {
                                         <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-5 py-3">
                                                 <div className="flex items-center gap-2.5">
-                                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0" style={{backgroundColor:color}}>{ini(emp.name)}</div>
+                                                    {emp.avatar_url ? (
+                                                        <img src={emp.avatar_url} alt={emp.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0 ring-1 ring-slate-200" />
+                                                    ) : (
+                                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0" style={{backgroundColor:color}}>{ini(emp.name)}</div>
+                                                    )}
                                                     <div className="min-w-0">
                                                         <Link to={`/profile/${emp.id}`} className="text-[12px] font-bold text-slate-800 hover:text-indigo-600 truncate block">{emp.name}</Link>
                                                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -535,7 +630,14 @@ const EmployeeTable: React.FC = () => {
                                             </td>
                                             <td className="px-5 py-3"><span className="text-[9px] font-mono font-semibold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{fmtId(emp.id)}</span></td>
                                             <td className="px-5 py-3 text-[12px] font-medium text-slate-600">{emp.department||emp.department_name||'—'}</td>
-                                            <td className="px-5 py-3 text-[12px] text-slate-600">{emp.position||'—'}</td>
+                                            <td className="px-5 py-3 text-[12px] text-slate-600">
+                                                <div className="font-semibold text-slate-700">{emp.position||'—'}</div>
+                                                {emp.role && (
+                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-0.5 rounded text-[9px] font-bold text-violet-700 bg-violet-50 border border-violet-100 capitalize">
+                                                        <ShieldCheck size={8}/>{emp.role.replace(/_/g, ' ')}
+                                                    </span>
+                                                )}
+                                            </td>
                                             <td className="px-5 py-3">
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${st.bg} ${st.text}`}>
                                                     <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{emp.status||'active'}
@@ -543,9 +645,14 @@ const EmployeeTable: React.FC = () => {
                                             </td>
                                             <td className="px-5 py-3 text-[11px] text-slate-500">{emp.join_date?new Date(emp.join_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'}</td>
                                             <td className="px-5 py-3 text-right">
-                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Link to={`/profile/${emp.id}`} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Eye size={13}/></Link>
-                                                    <button onClick={()=>openEdit(emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Pencil size={12}/></button>
+                                                <div className="flex items-center justify-end gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={()=>handleReachout('call', emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Call Employee"><Phone size={11} strokeWidth={2.2}/></button>
+                                                    <button onClick={()=>handleReachout('text', emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Message Employee"><MessageSquare size={11} strokeWidth={2.2}/></button>
+                                                    <button onClick={()=>handleReachout('mail', emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all" title="Email Employee"><Mail size={11} strokeWidth={2.2}/></button>
+                                                    <div className="w-px h-4 bg-slate-200 mx-0.5" />
+                                                    <Link to={`/profile/${emp.id}`} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="View Profile"><Eye size={13}/></Link>
+                                                    <button onClick={()=>openEdit(emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Edit Employee"><Pencil size={12}/></button>
+                                                    <button onClick={()=>setShowDelete(emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete Employee"><Trash2 size={12}/></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -579,6 +686,230 @@ const EmployeeTable: React.FC = () => {
             <AddEmployeeModal show={showAdd} onClose={()=>setShowAdd(false)} onSubmit={handleAdd} form={addForm} setForm={setAddForm} loading={addLoading} error={addError}/>
             <EditEmployeeModal show={showEdit} onClose={()=>setShowEdit(false)} onSubmit={handleUpdate} form={editForm} setForm={setEditForm} loading={editLoading} error={editError} employeeId={editId}/>
             <BulkUploadModal show={showBulk} onClose={()=>setShowBulk(false)} onSuccess={()=>{setShowBulk(false); refresh();}}/>
+
+            {/* Delete Confirmation Modal */}
+            {showDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
+                    <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-150">
+                        {/* Header */}
+                        <div className="p-6 pb-4">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="w-11 h-11 bg-rose-50 border border-rose-100 rounded-xl flex items-center justify-center text-rose-600">
+                                    <Trash2 size={20} />
+                                </div>
+                                <button 
+                                    onClick={() => { setShowDelete(null); setDeleteError(''); }}
+                                    className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900 tracking-tight">Delete Employee Record</h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Are you sure you want to permanently remove this employee from your organization?
+                            </p>
+                        </div>
+
+                        {/* Employee Target Card */}
+                        <div className="mx-6 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-3">
+                            {showDelete.avatar_url ? (
+                                <img src={showDelete.avatar_url} alt={showDelete.name} className="w-10 h-10 rounded-xl object-cover shadow-xs flex-shrink-0" />
+                            ) : (
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold text-white shadow-xs flex-shrink-0"
+                                    style={{backgroundColor: clr(showDelete.name)}}>
+                                    {ini(showDelete.name)}
+                                </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                    <p className="text-sm font-bold text-slate-800 truncate">{showDelete.name}</p>
+                                    <span className="text-[10px] font-mono font-bold text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                                        {fmtId(showDelete.id)}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 truncate mt-0.5">
+                                    {showDelete.position || 'Staff'} · {showDelete.department || showDelete.department_name || 'Organization'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Warning Callout */}
+                        <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start gap-2.5">
+                            <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                            <p className="text-[11px] font-medium text-amber-800 leading-relaxed">
+                                This will delete the employee profile, clear linked history, and revoke platform access for this user.
+                            </p>
+                        </div>
+
+                        {deleteError && (
+                            <div className="mx-6 mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700">
+                                {deleteError}
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="p-6 pt-5 bg-slate-50/60 border-t border-slate-100 flex items-center justify-end gap-2.5 mt-5">
+                            <button
+                                type="button"
+                                onClick={() => { setShowDelete(null); setDeleteError(''); }}
+                                disabled={deleteLoading}
+                                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteConfirm}
+                                disabled={deleteLoading}
+                                className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 transition-all disabled:opacity-50"
+                            >
+                                {deleteLoading ? (
+                                    <>
+                                        <Loader2 size={13} className="animate-spin" />
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 size={13} />
+                                        <span>Delete Employee</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Reachout Coming Soon Modal ── */}
+            {reachoutModal && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-200"
+                    onClick={() => setReachoutModal(null)}
+                >
+                    <div 
+                        className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 relative animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Close button */}
+                        <button
+                            onClick={() => setReachoutModal(null)}
+                            className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+                        >
+                            <X size={16} />
+                        </button>
+
+                        {/* Header Badges */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center gap-1.5">
+                                <Sparkles size={11} /> Enterprise Reachout
+                            </span>
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-100">
+                                Coming Soon
+                            </span>
+                        </div>
+
+                        {/* Channel Icon with Glow */}
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ${
+                                reachoutModal.channel === 'call' 
+                                    ? 'bg-blue-600 text-white shadow-blue-500/30'
+                                    : reachoutModal.channel === 'text'
+                                        ? 'bg-indigo-600 text-white shadow-indigo-500/30'
+                                        : 'bg-violet-600 text-white shadow-violet-500/30'
+                            }`}>
+                                {reachoutModal.channel === 'call' && <Phone size={26} strokeWidth={2.2} />}
+                                {reachoutModal.channel === 'text' && <MessageSquare size={26} strokeWidth={2.2} />}
+                                {reachoutModal.channel === 'mail' && <Mail size={26} strokeWidth={2.2} />}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight leading-snug">
+                                    {reachoutModal.channel === 'call' && 'Direct Voice Call'}
+                                    {reachoutModal.channel === 'text' && 'Instant Messaging'}
+                                    {reachoutModal.channel === 'mail' && 'Integrated Enterprise Mail'}
+                                </h3>
+                                <p className="text-xs font-semibold text-slate-500">
+                                    Reaching out to <span className="text-slate-800 font-bold">{reachoutModal.emp.name}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                            {reachoutModal.channel === 'call' && (
+                                <>In-app encrypted VoIP calling directly to <strong>{reachoutModal.emp.name}</strong> is in final testing. Enjoy instant one-click voice calls with squad members directly from your workspace.</>
+                            )}
+                            {reachoutModal.channel === 'text' && (
+                                <>Real-time squad chat and direct messaging with <strong>{reachoutModal.emp.name}</strong> will launch in our next release, integrated with desktop alerts, file sharing, and active presence tracking.</>
+                            )}
+                            {reachoutModal.channel === 'mail' && (
+                                <>An integrated in-app mailbox with thread histories, attachments, and automated smart replies for <strong>{reachoutModal.emp.name}</strong> is currently in active development.</>
+                            )}
+                        </p>
+
+                        {/* Upcoming Highlights */}
+                        <div className="bg-slate-50 rounded-2xl p-3.5 mb-5 border border-slate-100 space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Included in Sprint Release v2.4</p>
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                <Check size={14} className="text-emerald-500 shrink-0" />
+                                <span>End-to-End Enterprise Encryption</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                <Check size={14} className="text-emerald-500 shrink-0" />
+                                <span>Synchronized with Squad Presence & Notifications</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                <Check size={14} className="text-emerald-500 shrink-0" />
+                                <span>Zero-latency desktop & mobile push alerts</span>
+                            </div>
+                        </div>
+
+                        {/* Buttons */}
+                        <div className="flex flex-col gap-2">
+                            {reachoutModal.channel === 'mail' && reachoutModal.emp.email && (
+                                <a
+                                    href={`mailto:${reachoutModal.emp.email}`}
+                                    className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                    <ExternalLink size={13} /> Open in Email Client ({reachoutModal.emp.email})
+                                </a>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const key = `${reachoutModal.channel}_${reachoutModal.emp.id}`;
+                                    setNotifiedChannels(prev => ({ ...prev, [key]: true }));
+                                    toast.success(`You're on the early access notification list for ${reachoutModal.channel.toUpperCase()}!`);
+                                }}
+                                disabled={notifiedChannels[`${reachoutModal.channel}_${reachoutModal.emp.id}`]}
+                                className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                    notifiedChannels[`${reachoutModal.channel}_${reachoutModal.emp.id}`]
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/25'
+                                }`}
+                            >
+                                {notifiedChannels[`${reachoutModal.channel}_${reachoutModal.emp.id}`] ? (
+                                    <>
+                                        <Check size={14} /> You're on the early access list!
+                                    </>
+                                ) : (
+                                    <>
+                                        <BellRing size={14} /> Notify Me on Launch
+                                    </>
+                                )}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setReachoutModal(null)}
+                                className="w-full py-1.5 text-slate-400 hover:text-slate-600 text-xs font-semibold text-center transition-colors"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

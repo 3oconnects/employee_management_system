@@ -23,12 +23,12 @@ const ChangePasswordPage: React.FC = () => {
 
         setLoading(true);
         try {
-            await api.put('/me/password', { password });
-            // Update local state to reflect that password is no longer temp
+            await api.put('/auth/me/password', { newPassword: password, password });
+            // Update local state to reflect that password is no longer temporary
             useAuthStore.setState({ mustChangePassword: false });
             navigate('/dashboard', { replace: true });
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to update security credentials.');
+            setError(err.response?.data?.message || err.message || 'Failed to update password.');
         } finally {
             setLoading(false);
         }
@@ -38,22 +38,22 @@ const ChangePasswordPage: React.FC = () => {
         <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6">
             <div className="w-full max-w-md">
                 {/* Security Header */}
-                <div className="text-center mb-10">
-                    <div className="w-20 h-20 bg-indigo-600 rounded-[28px] flex items-center justify-center text-white mx-auto mb-6 shadow-2xl shadow-indigo-600/20 animate-bounce">
-                        <Lock size={36} />
+                <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-indigo-600/25">
+                        <Lock size={30} />
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Security Rotation</h1>
-                    <p className="text-slate-500 font-bold text-[11px] uppercase tracking-[0.2em] mt-3">Initial Access Protocol Required</p>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Set Your Permanent Password</h1>
+                    <p className="text-slate-500 font-bold text-[11px] uppercase tracking-wider mt-2">Welcome to Ozofi • Account Activation</p>
                 </div>
 
-                <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                    <div className="bg-indigo-50/50 px-8 py-6 border-b border-slate-100 flex items-center gap-4">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
-                            <Key size={18} />
+                <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                    <div className="bg-indigo-50/60 px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                        <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
+                            <Key size={16} />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Logged in as</p>
-                            <p className="text-[13px] font-bold text-slate-700">{user?.email}</p>
+                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Activating Account</p>
+                            <p className="text-[13px] font-bold text-slate-800">{user?.email}</p>
                         </div>
                     </div>
 
@@ -107,12 +107,12 @@ const ChangePasswordPage: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-slate-900 text-white py-5 rounded-2xl text-[13px] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 group"
+                                className="w-full bg-indigo-600 text-white py-4 rounded-2xl text-[13px] font-black uppercase tracking-wider shadow-xl shadow-indigo-600/25 hover:bg-indigo-500 transition-all flex items-center justify-center gap-2 group active:scale-95"
                             >
                                 {loading ? (
                                     <Loader2 className="animate-spin" size={18} />
                                 ) : (
-                                    <>Update Security Protocol <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>
+                                    <>Set Password & Enter Dashboard <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>
                                 )}
                             </button>
 

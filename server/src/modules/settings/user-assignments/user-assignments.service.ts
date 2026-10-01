@@ -22,7 +22,7 @@ export class UserAssignmentsService {
 
     async createUser(tenantId: string, data: any) {
         const { name, email, password, role = 'employee', role_id, send_welcome_email = false } = data;
-        
+
         if (!name || !email) throw AppError.badRequest('Name and email are required.');
         if (await this.repo.checkEmailExists(email)) throw AppError.badRequest('A user with this email already exists.');
 

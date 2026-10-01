@@ -24,8 +24,8 @@ export class ApprovalsRepository {
                 SELECT 
                     'std-' || approvals.id as id, 
                     approvals.employee_id as employee_id, 
-                    employees.name as employee_name, 
-                    employees.department as department, 
+                    COALESCE(employees.name, approvals.metadata->>'name', 'Staff Member') as employee_name, 
+                    COALESCE(employees.department, approvals.metadata->>'department', 'Operations') as department, 
                     approvals.type as type, 
                     approvals.status as status, 
                     approvals.metadata::jsonb as metadata, 
@@ -34,7 +34,7 @@ export class ApprovalsRepository {
                     employees.manager_id as manager_id,
                     approvals.tenant_id as tenant_id
                 FROM approvals
-                JOIN employees ON approvals.employee_id = employees.id 
+                LEFT JOIN employees ON approvals.employee_id = employees.id 
                 WHERE LOWER(approvals.status) IN ${standardStatus} 
 
                 UNION ALL
@@ -130,44 +130,54 @@ export class ApprovalsRepository {
     }
 
     async getApprovalMetadata(id: string, tenantId: string) {
-        const { rows } = await pool.query('SELECT metadata FROM approvals WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+        const { rows } = await pool.query(
+            'SELECT metadata FROM approvals WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL OR tenant_id = $3)',
+            [id, tenantId, '']
+        );
         return rows[0]?.metadata;
     }
 
     async executeTeamCreation(id: string, meta: any, status: string, tenantId: string, client: any) {
+        const deptId = meta.department_id && meta.department_id !== '' ? parseInt(meta.department_id, 10) : null;
+        const parentTeamId = meta.parent_team_id && meta.parent_team_id !== '' ? parseInt(meta.parent_team_id, 10) : null;
+        const ownerId = meta.owner_id && meta.owner_id !== '' ? parseInt(meta.owner_id, 10) : null;
+
         const teamRes = await client.query(
             'INSERT INTO teams (name, department_id, parent_team_id, description, manager_id, metadata, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-            [meta.name, meta.department_id, meta.parent_team_id || null, meta.description, meta.owner_id || null, meta.metadata || {}, tenantId]
+            [meta.name, deptId, parentTeamId, meta.description, ownerId, meta.metadata || {}, tenantId]
         );
         
         let parentNodeId = null;
-        if (meta.parent_team_id) {
-            const pnRes = await client.query('SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3', ['team', meta.parent_team_id, tenantId]);
+        if (parentTeamId) {
+            const pnRes = await client.query('SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2', ['team', parentTeamId]);
             if (pnRes.rows.length > 0) parentNodeId = pnRes.rows[0].id;
-        } else {
-            const pnRes = await client.query('SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2 AND tenant_id = $3', ['department', meta.department_id, tenantId]);
+        } else if (deptId) {
+            const pnRes = await client.query('SELECT id FROM org_nodes WHERE entity_type = $1 AND entity_id = $2', ['department', deptId]);
             if (pnRes.rows.length > 0) parentNodeId = pnRes.rows[0].id;
         }
 
         const nodeRes = await client.query(
-            'INSERT INTO org_nodes (entity_type, entity_id, parent_node_id, name, category, tenant_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-            ['team', teamRes.rows[0].id, parentNodeId, meta.name, meta.category || 'core', tenantId]
+            'INSERT INTO org_nodes (entity_type, entity_id, parent_node_id, name, category) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            ['team', teamRes.rows[0].id, parentNodeId, meta.name, meta.category || 'core']
         );
-        await client.query('INSERT INTO org_governance (node_id, owner_id, tenant_id) VALUES ($1, $2, $3)', [nodeRes.rows[0].id, meta.owner_id || null, tenantId]);
-        await client.query('UPDATE approvals SET status = $1, actioned_at = NOW() WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
+        await client.query('INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2)', [nodeRes.rows[0].id, ownerId]);
+        await client.query('UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)', [status, id, tenantId, '']);
     }
 
     async executeDepartmentCreation(id: string, meta: any, status: string, tenantId: string, client: any) {
+        const ownerId = meta.owner_id && meta.owner_id !== '' ? parseInt(meta.owner_id, 10) : null;
+        const code = meta.code || (meta.name.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) + Math.floor(100 + Math.random() * 900));
+
         const deptRes = await client.query(
-            'INSERT INTO departments (name, description, manager_id, metadata, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-            [meta.name, meta.description, meta.owner_id || null, meta.metadata || {}, tenantId]
+            'INSERT INTO departments (name, code, head_user_id, description, metadata, tenant_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+            [meta.name, code, ownerId, meta.description, meta.metadata || {}, tenantId]
         );
         const nodeRes = await client.query(
-            'INSERT INTO org_nodes (entity_type, entity_id, name, category, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-            ['department', deptRes.rows[0].id, meta.name, meta.category || 'core', tenantId]
+            'INSERT INTO org_nodes (entity_type, entity_id, name, category) VALUES ($1, $2, $3, $4) RETURNING id',
+            ['department', deptRes.rows[0].id, meta.name, meta.category || 'core']
         );
-        await client.query('INSERT INTO org_governance (node_id, owner_id, tenant_id) VALUES ($1, $2, $3)', [nodeRes.rows[0].id, meta.owner_id || null, tenantId]);
-        await client.query('UPDATE approvals SET status = $1, actioned_at = NOW() WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
+        await client.query('INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2)', [nodeRes.rows[0].id, ownerId]);
+        await client.query('UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)', [status, id, tenantId, '']);
     }
 
     async updateLeaveStatus(id: string, status: string, tenantId: string) {
@@ -187,6 +197,9 @@ export class ApprovalsRepository {
     }
 
     async updateApprovalStatus(id: string, status: string, tenantId: string) {
-        await pool.query('UPDATE approvals SET status = $1, actioned_at = NOW() WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
+        await pool.query(
+            'UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)',
+            [status, id, tenantId, '']
+        );
     }
 }

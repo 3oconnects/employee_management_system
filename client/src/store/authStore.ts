@@ -25,6 +25,7 @@ export interface User {
     address?: string;
     emergency?: string;
     availability_status?: string;
+    avatar_url?: string;
     permissions?: string[];
     preferences?: any;
     dashboard_type?: 'admin' | 'manager' | 'employee';
@@ -120,6 +121,11 @@ export const useAuthStore = create<AuthState>()(
                 if (!user) return false;
                 const role = (user.role || '').toLowerCase();
                 if (role === 'super_admin' || role === 'admin' || role === 'administrator' || user.dashboard_type === 'admin') return true;
+
+                // Core modules always accessible to all authenticated employees
+                const coreEmployeeModules = ['dashboard', 'attendance', 'leave', 'timesheet', 'payroll', 'profile'];
+                if (coreEmployeeModules.includes(module)) return true;
+
                 return user.permissions?.some(p => p.startsWith(`${module}:`)) ?? false;
             },
         }),

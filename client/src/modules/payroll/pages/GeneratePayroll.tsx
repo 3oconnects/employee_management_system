@@ -30,15 +30,15 @@ const GeneratePayroll: React.FC = () => {
     const isAdmin = user?.role === 'admin' || user?.role === 'hr';
 
     const adminTabs = [
-        { id: 'dashboard',  label: 'Ledger Analytics', icon: LayoutDashboard },
-        { id: 'management', label: 'Personnel Matrix', icon: Users },
-        { id: 'runs',       label: 'Cycle History',    icon: History },
-        { id: 'approvals',  label: 'Audit Queue',     icon: ClipboardCheck },
-        { id: 'tax',        label: 'Compliance',     icon: ShieldCheck },
-        { id: 'documents',  label: 'Repository',     icon: Files },
+        { id: 'dashboard',  label: 'Analytics',  icon: LayoutDashboard },
+        { id: 'management', label: 'Employees',  icon: Users },
+        { id: 'runs',       label: 'Pay Runs',   icon: History },
+        { id: 'approvals',  label: 'Approvals',  icon: ClipboardCheck },
+        { id: 'tax',        label: 'Compliance', icon: ShieldCheck },
+        { id: 'documents',  label: 'Documents',  icon: Files },
     ];
     const employeeTabs = [
-        { id: 'my_payroll', label: 'Compensation Hub', icon: CreditCard },
+        { id: 'my_payroll', label: 'My Payroll', icon: CreditCard },
     ];
     const tabs = isAdmin ? adminTabs : employeeTabs;
 
@@ -54,15 +54,11 @@ const GeneratePayroll: React.FC = () => {
                     </div>
                     <div>
                         <h2 className="text-[18px] font-black text-slate-900 tracking-tight">
-                            {isAdmin ? 'Financial Orchestrator' : 'Compensation Hub'}
+                            {isAdmin ? 'Payroll Management' : 'My Payroll'}
                         </h2>
                         <div className="flex items-center gap-2.5 mt-1">
-                            <span className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                <Terminal size={10} className="text-indigo-500"/> v4.2.0
-                            </span>
-                            <div className="w-1 h-1 bg-slate-200 rounded-full" />
                             <span className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                                <Activity size={10} /> Live Sync
+                                <Activity size={10} /> Live
                             </span>
                         </div>
                     </div>

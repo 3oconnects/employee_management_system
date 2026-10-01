@@ -26,6 +26,10 @@ export const updateStatusSchema = z.object({
 });
 
 export const changePasswordSchema = z.object({
-    currentPassword: z.string().min(1, 'Current password is required'),
-    newPassword: z.string().min(6, 'New password must be at least 6 characters')
+    currentPassword: z.string().optional(),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters').optional(),
+    password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+}).refine(data => data.newPassword || data.password, {
+    message: 'New password must be at least 6 characters',
+    path: ['newPassword']
 });

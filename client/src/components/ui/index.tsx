@@ -1,7 +1,7 @@
 // ============================================================================
 // EMS FRONTEND — REUSABLE UI COMPONENTS
 // ============================================================================
-// Shared, Zoho-inspired components for consistent UI across all modules:
+// Shared components for consistent UI across all modules:
 //   1. DataTable     — Sortable, filterable table with pagination
 //   2. Modal         — Overlay dialog
 //   3. Card          — Dashboard card with icon & trend
@@ -9,17 +9,20 @@
 //   5. Button        — Themed button variants
 //   6. EmptyState    — "No data" placeholders
 //   7. LoadingSpinner— Consistent loading indicator
-//   8. Toast         — Notification toast container
+//   8. Toast         — Notification toast container (white card + icon + progress)
 // ============================================================================
 
-import React, { useState, useEffect, Fragment } from 'react';
-import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+    X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
+    Loader2, CheckCircle2, XCircle, Info, AlertTriangle
+} from 'lucide-react';
 import { addToastListener, showToast } from '../../hooks';
 
 export const toast = {
     success: (msg: string) => showToast('success', msg),
-    error: (msg: string) => showToast('error', msg),
-    info: (msg: string) => showToast('info', msg),
+    error:   (msg: string) => showToast('error', msg),
+    info:    (msg: string) => showToast('info', msg),
     warning: (msg: string) => showToast('warning', msg),
 };
 
@@ -43,11 +46,11 @@ export const Button: React.FC<ButtonProps> = ({
     ...props
 }) => {
     const variants = {
-        primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/20',
-        secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600',
-        danger: 'bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-600/20',
-        ghost: 'hover:bg-slate-100 text-slate-600 dark:hover:bg-slate-700 dark:text-slate-300',
-        outline: 'border border-slate-300 hover:bg-slate-50 text-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700',
+        primary:   'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-600/20 focus-visible:ring-2 focus-visible:ring-indigo-500/30',
+        secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-700',
+        danger:    'bg-rose-600 hover:bg-rose-500 text-white shadow-sm shadow-rose-600/20',
+        ghost:     'hover:bg-slate-100 text-slate-600',
+        outline:   'border border-slate-300 hover:bg-slate-50 text-slate-700',
     };
 
     const sizes = {
@@ -61,6 +64,7 @@ export const Button: React.FC<ButtonProps> = ({
             className={`
                 inline-flex items-center justify-center gap-2 rounded-lg font-medium
                 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
+                active:scale-[0.98]
                 ${variants[variant]} ${sizes[size]} ${className}
             `}
             disabled={disabled || loading}
@@ -80,18 +84,23 @@ interface BadgeProps {
 }
 
 const statusColors: Record<string, string> = {
-    active:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    approved:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    paid:      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    present:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    pending:   'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    submitted: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    draft:     'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
-    rejected:  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    inactive:  'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',
-    onboarding:'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-    terminated:'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    cancelled: 'bg-slate-100 text-slate-500',
+    active:      'bg-emerald-100 text-emerald-700',
+    approved:    'bg-emerald-100 text-emerald-700',
+    paid:        'bg-emerald-100 text-emerald-700',
+    present:     'bg-emerald-100 text-emerald-700',
+    pending:     'bg-amber-100 text-amber-700',
+    submitted:   'bg-indigo-100 text-indigo-700',
+    draft:       'bg-slate-100 text-slate-600',
+    rejected:    'bg-rose-100 text-rose-700',
+    inactive:    'bg-slate-100 text-slate-500',
+    onboarding:  'bg-violet-100 text-violet-700',
+    terminated:  'bg-rose-100 text-rose-700',
+    cancelled:   'bg-slate-100 text-slate-500',
+    leave:       'bg-sky-100 text-sky-700',
+    regularized: 'bg-teal-100 text-teal-700',
+    half_day:    'bg-orange-100 text-orange-700',
+    absent:      'bg-rose-100 text-rose-600',
+    late:        'bg-amber-100 text-amber-600',
 };
 
 export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
@@ -119,27 +128,27 @@ export const Card: React.FC<CardProps> = ({ title, value, subtitle, icon, trend,
     return (
         <div
             className={`
-                bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200/60
-                dark:border-slate-700/50 transition-all duration-200
-                ${onClick ? 'cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800' : ''}
+                bg-white rounded-xl p-5 border border-slate-200/60
+                transition-all duration-200
+                ${onClick ? 'cursor-pointer hover:shadow-md hover:border-indigo-200/60 hover:-translate-y-0.5' : ''}
                 ${className}
             `}
             onClick={onClick}
         >
             <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{title}</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white truncate">{value}</p>
-                    {subtitle && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{title}</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 truncate">{value}</p>
+                    {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
                     {trend && (
-                        <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${trend.value >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${trend.value >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                             {trend.value >= 0 ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             {Math.abs(trend.value)}% {trend.label}
                         </div>
                     )}
                 </div>
                 {icon && (
-                    <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 flex-shrink-0">
                         {icon}
                     </div>
                 )}
@@ -171,20 +180,23 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-            <div className={`relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+            <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-1 h-6 bg-indigo-600 rounded-full" />
+                        <h3 className="text-[17px] font-black text-slate-900 tracking-tight">{title}</h3>
+                    </div>
                     <button
                         onClick={onClose}
-                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition-colors"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-all"
                     >
-                        <X size={18} />
+                        <X size={16} />
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
                 {footer && (
-                    <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-3">
+                    <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
                         {footer}
                     </div>
                 )}
@@ -231,15 +243,18 @@ export function DataTable<T extends Record<string, any>>({
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20">
-                <Loader2 className="animate-spin text-blue-500" size={28} />
+                <Loader2 className="animate-spin text-indigo-500" size={28} />
             </div>
         );
     }
 
     if (!data.length) {
         return (
-            <div className="text-center py-16">
-                <p className="text-slate-400 dark:text-slate-500 text-sm">{emptyMessage}</p>
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-slate-50/50 rounded-2xl border border-slate-100 my-2 mx-1">
+                <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
+                    <Info size={20} className="text-slate-300" />
+                </div>
+                <p className="text-[13px] font-semibold text-slate-500">{emptyMessage}</p>
             </div>
         );
     }
@@ -248,14 +263,14 @@ export function DataTable<T extends Record<string, any>>({
         <div className="overflow-x-auto">
             <table className="w-full">
                 <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <tr className="bg-slate-50 border-b-2 border-slate-100">
                         {columns.map((col) => (
                             <th
                                 key={col.key}
                                 className={`
-                                    text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400
+                                    text-left px-4 py-3 text-[11px] font-bold text-slate-400
                                     uppercase tracking-wider whitespace-nowrap
-                                    ${col.sortable ? 'cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200' : ''}
+                                    ${col.sortable ? 'cursor-pointer select-none hover:text-slate-600 transition-colors' : ''}
                                 `}
                                 style={col.width ? { width: col.width } : undefined}
                                 onClick={() => col.sortable && onSort?.(col.key)}
@@ -270,18 +285,20 @@ export function DataTable<T extends Record<string, any>>({
                         ))}
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                <tbody className="divide-y divide-slate-50">
                     {data.map((row, idx) => (
                         <tr
                             key={rowKey ? rowKey(row) : idx}
                             className={`
-                                hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors
+                                transition-colors duration-100
+                                ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}
+                                hover:bg-indigo-50/30
                                 ${onRowClick ? 'cursor-pointer' : ''}
                             `}
                             onClick={() => onRowClick?.(row)}
                         >
                             {columns.map((col) => (
-                                <td key={col.key} className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                <td key={col.key} className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
                                     {col.render ? col.render(row) : (row as any)[col.key]}
                                 </td>
                             ))}
@@ -292,24 +309,24 @@ export function DataTable<T extends Record<string, any>>({
 
             {/* Pagination */}
             {page && totalPages && totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Page {page} of {totalPages} {totalItems ? `(${totalItems} items)` : ''}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/30">
+                    <p className="text-[11px] text-slate-400 font-medium">
+                        Page {page} of {totalPages}{totalItems ? ` · ${totalItems} total` : ''}
                     </p>
                     <div className="flex items-center gap-1">
                         <button
                             disabled={page <= 1}
                             onClick={() => onPageChange?.(page - 1)}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 text-slate-500"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-500 border border-slate-200 hover:bg-white disabled:opacity-30 transition-all"
                         >
-                            <ChevronLeft size={16} />
+                            <ChevronLeft size={14} /> Prev
                         </button>
                         <button
                             disabled={page >= totalPages}
                             onClick={() => onPageChange?.(page + 1)}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 text-slate-500"
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-500 border border-slate-200 hover:bg-white disabled:opacity-30 transition-all"
                         >
-                            <ChevronRight size={16} />
+                            Next <ChevronRight size={14} />
                         </button>
                     </div>
                 </div>
@@ -322,8 +339,11 @@ export function DataTable<T extends Record<string, any>>({
 
 export const LoadingSpinner: React.FC<{ text?: string; className?: string }> = ({ text, className = '' }) => (
     <div className={`flex flex-col items-center justify-center py-12 gap-3 ${className}`}>
-        <Loader2 className="animate-spin text-blue-500" size={28} />
-        {text && <p className="text-sm text-slate-400">{text}</p>}
+        <div className="relative">
+            <div className="w-10 h-10 rounded-full border-2 border-slate-100" />
+            <div className="absolute inset-0 w-10 h-10 rounded-full border-2 border-transparent border-t-indigo-500 animate-spin" />
+        </div>
+        {text && <p className="text-[13px] text-slate-400 font-medium">{text}</p>}
     </div>
 );
 
@@ -337,10 +357,10 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, action }) => (
-    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-        {icon && <div className="mb-4 text-slate-300 dark:text-slate-600">{icon}</div>}
-        <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300">{title}</h3>
-        {description && <p className="mt-1 text-sm text-slate-400 dark:text-slate-500 max-w-sm">{description}</p>}
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
+        {icon && <div className="mb-4 text-slate-300 opacity-60">{icon}</div>}
+        <h3 className="text-[14px] font-semibold text-slate-600">{title}</h3>
+        {description && <p className="mt-1 text-[12px] text-slate-400 max-w-sm">{description}</p>}
         {action && <div className="mt-4">{action}</div>}
     </div>
 );
@@ -353,6 +373,64 @@ interface ToastItem {
     message: string;
     duration: number;
 }
+
+const TOAST_ICONS = {
+    success: CheckCircle2,
+    error:   XCircle,
+    info:    Info,
+    warning: AlertTriangle,
+};
+
+const TOAST_STYLES = {
+    success: { border: 'border-l-emerald-500', icon: 'text-emerald-500', bg: 'bg-emerald-50', progress: 'bg-emerald-500' },
+    error:   { border: 'border-l-rose-500',    icon: 'text-rose-500',    bg: 'bg-rose-50',    progress: 'bg-rose-500'    },
+    info:    { border: 'border-l-sky-500',      icon: 'text-sky-500',     bg: 'bg-sky-50',     progress: 'bg-sky-500'     },
+    warning: { border: 'border-l-amber-500',   icon: 'text-amber-500',   bg: 'bg-amber-50',   progress: 'bg-amber-500'   },
+};
+
+const ToastCard: React.FC<{ item: ToastItem; onClose: () => void }> = ({ item, onClose }) => {
+    const style = TOAST_STYLES[item.type];
+    const Icon = TOAST_ICONS[item.type];
+    const [width, setWidth] = useState(100);
+
+    useEffect(() => {
+        const start = Date.now();
+        const interval = setInterval(() => {
+            const elapsed = Date.now() - start;
+            const pct = Math.max(0, 100 - (elapsed / item.duration) * 100);
+            setWidth(pct);
+            if (pct === 0) clearInterval(interval);
+        }, 50);
+        return () => clearInterval(interval);
+    }, [item.duration]);
+
+    return (
+        <div className={`
+            relative bg-white border border-slate-200 border-l-4 ${style.border}
+            rounded-xl shadow-lg overflow-hidden w-80 max-w-sm pointer-events-auto
+            animate-in slide-in-from-bottom-3 fade-in duration-300
+        `}>
+            <div className="flex items-start gap-3 px-4 py-3.5">
+                <div className={`w-8 h-8 rounded-lg ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                    <Icon size={16} className={style.icon} />
+                </div>
+                <p className="text-[13px] font-medium text-slate-700 flex-1 leading-snug pt-1">{item.message}</p>
+                <button
+                    onClick={onClose}
+                    className="p-1 text-slate-300 hover:text-slate-500 transition-colors flex-shrink-0"
+                >
+                    <X size={14} />
+                </button>
+            </div>
+            <div className="h-0.5 bg-slate-100">
+                <div
+                    className={`h-full ${style.progress} transition-all duration-75 ease-linear`}
+                    style={{ width: `${width}%` }}
+                />
+            </div>
+        </div>
+    );
+};
 
 export const ToastContainer: React.FC = () => {
     const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -367,26 +445,12 @@ export const ToastContainer: React.FC = () => {
         return unsub;
     }, []);
 
-    const colors = {
-        success: 'bg-emerald-500',
-        error: 'bg-red-500',
-        info: 'bg-blue-500',
-        warning: 'bg-amber-500',
-    };
+    const dismiss = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
     return (
-        <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm pointer-events-none">
-            {toasts.map(toast => (
-                <div
-                    key={toast.id}
-                    className={`
-                        ${colors[toast.type]} text-white px-4 py-3 rounded-lg shadow-lg
-                        text-sm font-medium pointer-events-auto
-                        animate-in slide-in-from-right-5 fade-in duration-300
-                    `}
-                >
-                    {toast.message}
-                </div>
+        <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2.5 pointer-events-none">
+            {toasts.map(t => (
+                <ToastCard key={t.id} item={t} onClose={() => dismiss(t.id)} />
             ))}
         </div>
     );

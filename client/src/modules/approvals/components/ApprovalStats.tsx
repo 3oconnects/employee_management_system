@@ -10,14 +10,14 @@ interface StatProps {
 }
 
 const StatCard: React.FC<StatProps> = ({ label, val, icon: Icon, color, bg }) => (
-    <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+    <div className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-sm transition-all">
         <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center`}>
-                <Icon size={14} className={color} />
+            <div className={`w-8 h-8 ${bg} rounded-md flex items-center justify-center`}>
+                <Icon size={15} className={color} />
             </div>
             <div>
-                <p className="text-[18px] font-black text-slate-800 leading-none">{val}</p>
-                <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wide">{label}</p>
+                <p className="text-xl font-bold text-slate-800 leading-none">{val}</p>
+                <p className="text-xs text-slate-500 mt-1">{label}</p>
             </div>
         </div>
     </div>
@@ -32,9 +32,9 @@ interface ApprovalStatsProps {
 
 const ApprovalStats: React.FC<ApprovalStatsProps> = ({ pendingCount, historyCount, teamCount, activeTab }) => {
     const stats = [
-        { label: 'Total Pending', val: pendingCount, icon: Inbox, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-        { label: 'Total History', val: activeTab === 'history' ? historyCount : '...', icon: Activity, color: 'text-rose-600', bg: 'bg-rose-50' },
-        { label: 'Current Team', val: teamCount, icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
+        { label: 'Pending Approvals', val: pendingCount, icon: Inbox, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Completed', val: activeTab === 'history' ? historyCount : '—', icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        { label: 'Departments', val: teamCount, icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
         { label: 'Response Rate', val: '98%', icon: Shield, color: 'text-sky-600', bg: 'bg-sky-50' },
     ];
 

@@ -37,7 +37,7 @@ const RootRedirect = () => {
 // ─── SUSPENSE WRAPPER ───────────────────────────────────────────────────────
 
 const PageLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <Suspense fallback={<LoadingSpinner text="Synchronizing module..." className="h-[60vh]" />}>
+    <Suspense fallback={<LoadingSpinner text="Loading..." className="h-[60vh]" />}>
         {children}
     </Suspense>
 );
@@ -164,7 +164,7 @@ function App() {
                                 onClick={() => navigate('/')}
                                 className="px-12 py-4 bg-primary text-white rounded-xl text-[12px] font-black uppercase tracking-[0.2em] hover:bg-primary-soft hover:shadow-2xl hover:shadow-primary/20 transition-all"
                             >
-                                Recalibrate to Home
+                                Return Home
                             </button>
                         </div>
                     </div>

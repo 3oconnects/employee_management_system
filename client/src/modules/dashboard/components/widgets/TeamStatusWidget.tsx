@@ -75,8 +75,12 @@ const TeamStatusWidget: React.FC = () => {
                         <div key={m.id} className="px-5 py-4 flex items-center gap-4 transition-colors group hover:bg-slate-50/50">
                             {/* Avatar */}
                             <div className="relative flex-shrink-0">
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-black border bg-white text-slate-700 border-slate-200 group-hover:shadow-md group-hover:scale-105 transition-all">
-                                    {ini}
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[12px] font-black border bg-white text-slate-700 border-slate-200 group-hover:shadow-md group-hover:scale-105 transition-all overflow-hidden">
+                                    {m.avatar_url ? (
+                                        <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        ini
+                                    )}
                                 </div>
                                 <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm ${
                                     m.availability_status === 'busy' || m.availability_status === 'dnd' ? 'bg-rose-500' :

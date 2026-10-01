@@ -68,10 +68,10 @@ export const authenticate = (
 // ANY user whose JWT permissions[] contains at least ONE of these passes.
 const ROLE_TO_PERMISSIONS: Record<string, string[]> = {
     super_admin: [], // always allowed — short-circuited above
-    admin:       ['settings:manage', 'employees:view', 'employees:create', 'employees:update', 'payroll:manage', 'reports:view'],
-    hr:          ['employees:view', 'employees:create', 'employees:update', 'leave:approve', 'onboarding:manage', 'attendance:manage'],
-    manager:     ['employees:view', 'leave:approve', 'reports:view', 'attendance:view'],
-    employee:    ['attendance:view', 'attendance:check_in', 'leave:view', 'leave:apply', 'profile:view', 'profile:update', 'dashboard:view'],
+    admin: ['settings:manage', 'employees:view', 'employees:create', 'employees:update', 'payroll:manage', 'reports:view'],
+    hr: ['employees:view', 'employees:create', 'employees:update', 'leave:approve', 'onboarding:manage', 'attendance:manage'],
+    manager: ['employees:view', 'leave:approve', 'reports:view', 'attendance:view'],
+    employee: ['attendance:view', 'attendance:check_in', 'leave:view', 'leave:apply', 'profile:view', 'profile:update', 'dashboard:view'],
 };
 
 export const authorize = (permissionOrRole: string | string[]) => {
@@ -81,9 +81,9 @@ export const authorize = (permissionOrRole: string | string[]) => {
             return;
         }
 
-        const userRole   = (req.user.role || '').toLowerCase();
-        const dashType   = (req.user.dashboard_type || '').toLowerCase();
-        const userPerms  = req.user.permissions || [];
+        const userRole = (req.user.role || '').toLowerCase();
+        const dashType = (req.user.dashboard_type || '').toLowerCase();
+        const userPerms = req.user.permissions || [];
 
         // 1. super_admin — unconditional pass
         if (userRole === 'super_admin') return next();

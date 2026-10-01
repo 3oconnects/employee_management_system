@@ -30,7 +30,7 @@ const OrganizationPage: React.FC = () => {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedDepts, setExpandedDepts] = useState<number[]>([]);
-    const [activeView, setActiveView] = useState<'list' | 'grid' | 'graph'>('list');
+    const [activeView, setActiveView] = useState<'list' | 'grid' | 'graph'>('grid');
     const [viewingItem, setViewingItem] = useState<{ type: 'dept' | 'team' | 'node', item: any } | null>(null);
 
     const openView = async (type: 'dept' | 'team' | 'node', item: any) => {

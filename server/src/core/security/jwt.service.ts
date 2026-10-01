@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
-import { JwtPayload } from '../../types'; 
+import { JwtPayload } from '../../types';
 
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';

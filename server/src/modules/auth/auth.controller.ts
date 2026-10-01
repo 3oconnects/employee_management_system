@@ -116,10 +116,39 @@ export const updateStatus = async (req: AuthenticatedRequest, res: Response) => 
 };
 
 export const changePassword = async (req: AuthenticatedRequest, res: Response) => {
-    await service.changePassword(req.user!.userId, req.body.currentPassword, req.body.newPassword);
+    const newPass = req.body.newPassword || req.body.password;
+    await service.changePassword(req.user!.userId, req.body.currentPassword, newPass);
     res.json({ success: true, message: 'Password updated successfully.' });
 };
 
 export const repairIdentity = async (req: Request, res: Response) => {
     res.send("Identity Baseline Restoration is disabled in secure mode. Please run database seeds manually.");
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    const { email, reason } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'Email address is required.' });
+    }
+    const result = await service.requestPasswordReset(email, reason);
+    res.json({ success: true, ...result });
+};
+
+export const checkForgotPasswordStatus = async (req: Request, res: Response) => {
+    const email = req.query.email as string;
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'Email address is required.' });
+    }
+    const result = await service.checkPasswordResetStatus(email);
+    res.json({ success: true, ...result });
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    const { email, newPassword, password, resetToken } = req.body;
+    const pass = newPassword || password;
+    if (!email || !pass) {
+        return res.status(400).json({ success: false, message: 'Email and new password are required.' });
+    }
+    const result = await service.resetPasswordWithApproval(email, pass, resetToken);
+    res.json(result);
 };

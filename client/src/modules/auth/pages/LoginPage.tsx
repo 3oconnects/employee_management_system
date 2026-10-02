@@ -1,41 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Mail, LogIn } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
-import { 
-    LogIn, Lock, Mail, Loader2, Eye, EyeOff, Shield, 
-    Users, UserCheck, AlertCircle, Zap, Globe, Cpu, Layers, ShieldAlert 
-} from 'lucide-react';
 import api from '../../../services/api';
+import { Alert, Button, FormField, PasswordInput, TextInput } from '../../../components/ui';
+import { usePageTitle } from '../../../hooks/usePageTitle';
+import { AuthLayout } from '../components/AuthLayout';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
 
-const DEMO_ACCOUNTS = [
-    { label: 'Admin',      email: 'admin@company.com',       icon: Shield,    color: 'bg-indigo-600', password: 'Admin@123' },
-    { label: 'HR Manager', email: 'priya@company.com',       icon: Users,     color: 'bg-purple-600', password: 'Admin@123' },
-    { label: 'Employee',   email: 'alex.rivers@company.com', icon: UserCheck, color: 'bg-emerald-600', password: 'Admin@123' },
-];
+// Development-only shortcuts. `import.meta.env.DEV` is false in production
+// builds, so Vite removes this list and the panel from the bundle entirely:
+// demo credentials never reach a deployed login page.
+const DEV_ACCOUNTS = import.meta.env.DEV
+    ? [
+          { label: 'Administrator', email: 'admin@company.com', password: 'Admin@123' },
+          { label: 'HR manager', email: 'priya@company.com', password: 'Admin@123' },
+          { label: 'Employee', email: 'alex.rivers@company.com', password: 'Admin@123' },
+      ]
+    : [];
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const LoginPage: React.FC = () => {
-    const [email, setEmail]                             = useState('admin@company.com');
-    const [password, setPassword]                       = useState('Admin@123');
-    const [showPassword, setShowPassword]               = useState(false);
-    const [isLoading, setIsLoading]                     = useState(false);
-    const [error, setError]                             = useState<string | null>(null);
-    const [showForgotPassword, setShowForgotPassword]   = useState(false);
+    usePageTitle('Sign in');
+
+    const [email, setEmail] = useState(DEV_ACCOUNTS[0]?.email ?? '');
+    const [password, setPassword] = useState(DEV_ACCOUNTS[0]?.password ?? '');
+    const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
 
     const { setAuth, isAuthenticated, user } = useAuthStore();
-    const navigate  = useNavigate();
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (isAuthenticated && user) navigate('/dashboard', { replace: true });
     }, [isAuthenticated, user, navigate]);
 
+    const validate = () => {
+        const next: typeof fieldErrors = {};
+        if (!email.trim()) next.email = 'Enter your email address.';
+        else if (!EMAIL_PATTERN.test(email.trim())) next.email = 'Enter a valid email address.';
+        if (!password) next.password = 'Enter your password.';
+        setFieldErrors(next);
+        return Object.keys(next).length === 0;
+    };
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        if (!email || !password) { setError('All protocols require valid credentials.'); return; }
+        if (!validate()) return;
         setIsLoading(true);
         try {
-            const res  = await api.post('/auth/login', { email, password });
+            const res = await api.post('/auth/login', { email, password });
             const data = res.data;
             setAuth(
                 {
@@ -57,184 +75,109 @@ const LoginPage: React.FC = () => {
                 navigate('/dashboard', { replace: true });
             }
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Authentication sequence failed. Verify credentials.');
+            setError(
+                err.response?.data?.message ||
+                    "We couldn't sign you in. Check your email and password and try again."
+            );
         } finally {
             setIsLoading(false);
         }
     };
 
-    const selectDemo = (account: typeof DEMO_ACCOUNTS[0]) => {
+    const applyDevAccount = (account: (typeof DEV_ACCOUNTS)[number]) => {
         setEmail(account.email);
         setPassword(account.password);
+        setFieldErrors({});
         setError(null);
     };
 
+    const devPanel = import.meta.env.DEV && DEV_ACCOUNTS.length > 0 && (
+        <section aria-labelledby="dev-accounts-title" className="mt-6 rounded-xl border border-dashed border-nx-border-strong bg-nx-surface/60 p-4">
+            <div className="flex items-center justify-between mb-3">
+                <h2 id="dev-accounts-title" className="text-xs font-medium text-nx-fg-muted">Development accounts</h2>
+                <span className="text-[11px] text-nx-fg-subtle">Local builds only</span>
+            </div>
+            <ul className="space-y-1">
+                {DEV_ACCOUNTS.map((account) => {
+                    const selected = email === account.email;
+                    return (
+                        <li key={account.email}>
+                            <button
+                                type="button"
+                                onClick={() => applyDevAccount(account)}
+                                aria-pressed={selected}
+                                className={`w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nx-primary ${
+                                    selected ? 'bg-nx-primary-subtle text-nx-primary' : 'text-nx-fg hover:bg-nx-surface-muted'
+                                }`}
+                            >
+                                <span className="font-medium">{account.label}</span>
+                                <span className={`truncate text-xs ${selected ? 'text-nx-primary' : 'text-nx-fg-subtle'}`}>{account.email}</span>
+                            </button>
+                        </li>
+                    );
+                })}
+            </ul>
+        </section>
+    );
+
     return (
-        <div className="min-h-screen flex bg-slate-50 font-sans selection:bg-indigo-500/30">
-            {/* Left: Brand Panel */}
-            <div className="hidden lg:flex w-[480px] flex-col justify-between p-12 bg-[#0A0828] relative overflow-hidden">
-                {/* Background Decor */}
-                <div className="absolute top-0 right-0 w-full h-full opacity-20">
-                    <div className="absolute top-[-10%] right-[-10%] w-[80%] h-[80%] rounded-full border border-white/5" />
-                    <div className="absolute bottom-[-20%] left-[-20%] w-[100%] h-[100%] rounded-full border border-white/5" />
-                </div>
-
-                <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-16">
-                        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-600/40">
-                            <Layers size={26} className="text-white" />
-                        </div>
-                        <h1 className="text-[24px] font-black text-white tracking-tighter uppercase italic">AURA CORE</h1>
-                    </div>
-
-                    <div className="space-y-6">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-lg">
-                            <Zap size={14} className="text-indigo-400 fill-indigo-400" />
-                            <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Platform Active</span>
-                        </div>
-                        <h2 className="text-4xl font-black text-white leading-[1.1] tracking-tight">
-                            Workforce<br />
-                            <span className="text-indigo-400">Management Platform.</span>
-                        </h2>
-                        <p className="text-slate-400 font-medium leading-relaxed max-w-sm">
-                            Manage your team, time, attendance, and payroll — all in one place.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="relative z-10 space-y-8">
-                    <div className="grid grid-cols-2 gap-8 pt-8 border-t border-white/5">
-                        <div>
-                            <p className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em] mb-2">Sync Status</p>
-                            <span className="text-[14px] font-bold text-white flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block" />
-                                Operational
-                            </span>
-                        </div>
-                        <div>
-                            <p className="text-[11px] font-black text-white/30 uppercase tracking-[0.2em] mb-2">Traceability</p>
-                            <span className="text-[14px] font-bold text-white flex items-center gap-2">
-                                <Shield size={14} className="text-indigo-400" />
-                                L3 Secure
-                            </span>
-                        </div>
-                    </div>
-                </div>
+        <AuthLayout after={devPanel}>
+            <div className="mb-6">
+                <h1 className="font-nx text-xl font-semibold text-nx-fg">Sign in</h1>
+                <p className="mt-1 text-sm text-nx-fg-muted">Use your work email and password.</p>
             </div>
 
-            {/* Right: Login Panel */}
-            <div className="flex-1 flex flex-col items-center justify-center p-8 lg:p-24 bg-white relative">
-                <div className="w-full max-w-md space-y-10">
-                    <div className="space-y-2">
-                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Sign In</h3>
-                        <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest">Enter your credentials to continue</p>
-                    </div>
+            {error && (
+                <Alert tone="danger" title="Sign-in failed" className="mb-5">
+                    {error}
+                </Alert>
+            )}
 
-                    {/* ── ERROR FEEDBACK ── */}
-                    {error && (
-                        <div className="p-4 bg-rose-50/50 border-l-[3px] border-rose-500 rounded-xl flex items-start gap-3.5 animate-in slide-in-from-left-4 duration-300">
-                            <div className="w-8 h-8 bg-rose-500/10 rounded-full flex items-center justify-center shrink-0">
-                                <ShieldAlert size={16} className="text-rose-600" />
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[12px] font-black text-rose-900 uppercase tracking-tight">Sign-in Failed</p>
-                                <p className="text-[13px] font-bold text-rose-600/90 leading-tight">{error}</p>
-                            </div>
-                        </div>
-                    )}
+            <form onSubmit={handleLogin} noValidate className="space-y-4">
+                <FormField label="Email" error={fieldErrors.email}>
+                    <TextInput
+                        type="email"
+                        name="email"
+                        autoComplete="username"
+                        inputMode="email"
+                        autoFocus
+                        leadingIcon={<Mail size={16} />}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="name@company.com"
+                    />
+                </FormField>
 
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
-                            <div className="relative group">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                                <input 
-                                    type="email" 
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                    placeholder="operator@auracore.io"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-[14px] font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-300"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center px-1">
-                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Password</label>
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowForgotPassword(true)}
-                                    className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:text-indigo-700 transition-colors"
-                                >
-                                    Forgot Password?
-                                </button>
-                            </div>
-                            <div className="relative group">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                                <input 
-                                    type={showPassword ? 'text' : 'password'} 
-                                    value={password}
-                                    onChange={e => setPassword(e.target.value)}
-                                    placeholder="••••••••••••"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-12 text-[14px] font-bold text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-300"
-                                    required
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <button 
-                            type="submit" 
-                            disabled={isLoading}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 py-4 rounded-2xl text-white text-[14px] font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-3 active:scale-[0.98]"
+                <FormField
+                    label="Password"
+                    error={fieldErrors.password}
+                    labelAside={
+                        <button
+                            type="button"
+                            onClick={() => setShowForgotPassword(true)}
+                            className="text-sm font-medium text-nx-primary hover:text-nx-primary-hover rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nx-primary"
                         >
-                            {isLoading ? (
-                                <><Loader2 className="animate-spin" size={18} /> Signing in...</>
-                            ) : (
-                                <><LogIn size={18} /> Sign In</>
-                            )}
+                            Forgot password?
                         </button>
-                    </form>
+                    }
+                >
+                    <PasswordInput
+                        name="password"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                </FormField>
 
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1 h-px bg-slate-100" />
-                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Demo Accounts</span>
-                            <div className="flex-1 h-px bg-slate-100" />
-                        </div>
+                <Button type="submit" size="lg" fullWidth loading={isLoading} icon={<LogIn size={16} aria-hidden />}>
+                    {isLoading ? 'Signing in…' : 'Sign in'}
+                </Button>
+            </form>
 
-                        <div className="grid grid-cols-3 gap-3">
-                            {DEMO_ACCOUNTS.map(account => (
-                                <button
-                                    key={account.label}
-                                    onClick={() => selectDemo(account)}
-                                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all ${email === account.email ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' : 'border-slate-100 bg-white hover:border-slate-300'}`}
-                                >
-                                    <div className={`w-10 h-10 ${account.color} rounded-xl flex items-center justify-center text-white shadow-lg`}>
-                                        <account.icon size={18} />
-                                    </div>
-                                    <span className={`text-[10px] font-black uppercase tracking-tighter ${email === account.email ? 'text-indigo-600' : 'text-slate-400'}`}>
-                                        {account.label}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+            <p className="mt-6 text-xs leading-relaxed text-nx-fg-subtle">
+                Accounts are created by your organization's administrator. If you can't sign in, contact them for help.
+            </p>
 
-                    <p className="text-center text-[11px] font-black text-slate-300 uppercase tracking-widest pt-8">
-                        © 2026 PRECISIONHUB INDUSTRIAL SYSTEMS
-                    </p>
-                </div>
-            </div>
-
-            {/* Forgot Password Modal with Admin Approval Workflow */}
             <ForgotPasswordModal
                 isOpen={showForgotPassword}
                 onClose={() => setShowForgotPassword(false)}
@@ -244,7 +187,7 @@ const LoginPage: React.FC = () => {
                     setPassword(newPass);
                 }}
             />
-        </div>
+        </AuthLayout>
     );
 };
 

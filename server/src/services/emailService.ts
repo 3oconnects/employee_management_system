@@ -5,6 +5,7 @@
 // falls back to environment variables (SMTP_HOST, SMTP_USER, SMTP_PASS).
 // ============================================================================
 
+import { BRAND } from '../config/brand';
 import { pool } from '../config/db';
 import { 
     OfferLetterData, 
@@ -256,7 +257,7 @@ export const buildWelcomeEmail = (opts: {
 <body>
   <div class="wrap">
     <div class="header">
-      <h1>${opts.orgName || 'AURA Personnel Hub'}</h1>
+      <h1>${opts.orgName || BRAND.productName}</h1>
       <p>Your account is ready — welcome aboard</p>
     </div>
     <div class="body">
@@ -286,7 +287,7 @@ export const buildWelcomeEmail = (opts: {
         password will remain active until you update it.
       </div>
     </div>
-    <div class="footer">${opts.orgName || 'AURA Personnel Hub'} · Automated account notification · Do not reply</div>
+    <div class="footer">${opts.orgName || BRAND.productName} · Sent via ${BRAND.productName} · Do not reply</div>
   </div>
 </body>
 </html>
@@ -324,7 +325,7 @@ export const buildRoleAssignmentEmail = (opts: {
       <p class="text">Your access permissions have been updated accordingly. Please log in to see your new workspace.</p>
       <a href="${opts.loginUrl}" class="btn">Go to Dashboard →</a>
     </div>
-    <div class="footer">${opts.orgName || 'Ozofi Personnel Hub'} · Access management notification</div>
+    <div class="footer">${opts.orgName || BRAND.productName} · Sent via ${BRAND.productName}</div>
   </div>
 </body>
 </html>

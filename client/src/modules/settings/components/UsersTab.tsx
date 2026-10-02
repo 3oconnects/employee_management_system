@@ -99,7 +99,7 @@ const UsersTab: React.FC<Props> = ({ users, roles, onRefresh, onNotify }) => {
     };
 
     const autoGenerate = () => {
-        const pass = 'AURA-' + Math.random().toString(36).slice(-8).toUpperCase();
+        const pass = 'NEXUS-' + Math.random().toString(36).slice(-8).toUpperCase();
         setNewManualPass(pass);
     };
 

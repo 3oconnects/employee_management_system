@@ -101,7 +101,7 @@ const IntegrationsTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                                         <p className="text-[12px] font-black text-indigo-900">API Documentation</p>
                                     </div>
                                     <p className="text-[11px] text-indigo-800/70 leading-relaxed mb-4">
-                                        Your endpoint base URL: <code className="bg-white/50 px-1 rounded">https://api.aura-ems.com/v1/{config.tenant_id || 'default'}</code>
+                                        Your endpoint base URL: <code className="bg-white/50 px-1 rounded">{`${window.location.origin}/api/v1`}</code>
                                     </p>
                                     <button className="text-[11px] font-bold text-indigo-600 hover:underline">View Swagger Docs →</button>
                                 </div>
@@ -126,7 +126,7 @@ const IntegrationsTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Webhook URL</label>
                             <input type="url" value={form.webhook_url}
                                 onChange={e => setForm(p => ({ ...p, webhook_url: e.target.value }))}
-                                placeholder="https://your-server.com/webhooks/aura"
+                                placeholder="https://your-server.com/webhooks/nexus"
                                 className="w-full px-4 py-3 text-[13px] font-medium border border-slate-200 rounded-2xl outline-none focus:border-indigo-400 bg-white" />
                         </div>
                         <div className="group">

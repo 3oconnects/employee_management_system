@@ -11,6 +11,7 @@ import cors from 'cors';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
+import { BRAND } from './config/brand';
 // Loaded before route modules to preserve the original evaluation order
 // (config/db runs dotenv.config()).
 import './config/db';
@@ -34,6 +35,7 @@ import settingsRoutes from './modules/settings';
 import organizationRoutes from './modules/organization/organization.routes';
 import governanceRoutes from './modules/governance';
 import realtimeRoutes from './modules/realtime';
+import workspaceRoutes from './modules/workspace/workspace.routes';
 import { globalErrorHandler, notFoundHandler } from './core/errors/errorHandler';
 
 const app = express();
@@ -121,10 +123,11 @@ app.use('/api/v1/settings', apiLimiter, settingsRoutes);
 app.use('/api/v1/organization', apiLimiter, organizationRoutes);
 app.use('/api/v1/governance', apiLimiter, governanceRoutes);
 app.use('/api/v1/realtime', apiLimiter, realtimeRoutes);
+app.use('/api/v1/workspace', apiLimiter, workspaceRoutes);
 
 // Root path handler
 app.get('/', (_req, res) => {
-    res.send('EMS Backend API is running.');
+    res.send(`${BRAND.productName} API is running.`);
 });
 
 // ─── ERROR HANDLING ─────────────────────────────────────────────────────────

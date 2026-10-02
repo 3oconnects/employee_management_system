@@ -22,7 +22,7 @@ const start = async () => {
         activeServer = app.listen(port, () => {
             console.log(`
     🚀 ===================================================
-       EMS BACKEND — SERVER STARTED
+       OZOFI NEXUS API — SERVER STARTED
        PORT: ${port}
        ENV:  ${process.env.NODE_ENV || 'development'}
        DATE: ${new Date().toLocaleString()}

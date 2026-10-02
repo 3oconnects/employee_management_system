@@ -1,4 +1,5 @@
 import { ConfigurationRepository } from './configuration.repository';
+import { BRAND } from '../../../config/brand';
 import { AppError } from '../../../core/errors/AppError';
 import { sendEmail } from '../../../services/emailService';
 
@@ -42,7 +43,7 @@ export class ConfigurationService {
         if (!to) throw AppError.badRequest('Recipient email required.');
         const sent = await sendEmail({
             to,
-            subject: '✅ AURA EMS — Test Email',
+            subject: `${BRAND.productName} — Test email`,
             html: `<div style="font-family:sans-serif;padding:32px">
                 <h2 style="color:#4f46e5">Test Email</h2>
                 <p>Your SMTP configuration is working correctly.</p>

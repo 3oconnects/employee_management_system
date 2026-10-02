@@ -7,6 +7,9 @@ import {
     PlusCircle, History, ListFilter, CheckCircle2, User
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { NexusMark } from '../brand/NexusLogo';
+import { BRAND } from '../../config/brand';
+import { useWorkspace } from '../../hooks/useWorkspace';
 
 interface SubMenuItem {
     label: string;
@@ -77,6 +80,7 @@ const sidebarSections: MenuSection[] = [
 
 const Sidebar: React.FC = () => {
     const { user, hasModule, hasAnyRole } = useAuthStore();
+    const workspace = useWorkspace();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState<boolean>(() => {
         try { return localStorage.getItem('sidebar_collapsed') === 'true'; }
@@ -131,12 +135,12 @@ const Sidebar: React.FC = () => {
                     </button>
                 ) : (
                     <>
-                        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-600/30">
-                            <Layers size={15} className="text-white" />
-                        </div>
-                        <div className="ml-3 flex-1 min-w-0">
-                            <p className="text-[14px] font-black text-white leading-none tracking-tight">AURA</p>
-                            <p className="text-[10px] font-bold text-indigo-400/70 uppercase tracking-[0.18em] mt-0.5">Personnel Hub</p>
+                        <NexusMark size={30} decorative className="flex-shrink-0" />
+                        <div className="ml-3 flex-1 min-w-0 font-nx">
+                            <p className="text-[14px] font-semibold text-white leading-tight truncate">{BRAND.productName}</p>
+                            <p className="text-xs text-white/50 leading-tight mt-0.5 truncate" title={workspace.name ?? BRAND.tagline}>
+                                {workspace.name ?? BRAND.tagline}
+                            </p>
                         </div>
                         <button
                             onClick={() => setCollapsed(true)}

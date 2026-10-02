@@ -85,7 +85,7 @@ const EmailTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                     </div>
                     {F('Username / Email', 'smtp_user', 'email', 'noreply@company.com')}
                     {F('App Password', 'smtp_pass')}
-                    {F('From Address', 'smtp_from', 'text', 'AURA EMS <noreply@company.com>')}
+                    {F('From Address', 'smtp_from', 'text', 'Ozofi Nexus <noreply@yourcompany.com>')}
 
                     <div>
                         <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Connection Security</label>

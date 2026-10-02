@@ -23,7 +23,7 @@ const MODULES = [
 
 const ADVANCED_FEATURES = [
     { key: 'dark_mode', label: 'Experimental Dark Mode', desc: 'Enable neural-inspired dark theme' },
-    { key: 'ai_assistant', label: 'AURA AI Assistant', desc: 'Conversational HR support' },
+    { key: 'ai_assistant', label: 'AI Assistant', desc: 'Conversational HR support' },
     { key: 'real_time_sync', label: 'Real-time Synchronization', desc: 'Push updates via WebSockets' },
     { key: 'bulk_actions', label: 'Bulk Batch Actions', desc: 'Process multiple items at once' },
 ];

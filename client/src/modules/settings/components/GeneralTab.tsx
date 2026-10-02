@@ -93,7 +93,7 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {F('Business Registration No', 'registration_no', 'text', 'Company Reg ID', Hash)}
-                            {F('Official App URL', 'app_url', 'url', 'https://aura.ems.com', Link)}
+                            {F('Official App URL', 'app_url', 'url', 'https://nexus.yourcompany.com', Link)}
                         </div>
                     </div>
                 </div>

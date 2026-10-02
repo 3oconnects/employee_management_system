@@ -3,6 +3,8 @@ import { UserAssignmentsRepository } from './user-assignments.repository';
 import { AppError } from '../../../core/errors/AppError';
 import { NotificationService } from '../../../services/notificationService';
 import { sendEmail, buildWelcomeEmail, buildRoleAssignmentEmail } from '../../../services/emailService';
+import { getOrganizationName } from '../../workspace/workspace.service';
+import { BRAND } from '../../../config/brand';
 
 export class UserAssignmentsService {
     private repo: UserAssignmentsRepository;
@@ -41,10 +43,11 @@ export class UserAssignmentsService {
 
         if (send_welcome_email) {
             const loginUrl = process.env.APP_URL || 'http://localhost:5173';
+            const orgName = await getOrganizationName(tenantId);
             await sendEmail({
                 to: email,
-                subject: '🎉 Welcome — Your account is ready',
-                html: buildWelcomeEmail({ name, email, tempPassword: password, role, loginUrl }),
+                subject: `Welcome to ${orgName || BRAND.productName} — your account is ready`,
+                html: buildWelcomeEmail({ name, email, tempPassword: password, role, loginUrl, orgName: orgName || undefined }),
             });
         }
         return newUser;
@@ -61,10 +64,11 @@ export class UserAssignmentsService {
         }
 
         const loginUrl = process.env.APP_URL || 'http://localhost:5173';
+        const orgName = await getOrganizationName(tenantId);
         const sent = await sendEmail({
             to: user.email,
-            subject: '🎉 Welcome — Your AURA account is ready',
-            html: buildWelcomeEmail({ name: user.name, email: user.email, tempPassword: tempPass, role: user.role, loginUrl }),
+            subject: `Welcome to ${orgName || BRAND.productName} — your account is ready`,
+            html: buildWelcomeEmail({ name: user.name, email: user.email, tempPassword: tempPass, role: user.role, loginUrl, orgName: orgName || undefined }),
         });
 
         return { sent, message: sent ? 'Welcome email sent.' : 'No SMTP config. Email not sent.' };
@@ -102,10 +106,11 @@ export class UserAssignmentsService {
             const user = await this.repo.getUser(id, tenantId);
             if (user) {
                 const loginUrl = process.env.APP_URL || 'http://localhost:5173';
+                const orgName = await getOrganizationName(tenantId);
                 await sendEmail({
                     to: user.email,
-                    subject: '🔑 Your role has been updated',
-                    html: buildRoleAssignmentEmail({ name: user.name, email: user.email, role: role || '', loginUrl }),
+                    subject: 'Your role has been updated',
+                    html: buildRoleAssignmentEmail({ name: user.name, email: user.email, role: role || '', loginUrl, orgName: orgName || undefined }),
                 });
             }
         }

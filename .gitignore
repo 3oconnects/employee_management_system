@@ -7,3 +7,6 @@ package-lock.json
 build/
 .DS_Store
 .vercel/
+
+# Release 0 (B0-01): raw production diagnostics output must never be committed
+server/db/baseline/diagnostics_output.txt

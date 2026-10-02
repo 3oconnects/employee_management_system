@@ -10,6 +10,8 @@
 //   6. EmptyState    — "No data" placeholders
 //   7. LoadingSpinner— Consistent loading indicator
 //   8. Toast         — Notification toast container (white card + icon + progress)
+//   Form primitives (FormField, TextInput, PasswordInput) and Alert live in
+//   ./form.tsx and ./Alert.tsx and are re-exported below.
 // ============================================================================
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -19,6 +21,9 @@ import {
 } from 'lucide-react';
 import { addToastListener, showToast } from '../../hooks';
 
+export * from './form';
+export * from './Alert';
+
 export const toast = {
     success: (msg: string) => showToast('success', msg),
     error:   (msg: string) => showToast('error', msg),
@@ -27,12 +32,14 @@ export const toast = {
 };
 
 // ─── BUTTON ─────────────────────────────────────────────────────────────────
+// Ozofi Nexus design system button (docs/nexus/DESIGN_SYSTEM.md).
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
     size?: 'sm' | 'md' | 'lg';
     loading?: boolean;
     icon?: React.ReactNode;
+    fullWidth?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -41,36 +48,41 @@ export const Button: React.FC<ButtonProps> = ({
     size = 'md',
     loading = false,
     icon,
+    fullWidth = false,
     className = '',
     disabled,
+    type = 'button',
     ...props
 }) => {
     const variants = {
-        primary:   'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm shadow-indigo-600/20 focus-visible:ring-2 focus-visible:ring-indigo-500/30',
-        secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-700',
-        danger:    'bg-rose-600 hover:bg-rose-500 text-white shadow-sm shadow-rose-600/20',
-        ghost:     'hover:bg-slate-100 text-slate-600',
-        outline:   'border border-slate-300 hover:bg-slate-50 text-slate-700',
+        primary:   'bg-nx-primary text-white hover:bg-nx-primary-hover',
+        secondary: 'bg-nx-surface-muted text-nx-fg hover:bg-nx-border',
+        danger:    'bg-nx-danger text-white hover:bg-nx-danger/90',
+        ghost:     'text-nx-fg-muted hover:bg-nx-surface-muted hover:text-nx-fg',
+        outline:   'border border-nx-border-strong bg-nx-surface text-nx-fg hover:bg-nx-canvas',
     };
 
     const sizes = {
-        sm: 'px-3 py-1.5 text-xs',
-        md: 'px-4 py-2 text-sm',
-        lg: 'px-6 py-2.5 text-base',
+        sm: 'h-8 px-3 text-[13px]',
+        md: 'h-10 px-4 text-sm',
+        lg: 'h-11 px-5 text-sm',
     };
 
     return (
         <button
+            type={type}
             className={`
-                inline-flex items-center justify-center gap-2 rounded-lg font-medium
-                transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed
-                active:scale-[0.98]
-                ${variants[variant]} ${sizes[size]} ${className}
+                inline-flex items-center justify-center gap-2 rounded-lg font-medium font-nx
+                transition-colors duration-150
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nx-primary focus-visible:ring-offset-2
+                disabled:opacity-60 disabled:cursor-not-allowed
+                ${fullWidth ? 'w-full' : ''} ${variants[variant]} ${sizes[size]} ${className}
             `}
             disabled={disabled || loading}
+            aria-busy={loading || undefined}
             {...props}
         >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
+            {loading ? <Loader2 size={16} className="animate-spin" aria-hidden /> : icon}
             {children}
         </button>
     );

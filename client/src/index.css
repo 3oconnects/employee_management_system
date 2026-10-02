@@ -46,6 +46,40 @@
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ============================================================================
+   OZOFI NEXUS — DESIGN TOKENS (see docs/nexus/DESIGN_SYSTEM.md)
+   ----------------------------------------------------------------------------
+   Space-separated RGB channels so Tailwind can apply opacity
+   (e.g. bg-nx-primary/10). Exposed to Tailwind as the `nx` colour namespace.
+   Legacy tokens above stay untouched until each page is migrated.
+   ============================================================================ */
+:root {
+  /* Brand */
+  --nx-primary: 47 91 234;            /* #2F5BEA  Nexus blue (5.52:1 on white) */
+  --nx-primary-hover: 36 74 204;      /* #244ACC */
+  --nx-primary-subtle: 238 242 254;   /* #EEF2FE */
+
+  /* Neutrals */
+  --nx-canvas: 248 250 252;           /* #F8FAFC  page background */
+  --nx-surface: 255 255 255;          /* #FFFFFF  cards, inputs */
+  --nx-surface-muted: 241 245 249;    /* #F1F5F9  subtle fills */
+  --nx-border: 226 232 240;           /* #E2E8F0 */
+  --nx-border-strong: 203 213 225;    /* #CBD5E1  input borders */
+  --nx-fg: 15 23 42;                  /* #0F172A  primary text */
+  --nx-fg-muted: 71 85 105;           /* #475569  secondary text (7.58:1 on white) */
+  --nx-fg-subtle: 100 116 139;        /* #64748B  captions, placeholders (4.76:1 on white) */
+
+  /* Semantic */
+  --nx-success: 21 128 61;            /* #15803D */
+  --nx-success-subtle: 240 253 244;
+  --nx-warning: 180 83 9;             /* #B45309 */
+  --nx-warning-subtle: 255 251 235;
+  --nx-danger: 185 28 28;             /* #B91C1C */
+  --nx-danger-subtle: 254 242 242;
+  --nx-info: 3 105 161;               /* #0369A1 */
+  --nx-info-subtle: 240 249 255;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;

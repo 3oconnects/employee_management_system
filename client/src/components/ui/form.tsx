@@ -81,6 +81,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
                 )}
                 <input
                     ref={ref}
+                    data-nx-input=""
                     id={id ?? field?.id}
                     aria-describedby={field?.describedBy}
                     aria-invalid={invalid || undefined}

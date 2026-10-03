@@ -9,9 +9,11 @@ interface NexusMarkProps {
     className?: string;
     /** Decorative when the product name is also rendered as text next to it. */
     decorative?: boolean;
+    /** White tile with a blue "N", for use on brand-coloured backgrounds. */
+    inverse?: boolean;
 }
 
-export const NexusMark: React.FC<NexusMarkProps> = ({ size = 32, className = '', decorative = false }) => (
+export const NexusMark: React.FC<NexusMarkProps> = ({ size = 32, className = '', decorative = false, inverse = false }) => (
     <svg
         width={size}
         height={size}
@@ -19,10 +21,10 @@ export const NexusMark: React.FC<NexusMarkProps> = ({ size = 32, className = '',
         className={className}
         {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': BRAND.productName })}
     >
-        <rect width="32" height="32" rx="7" fill="rgb(var(--nx-primary))" />
-        <path d="M10 22V10l12 12V10" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="10" cy="10" r="2.4" fill="#fff" />
-        <circle cx="22" cy="22" r="2.4" fill="#fff" />
+        <rect width="32" height="32" rx="7" fill={inverse ? '#fff' : 'rgb(var(--nx-primary))'} />
+        <path d="M10 22V10l12 12V10" fill="none" stroke={inverse ? 'rgb(var(--nx-primary))' : '#fff'} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="10" cy="10" r="2.4" fill={inverse ? 'rgb(var(--nx-primary))' : '#fff'} />
+        <circle cx="22" cy="22" r="2.4" fill={inverse ? 'rgb(var(--nx-primary))' : '#fff'} />
     </svg>
 );
 

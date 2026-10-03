@@ -1,5 +1,15 @@
 # Ozofi Nexus — Change Log (deliverable F)
 
+## PR 1 follow-up · 2026-10-03 (review feedback)
+
+| Feedback | Cause / change | Verification |
+|---|---|---|
+| "Buttons are completely missing" | **Not a code defect.** The reviewer's dev server (port 5173) was started before `tailwind.config.js` gained the `nx` namespace; Tailwind reads config only at startup, so `bg-nx-primary`/`text-nx-primary`/`font-nx` were never generated (confirmed in that server: computed button background `rgba(0,0,0,0)`, no `.bg-nx-primary` rule). Fix: restart the dev server. Documented in DESIGN_SYSTEM.md | Fresh server: button background `rgb(47,91,234)` |
+| "Looks too empty / blank" | `AuthLayout` becomes a two-column layout on desktop: a brand panel in darker Nexus blue (`#244ACC`; text contrast 7.18 / 5.65 / 4.77:1) with a one-line purpose and the four modules that exist (People, Time, Leave and approvals, Payroll), with no metrics or claims; the form sits on the right. Mobile and tablet keep the single column. New `inverse` Nexus mark for the blue panel | 1366px, 768px, 375px: no horizontal overflow, 0 console errors |
+| Browser autofill tinted fields blue | Scoped `:-webkit-autofill` rule keeps Nexus inputs (`data-nx-input`) on the surface colour | — |
+
+Tests: client 8/8 (the identity test now expects the descriptor in both the panel and the mobile logo); `tsc` clean.
+
 ## PR 1 — `feat/nexus-brand-foundation` · 2026-10-02
 
 **Scope (decision G-7):** Phase 1 branding foundation + Phase 2 design tokens/primitives + Phase 3 subset (sign-in, forgot-password, set-password screens).

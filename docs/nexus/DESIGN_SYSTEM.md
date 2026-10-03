@@ -39,7 +39,9 @@ Defined once as CSS variables (`client/src/index.css`, `--nx-*`, space-separated
 | `nx-danger` / `-subtle` | `#B91C1C` / `#FEF2F2` | Errors, destructive | 5.91:1 |
 | `nx-info` / `-subtle` | `#0369A1` / `#F0F9FF` | Informational | 5.57:1 |
 
-All text pairings meet WCAG 2.1 AA (≥ 4.5:1). Legacy tokens (`primary`, `sidebar`, `--color-*`) remain until each page migrates and are removed afterwards.
+All text pairings meet WCAG 2.1 AA (≥ 4.5:1).
+
+> **Restart the dev server after changing `tailwind.config.js`.** Tailwind reads its config only at startup. A server started before the `nx` namespace existed keeps the `--nx-*` variables but never generates classes such as `bg-nx-primary`, so primary buttons render as white text on a transparent background (invisible). Production builds are unaffected. Legacy tokens (`primary`, `sidebar`, `--color-*`) remain until each page migrates and are removed afterwards.
 
 ## 3. Typography
 
@@ -67,8 +69,8 @@ All in `client/src/components/ui/` and exported from `components/ui`.
 | `TextInput` | Optional decorative `leadingIcon`, optional `trailing` slot; reads its id and invalid state from `FormField` |
 | `PasswordInput` | `TextInput` with a show/hide button (`aria-label` "Show password"/"Hide password", `aria-pressed`) |
 | `Alert` | Tones `danger` (role alert), `success`, `warning`, `info` (role status); optional title |
-| `NexusLogo` / `NexusMark` | Brand lockup; mark is decorative when the name is shown next to it |
-| `AuthLayout` (auth module) | Logo + descriptor, single card, footer; used by sign-in and set-password |
+| `NexusLogo` / `NexusMark` | Brand lockup; mark is decorative when the name is shown next to it; `inverse` mark (white tile, blue N) for brand-coloured backgrounds |
+| `AuthLayout` (auth module) | Desktop: brand panel (darker Nexus blue, describing only modules that exist) + form column. Mobile/tablet: logo, card, footer. Used by sign-in and set-password |
 
 Pending (later phases, extending this library, not duplicating it): Select, Combobox, Checkbox/Switch, Tabs, Table + Pagination (consolidating `DataTable`), Modal/Drawer/ConfirmDialog (consolidating `Modal`), Menu, Tooltip, Badge (token migration), Avatar, Breadcrumbs, Skeleton, EmptyState/ErrorState (one each), PageHeader, StatCard (one, replacing 4 copies).
 

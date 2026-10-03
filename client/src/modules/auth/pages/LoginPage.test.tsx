@@ -19,7 +19,8 @@ const renderLogin = () =>
 describe('LoginPage', () => {
     it('presents the Ozofi Nexus identity and no legacy branding', () => {
         const { container } = renderLogin()
-        expect(screen.getByText('Workforce Management Platform')).toBeTruthy()
+        // Shown in the desktop brand panel and the mobile logo (one is hidden per breakpoint).
+        expect(screen.getAllByText('Workforce Management Platform').length).toBeGreaterThan(0)
         expect(container.textContent).toContain('Ozofi')
         expect(container.textContent).toContain('Nexus')
         expect(container.textContent).not.toMatch(/AURA|PRECISIONHUB|auracore/i)

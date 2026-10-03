@@ -80,6 +80,17 @@
   --nx-info-subtle: 240 249 255;
 }
 
+/* Keep Nexus inputs on the surface colour when the browser autofills them
+   (Chrome/Edge otherwise paint autofilled fields light blue). */
+[data-nx-input]:-webkit-autofill,
+[data-nx-input]:-webkit-autofill:hover,
+[data-nx-input]:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgb(var(--nx-surface)) inset;
+  -webkit-text-fill-color: rgb(var(--nx-fg));
+  caret-color: rgb(var(--nx-fg));
+  transition: background-color 9999s ease-out 0s;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;

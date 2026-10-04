@@ -1,4 +1,5 @@
 import { pool } from '../../config/db';
+import { ApprovalKind } from './approvals.policy';
 
 export class ApprovalsRepository {
     async getEmployeeIdByUserId(userId: string | number) {
@@ -129,14 +130,6 @@ export class ApprovalsRepository {
         );
     }
 
-    async getApprovalMetadata(id: string, tenantId: string) {
-        const { rows } = await pool.query(
-            'SELECT metadata FROM approvals WHERE id = $1 AND (tenant_id = $2 OR tenant_id IS NULL OR tenant_id = $3)',
-            [id, tenantId, '']
-        );
-        return rows[0]?.metadata;
-    }
-
     async executeTeamCreation(id: string, meta: any, status: string, tenantId: string, client: any) {
         const deptId = meta.department_id && meta.department_id !== '' ? parseInt(meta.department_id, 10) : null;
         const parentTeamId = meta.parent_team_id && meta.parent_team_id !== '' ? parseInt(meta.parent_team_id, 10) : null;
@@ -180,26 +173,42 @@ export class ApprovalsRepository {
         await client.query('UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)', [status, id, tenantId, '']);
     }
 
-    async updateLeaveStatus(id: string, status: string, tenantId: string) {
-        await pool.query('UPDATE leave_requests SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
-    }
+    // ── Decision helpers (HF-4). All take the transaction client and are tenant-strict. ──
 
-    async updateEmployeeStatus(id: string, status: string, tenantId: string) {
-        await pool.query('UPDATE employees SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
-    }
-
-    async updateTimesheetStatus(id: string, status: string, tenantId: string) {
-        await pool.query('UPDATE timesheets SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
-    }
-
-    async updateClaimStatus(id: string, status: string, tenantId: string) {
-        await pool.query('UPDATE claims SET status = $1 WHERE id = $2 AND tenant_id = $3', [status, id, tenantId]);
-    }
-
-    async updateApprovalStatus(id: string, status: string, tenantId: string) {
-        await pool.query(
-            'UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)',
-            [status, id, tenantId, '']
+    /** The acting user's employee id (users and employees are linked by user_id or by email). */
+    async resolveActorEmployeeId(client: any, tenantId: string, userId: number | string, email: string): Promise<string | null> {
+        const { rows } = await client.query(
+            `SELECT id FROM employees
+             WHERE tenant_id = $1 AND (user_id = $2 OR LOWER(email) = LOWER($3))
+             ORDER BY (user_id = $2) DESC NULLS LAST
+             LIMIT 1`,
+            [tenantId, userId, email]
         );
+        return rows[0]?.id ?? null;
+    }
+
+    /**
+     * Loads and row-locks the record being decided, in the caller's tenant only. A concurrent
+     * decision waits here and then sees the new status, so only one can win.
+     */
+    async lockApproval(client: any, kind: ApprovalKind, id: string, tenantId: string): Promise<Record<string, any> | null> {
+        const table = { std: 'approvals', leave: 'leave_requests', onboarding: 'employees', timesheet: 'timesheets', claim: 'claims' }[kind];
+        // integer keys: a non-numeric id cannot exist, and must not reach the database as a bad cast
+        if ((kind === 'leave' || kind === 'timesheet') && !/^\d+$/.test(id)) return null;
+        const { rows } = await client.query(
+            `SELECT * FROM ${table} WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+            [id, tenantId]
+        );
+        return rows[0] ?? null;
+    }
+
+    async setDecision(client: any, kind: ApprovalKind, id: string, status: string, tenantId: string) {
+        const table = { std: 'approvals', leave: 'leave_requests', onboarding: 'employees', timesheet: 'timesheets', claim: 'claims' }[kind];
+        await client.query(`UPDATE ${table} SET status = $1 WHERE id = $2 AND tenant_id = $3`, [status, id, tenantId]);
+    }
+
+    async employeeExistsInTenant(employeeId: string | number, tenantId: string): Promise<boolean> {
+        const { rows } = await pool.query('SELECT 1 FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
+        return rows.length > 0;
     }
 }

@@ -55,6 +55,8 @@ export enum AuditAction {
     LEAVE_APPROVE = 'LEAVE_APPROVE',
     LEAVE_REJECT = 'LEAVE_REJECT',
     ATTENDANCE_REGULARIZE = 'ATTENDANCE_REGULARIZE',
+    APPROVAL_APPROVE = 'APPROVAL_APPROVE',
+    APPROVAL_REJECT = 'APPROVAL_REJECT',
 }
 
 // ─── JWT & AUTH ─────────────────────────────────────────────────────────────

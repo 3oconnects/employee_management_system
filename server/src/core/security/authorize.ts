@@ -74,6 +74,50 @@ const ROLE_TO_PERMISSIONS: Record<string, string[]> = {
     employee: ['attendance:view', 'attendance:check_in', 'leave:view', 'leave:apply', 'profile:view', 'profile:update', 'dashboard:view'],
 };
 
+/**
+ * The access decision used by authorize(), as a pure function so the same rules can be
+ * applied where the required permission is only known after loading a record (HF-4).
+ * Behaviour is identical to the previous inline logic.
+ */
+export const hasAccess = (
+    user: { role?: string; dashboard_type?: string; permissions?: string[] },
+    permissionOrRole: string | string[]
+): boolean => {
+    const userRole = (user.role || '').toLowerCase();
+    const dashType = (user.dashboard_type || '').toLowerCase();
+    const userPerms = user.permissions || [];
+
+    // 1. super_admin — unconditional pass
+    if (userRole === 'super_admin') return true;
+
+    // 2. dashboard_type=admin — owner-level pass (used when tenant owner
+    //    has a custom role name but full access)
+    if (dashType === 'admin') return true;
+
+    const required = Array.isArray(permissionOrRole) ? permissionOrRole : [permissionOrRole];
+
+    return required.some(entry => {
+        const entryLower = entry.toLowerCase();
+
+        // 3. Explicit module:action permission string in JWT
+        if (entry.includes(':')) {
+            return userPerms.includes(entry);
+        }
+
+        // 4. Legacy role-name guard — resolve to permission strings and check
+        //    This allows ANY role (including custom ones like "trainees") to
+        //    pass as long as their DB permissions cover what the route needs.
+        const neededPerms = ROLE_TO_PERMISSIONS[entryLower] || [];
+        if (neededPerms.length > 0) {
+            return neededPerms.some(p => userPerms.includes(p));
+        }
+
+        // 5. Fallback: exact role-name match (keeps backward compat for
+        //    routes that only super_admin should ever reach via role name)
+        return userRole === entryLower;
+    });
+};
+
 export const authorize = (permissionOrRole: string | string[]) => {
     return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
         if (!req.user) {
@@ -84,36 +128,9 @@ export const authorize = (permissionOrRole: string | string[]) => {
         const userRole = (req.user.role || '').toLowerCase();
         const dashType = (req.user.dashboard_type || '').toLowerCase();
         const userPerms = req.user.permissions || [];
-
-        // 1. super_admin — unconditional pass
-        if (userRole === 'super_admin') return next();
-
-        // 2. dashboard_type=admin — owner-level pass (used when tenant owner
-        //    has a custom role name but full access)
-        if (dashType === 'admin') return next();
-
         const required = Array.isArray(permissionOrRole) ? permissionOrRole : [permissionOrRole];
 
-        const isAllowed = required.some(entry => {
-            const entryLower = entry.toLowerCase();
-
-            // 3. Explicit module:action permission string in JWT
-            if (entry.includes(':')) {
-                return userPerms.includes(entry);
-            }
-
-            // 4. Legacy role-name guard — resolve to permission strings and check
-            //    This allows ANY role (including custom ones like "trainees") to
-            //    pass as long as their DB permissions cover what the route needs.
-            const neededPerms = ROLE_TO_PERMISSIONS[entryLower] || [];
-            if (neededPerms.length > 0) {
-                return neededPerms.some(p => userPerms.includes(p));
-            }
-
-            // 5. Fallback: exact role-name match (keeps backward compat for
-            //    routes that only super_admin should ever reach via role name)
-            return userRole === entryLower;
-        });
+        const isAllowed = hasAccess(req.user, permissionOrRole);
 
         if (!isAllowed) {
             console.warn(

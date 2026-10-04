@@ -6,7 +6,7 @@ export class UserAssignmentsRepository {
             `SELECT 
                 e.id as employee_id, e.name, e.email, e.department, e.position,
                 u.id, u.role, u.is_active, u.last_login, u.role_id,
-                u.temp_password, u.is_password_temp,
+                u.is_password_temp,
                 r.name as role_name
              FROM employees e
              LEFT JOIN users u ON e.email = u.email AND (e.tenant_id = u.tenant_id OR u.tenant_id IS NULL)

@@ -82,12 +82,6 @@ export class UserAssignmentsService {
         return tempPass;
     }
 
-    async getTempPassword(id: string, tenantId: string) {
-        const user = await this.repo.getUser(id, tenantId);
-        if (!user) throw AppError.notFound('User');
-        return { temp_password: user.temp_password, is_password_temp: user.is_password_temp };
-    }
-
     async updatePassword(id: string, tenantId: string, password: string) {
         if (!password) throw AppError.badRequest('Password is required.');
         const hashedPassword = await bcrypt.hash(password, 10);

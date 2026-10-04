@@ -2,6 +2,7 @@
 # 16 genuine mismatches + 2 dynamic paths (useOrganizationForm.ts: `${endpoint}/${id}`) the static check cannot resolve.
 # 124 -> 125 backend routes: GET /api/v1/workspace added by feat/nexus-brand-foundation (Ozofi Nexus phase 1).
 # 125 -> 124 backend routes: GET /api/v1/auth/forgot-password/status removed by HF-3 (it returned the password-reset token). Unmatched client calls unchanged.
+# 124 -> 123 backend routes: GET /api/v1/settings/users/:id/temp-password removed by HF-7 (it returned a stored plaintext temp password). Unmatched client calls unchanged.
 DELETE /X/X modules/organization/hooks/useOrganizationForm.ts
 GET /approvals/pending modules/settings/components/ApprovalsTab.tsx
 GET /claims/admin modules/payroll/sections/Approvals.tsx
@@ -20,4 +21,4 @@ PUT /X/X modules/organization/hooks/useOrganizationForm.ts
 PUT /approvals/X/X modules/settings/components/ApprovalsTab.tsx
 PUT /claims/X/approve modules/payroll/sections/Approvals.tsx
 PUT /claims/X/reject modules/payroll/sections/Approvals.tsx
-124 backend routes; 18 unmatched client calls
+123 backend routes; 18 unmatched client calls

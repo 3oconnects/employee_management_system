@@ -225,10 +225,10 @@ export class AnalyticsService {
             // 15. Upcoming holidays
             safeQuery(`
                 SELECT name, date, type FROM holidays
-                WHERE date >= CURRENT_DATE
+                WHERE date >= CURRENT_DATE AND (tenant_id = $1 OR tenant_id IS NULL)
                 ORDER BY date
                 LIMIT 5
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // 16. Avg attendance (last 30 days)
             safeQuery(`
                 WITH daily_counts AS (
@@ -277,9 +277,9 @@ export class AnalyticsService {
             // 20. Org metrics
             safeQuery(`
                 SELECT 
-                    (SELECT COUNT(*)::int FROM departments WHERE is_active = true) as units,
-                    (SELECT COUNT(DISTINCT location)::int FROM employees WHERE location IS NOT NULL AND status IN ('active', 'onboarding')) as locations
-            `, [], { rows: [{ units: 0, locations: 0 }] }),
+                    (SELECT COUNT(*)::int FROM departments WHERE is_active = true AND tenant_id = $1) as units,
+                    (SELECT COUNT(DISTINCT location)::int FROM employees WHERE location IS NOT NULL AND status IN ('active', 'onboarding') AND tenant_id = $1) as locations
+            `, [tenantId], { rows: [{ units: 0, locations: 0 }] }),
         ]);
 
         const emp = empStats.rows[0] || { active: '0', inactive: '0', total: '0' };
@@ -361,7 +361,7 @@ export class AnalyticsService {
     /**
      * Get dashboard data scoped to a manager's team
      */
-    static async getManagerDashboard(userId: number) {
+    static async getManagerDashboard(userId: number, tenantId: string) {
         const [
             teamMembers,
             teamAttendance,
@@ -374,11 +374,11 @@ export class AnalyticsService {
                 SELECT e.id, e.name, e.department, e.position, e.status, e.email,
                        u.id AS user_id
                 FROM employees e
-                LEFT JOIN users u ON u.email = e.email
-                WHERE e.reporting_manager_id = $1
+                LEFT JOIN users u ON u.email = e.email AND u.tenant_id = e.tenant_id
+                WHERE e.reporting_manager_id = $1 AND e.tenant_id = $2
                 AND e.status = 'active'
                 AND e.deleted_at IS NULL
-            `, [userId]),
+            `, [userId, tenantId]),
             // Team attendance today
             pool.query(`
                 SELECT
@@ -391,39 +391,39 @@ export class AnalyticsService {
                         ELSE 'on_time'
                     END AS att_status
                 FROM employees e
-                JOIN users u ON u.email = e.email
-                LEFT JOIN attendance a ON a.user_id = u.id AND a.check_in::date = CURRENT_DATE
-                WHERE e.reporting_manager_id = $1
+                JOIN users u ON u.email = e.email AND u.tenant_id = e.tenant_id
+                LEFT JOIN attendance a ON a.user_id = u.id AND a.tenant_id = e.tenant_id AND a.check_in::date = CURRENT_DATE
+                WHERE e.reporting_manager_id = $1 AND e.tenant_id = $2
                 AND e.status = 'active'
-            `, [userId]),
+            `, [userId, tenantId]),
             // Pending leaves for team
             pool.query(`
                 SELECT 
                     lr.id, lr.employee_id, lr.type, lr.start_date, lr.end_date, lr.reason, lr.status, lr.created_at,
                     u.name AS applicant_name, lt.name AS leave_type
                 FROM leave_requests lr
-                JOIN users u ON u.id = lr.user_id
+                JOIN users u ON u.id = lr.user_id AND u.tenant_id = lr.tenant_id
                 JOIN leave_types lt ON lt.id = lr.leave_type_id
-                WHERE lr.status = 'pending'
+                WHERE lr.status = 'pending' AND lr.tenant_id = $2
                 AND lr.user_id IN (
                     SELECT u2.id FROM employees e
-                    JOIN users u2 ON u2.email = e.email
-                    WHERE e.reporting_manager_id = $1
+                    JOIN users u2 ON u2.email = e.email AND u2.tenant_id = e.tenant_id
+                    WHERE e.reporting_manager_id = $1 AND e.tenant_id = $2
                 )
                 ORDER BY lr.created_at DESC
-            `, [userId]),
+            `, [userId, tenantId]),
             // Late check-ins today
             pool.query(`
                 SELECT u.name, a.check_in,
                     EXTRACT(HOUR FROM a.check_in) AS hour,
                     EXTRACT(MINUTE FROM a.check_in) AS minute
                 FROM attendance a
-                JOIN users u ON u.id = a.user_id
-                JOIN employees e ON e.email = u.email
-                WHERE e.reporting_manager_id = $1
+                JOIN users u ON u.id = a.user_id AND u.tenant_id = a.tenant_id
+                JOIN employees e ON e.email = u.email AND e.tenant_id = u.tenant_id
+                WHERE e.reporting_manager_id = $1 AND a.tenant_id = $2
                 AND a.check_in::date = CURRENT_DATE
                 AND EXTRACT(HOUR FROM a.check_in) >= 10
-            `, [userId]),
+            `, [userId, tenantId]),
             // Timesheet completion
             pool.query(`
                 SELECT
@@ -431,12 +431,12 @@ export class AnalyticsService {
                     COUNT(*) FILTER (WHERE t.status = 'approved') AS approved,
                     COUNT(*) FILTER (WHERE t.status = 'draft' OR t.status IS NULL) AS pending
                 FROM employees e
-                JOIN users u ON u.email = e.email
-                LEFT JOIN timesheets t ON t.user_id = u.id
+                JOIN users u ON u.email = e.email AND u.tenant_id = e.tenant_id
+                LEFT JOIN timesheets t ON t.user_id = u.id AND t.tenant_id = e.tenant_id
                     AND t.week_start >= CURRENT_DATE - INTERVAL '7 days'
-                WHERE e.reporting_manager_id = $1
+                WHERE e.reporting_manager_id = $1 AND e.tenant_id = $2
                 AND e.status = 'active'
-            `, [userId]),
+            `, [userId, tenantId]),
         ]);
 
         const team = teamMembers.rows;
@@ -465,7 +465,7 @@ export class AnalyticsService {
     /**
      * Get personal dashboard data for an employee
      */
-    static async getEmployeeDashboard(userId: number) {
+    static async getEmployeeDashboard(userId: number, tenantId: string) {
         const safeQuery = async (sql: string, params?: any[], fallback: any = { rows: [] }) => {
             try { return await pool.query(sql, params); }
             catch (e: any) { 
@@ -487,24 +487,24 @@ export class AnalyticsService {
             safeQuery(`
                 SELECT
                     CASE WHEN EXISTS (
-                        SELECT 1 FROM attendance WHERE user_id = $1 
-                        AND COALESCE(check_in, check_in_time)::date = CURRENT_DATE 
+                        SELECT 1 FROM attendance WHERE user_id = $1 AND tenant_id = $2
+                        AND COALESCE(check_in, check_in_time)::date = CURRENT_DATE
                         AND COALESCE(check_out, check_out_time) IS NULL
                     ) THEN 'IN'
                     WHEN EXISTS (
-                        SELECT 1 FROM attendance WHERE user_id = $1 
+                        SELECT 1 FROM attendance WHERE user_id = $1 AND tenant_id = $2
                         AND COALESCE(check_in, check_in_time)::date = CURRENT_DATE
                     ) THEN 'COMPLETED'
                     ELSE 'OUT'
                     END AS status,
-                    (SELECT COALESCE(check_in, check_in_time) FROM attendance WHERE user_id = $1 
-                     AND COALESCE(check_in, check_in_time)::date = CURRENT_DATE 
+                    (SELECT COALESCE(check_in, check_in_time) FROM attendance WHERE user_id = $1 AND tenant_id = $2
+                     AND COALESCE(check_in, check_in_time)::date = CURRENT_DATE
                      AND COALESCE(check_out, check_out_time) IS NULL 
                      ORDER BY COALESCE(check_in, check_in_time) DESC LIMIT 1) AS check_in,
                     (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(check_out, check_out_time, NOW()) - COALESCE(check_in, check_in_time))) / 3600), 0)
-                     FROM attendance WHERE user_id = $1 
+                     FROM attendance WHERE user_id = $1 AND tenant_id = $2
                      AND COALESCE(check_in, check_in_time)::date = CURRENT_DATE) AS total_hours
-            `, [userId], { rows: [{ status: 'OUT', check_in: null, total_hours: '0' }] }),
+            `, [userId, tenantId], { rows: [{ status: 'OUT', check_in: null, total_hours: '0' }] }),
             // Monthly summary
             safeQuery(`
                 SELECT
@@ -513,10 +513,10 @@ export class AnalyticsService {
                         FILTER (WHERE COALESCE(check_out, check_out_time) IS NOT NULL), 0) AS avg_hours,
                     COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM COALESCE(check_in, check_in_time)) >= 10) AS late_days
                 FROM attendance
-                WHERE user_id = $1
+                WHERE user_id = $1 AND tenant_id = $2
                 AND EXTRACT(MONTH FROM COALESCE(check_in, check_in_time)) = EXTRACT(MONTH FROM CURRENT_DATE)
                 AND EXTRACT(YEAR FROM COALESCE(check_in, check_in_time)) = EXTRACT(YEAR FROM CURRENT_DATE)
-            `, [userId], { rows: [{ present_days: '0', avg_hours: '0', late_days: '0' }] }),
+            `, [userId, tenantId], { rows: [{ present_days: '0', avg_hours: '0', late_days: '0' }] }),
             // Leave balances — try user_id first, fallback gracefully
             safeQuery(`
                 SELECT
@@ -527,35 +527,36 @@ export class AnalyticsService {
                     lt.annual_quota - COALESCE(COUNT(lr.id) FILTER (WHERE lr.status = 'approved'), 0) AS available
                 FROM leave_types lt
                 LEFT JOIN leave_requests lr ON lr.leave_type_id = lt.id 
-                    AND COALESCE(lr.user_id::text, '') = $1::text
+                    AND COALESCE(lr.user_id::text, '') = $1::text AND lr.tenant_id = $2
                     AND EXTRACT(YEAR FROM lr.start_date) = EXTRACT(YEAR FROM CURRENT_DATE)
                 GROUP BY lt.id, lt.name, lt.annual_quota
                 ORDER BY lt.name
-            `, [userId], { rows: [] }),
+            `, [userId, tenantId], { rows: [] }),
             // Upcoming holidays
             safeQuery(`
                 SELECT name, date, type FROM holidays
-                WHERE date >= CURRENT_DATE
+                WHERE date >= CURRENT_DATE AND (tenant_id = $1 OR tenant_id IS NULL)
                 ORDER BY date LIMIT 5
-            `, [], { rows: [] }),
+            `, [tenantId], { rows: [] }),
             // Recent payslip — don't join payroll_runs to avoid run_id mismatch
             safeQuery(`
                 SELECT 
                     ph.id, ph.employee_id, ph.month, ph.year, ph.gross_salary, ph.deductions, ph.net_salary, ph.paid_at
                 FROM payroll_history ph
-                WHERE ph.employee_id = (
-                    SELECT e.id FROM employees e JOIN users u ON u.email = e.email WHERE u.id = $1 LIMIT 1
+                WHERE ph.tenant_id = $2 AND ph.employee_id = (
+                    SELECT e.id FROM employees e JOIN users u ON u.email = e.email AND u.tenant_id = e.tenant_id
+                    WHERE u.id = $1 AND e.tenant_id = $2 LIMIT 1
                 )
                 ORDER BY ph.paid_at DESC
                 LIMIT 1
-            `, [userId], { rows: [] }),
+            `, [userId, tenantId], { rows: [] }),
             // Notifications
             safeQuery(`
                 SELECT * FROM notifications
-                WHERE user_id = $1
+                WHERE user_id = $1 AND tenant_id = $2
                 ORDER BY created_at DESC
                 LIMIT 5
-            `, [userId], { rows: [] }),
+            `, [userId, tenantId], { rows: [] }),
             // Weekly hours (last 7 days)
             safeQuery(`
                 SELECT
@@ -565,11 +566,11 @@ export class AnalyticsService {
                         (COALESCE(check_out, check_out_time, COALESCE(check_in, check_in_time)) 
                          - COALESCE(check_in, check_in_time))) / 3600), 0) AS hours
                 FROM attendance
-                WHERE user_id = $1
+                WHERE user_id = $1 AND tenant_id = $2
                 AND COALESCE(check_in, check_in_time)::date >= CURRENT_DATE - INTERVAL '6 days'
                 GROUP BY COALESCE(check_in, check_in_time)::date
                 ORDER BY COALESCE(check_in, check_in_time)::date
-            `, [userId], { rows: [] }),
+            `, [userId, tenantId], { rows: [] }),
         ]);
 
 
@@ -610,21 +611,21 @@ export class AnalyticsService {
     /**
      * Get employees under a specific manager (team visibility)
      */
-    static async getTeamEmployees(managerId: number) {
+    static async getTeamEmployees(managerId: number, tenantId: string) {
         const result = await pool.query(`
             SELECT
                 e.id, e.name, e.department, e.position, e.status,
                 e.email, e.phone, e.join_date, e.employment_type,
                 u.id AS user_id, u.role,
-                (SELECT check_in FROM attendance a WHERE a.user_id = u.id AND a.check_in::date = CURRENT_DATE ORDER BY check_in DESC LIMIT 1) AS today_check_in,
-                (SELECT status FROM leave_requests lr WHERE lr.user_id = u.id AND lr.status = 'approved' AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date LIMIT 1) AS on_leave
+                (SELECT check_in FROM attendance a WHERE a.user_id = u.id AND a.tenant_id = e.tenant_id AND a.check_in::date = CURRENT_DATE ORDER BY check_in DESC LIMIT 1) AS today_check_in,
+                (SELECT status FROM leave_requests lr WHERE lr.user_id = u.id AND lr.tenant_id = e.tenant_id AND lr.status = 'approved' AND CURRENT_DATE BETWEEN lr.start_date AND lr.end_date LIMIT 1) AS on_leave
             FROM employees e
-            LEFT JOIN users u ON u.email = e.email
-            WHERE e.reporting_manager_id = $1
+            LEFT JOIN users u ON u.email = e.email AND u.tenant_id = e.tenant_id
+            WHERE e.reporting_manager_id = $1 AND e.tenant_id = $2
             AND e.status = 'active'
             AND e.deleted_at IS NULL
             ORDER BY e.name
-        `, [managerId]);
+        `, [managerId, tenantId]);
         return result.rows;
     }
 
@@ -633,7 +634,7 @@ export class AnalyticsService {
     /**
      * Get full employee profile with all sections
      */
-    static async getEmployeeProfile(employeeId: string) {
+    static async getEmployeeProfile(employeeId: string, tenantId: string) {
         const [
             employee,
             payroll,
@@ -654,24 +655,24 @@ export class AnalyticsService {
                     d.name AS department_name, d.code AS department_code,
                     mgr.name AS manager_name, mgr.email AS manager_email
                 FROM employees e
-                LEFT JOIN departments d ON d.id = e.department_id
-                LEFT JOIN users mgr_u ON mgr_u.id = e.reporting_manager_id
-                LEFT JOIN employees mgr ON mgr.email = mgr_u.email
-                WHERE e.id = $1
-            `, [employeeId]),
-            pool.query('SELECT * FROM payroll_profiles WHERE employee_id = $1', [employeeId]),
-            pool.query('SELECT * FROM employee_documents WHERE employee_id = $1 ORDER BY created_at DESC', [employeeId]),
-            pool.query('SELECT * FROM employee_emergency_contacts WHERE employee_id = $1 ORDER BY is_primary DESC', [employeeId]),
-            pool.query('SELECT * FROM performance_reviews WHERE employee_id = $1 ORDER BY created_at DESC LIMIT 5', [employeeId]),
+                LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id
+                LEFT JOIN users mgr_u ON mgr_u.id = e.reporting_manager_id AND mgr_u.tenant_id = e.tenant_id
+                LEFT JOIN employees mgr ON mgr.email = mgr_u.email AND mgr.tenant_id = e.tenant_id
+                WHERE e.id = $1 AND e.tenant_id = $2
+            `, [employeeId, tenantId]),
+            pool.query('SELECT * FROM payroll_profiles WHERE employee_id = $1 AND tenant_id = $2', [employeeId, tenantId]),
+            pool.query('SELECT * FROM employee_documents WHERE employee_id = $1 AND tenant_id = $2 ORDER BY created_at DESC', [employeeId, tenantId]),
+            pool.query('SELECT * FROM employee_emergency_contacts WHERE employee_id = $1 AND tenant_id = $2 ORDER BY is_primary DESC', [employeeId, tenantId]),
+            pool.query('SELECT * FROM performance_reviews WHERE employee_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5', [employeeId, tenantId]),
             pool.query(`
                 SELECT
                     COUNT(DISTINCT COALESCE(check_in, check_in_time)::date) AS present_days,
                     COALESCE(AVG(EXTRACT(EPOCH FROM (COALESCE(check_out, check_out_time, NOW()) - COALESCE(check_in, check_in_time))) / 3600) FILTER (WHERE COALESCE(check_out, check_out_time) IS NOT NULL), 0) AS avg_hours,
                     COUNT(*) FILTER (WHERE EXTRACT(HOUR FROM COALESCE(check_in, check_in_time)) >= 10) AS late_arrivals
                 FROM attendance
-                WHERE employee_id = $1
+                WHERE employee_id = $1 AND tenant_id = $2
                 AND COALESCE(check_in, check_in_time) >= DATE_TRUNC('month', CURRENT_DATE)
-            `, [employeeId]),
+            `, [employeeId, tenantId]),
             pool.query(`
                 SELECT
                     lt.name,
@@ -680,10 +681,11 @@ export class AnalyticsService {
                     lt.annual_quota - COALESCE(COUNT(lr.id) FILTER (WHERE lr.status = 'approved'), 0) AS available
                 FROM leave_types lt
                 LEFT JOIN leave_requests lr ON lr.leave_type_id = lt.id
-                    AND lr.user_id = (SELECT u.id FROM users u JOIN employees e ON e.email = u.email WHERE e.id = $1 LIMIT 1)
+                    AND lr.tenant_id = $2
+                    AND lr.user_id = (SELECT u.id FROM users u JOIN employees e ON e.email = u.email AND e.tenant_id = u.tenant_id WHERE e.id = $1 AND e.tenant_id = $2 LIMIT 1)
                     AND EXTRACT(YEAR FROM lr.start_date) = EXTRACT(YEAR FROM CURRENT_DATE)
                 GROUP BY lt.id, lt.name, lt.annual_quota
-            `, [employeeId]),
+            `, [employeeId, tenantId]),
         ]);
 
         return {

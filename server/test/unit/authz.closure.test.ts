@@ -213,7 +213,7 @@ vi.mock('../../src/services/analyticsService', () => {
             getManagerDashboard: rec('manager', {}),
             getEmployeeDashboard: rec('employee', {}),
             getTeamEmployees: rec('team', []),
-            getEmployeeProfile: async (id: string) => { W.calls.analytics.push(`profile:${id}`); return { employee: { id } }; },
+            getEmployeeProfile: async (id: string, tenantId: string) => { W.calls.analytics.push(`profile:${id}`, `profile-tenant:${id}:${tenantId}`); return { employee: { id } }; },
         },
     };
 });
@@ -799,6 +799,7 @@ describe('HF-5 sensitive report and profile reads', () => {
         expect((await call('get', '/reports/profile/EMP16', evan)).status).toBe(200);
         expect((await call('get', '/reports/profile/EMP16', mia)).status).toBe(200); // employees:view
         expect(W.calls.analytics.filter((c) => c === 'profile:EMP16')).toHaveLength(2);
+        expect(W.calls.analytics.filter((c) => c === 'profile-tenant:EMP16:t1')).toHaveLength(2); // HF-6: the caller's tenant reaches the data layer
     });
 
     it("another tenant's profile is not found, even for a permitted viewer; the data layer is never reached", async () => {

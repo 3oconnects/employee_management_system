@@ -15,7 +15,7 @@ export const getManagerDashboard = async (req: AuthenticatedRequest, res: Respon
     const userId = parseInt(req.query.userId as string);
     if (!userId) throw AppError.badRequest('userId required');
     await assertMayViewUser(req.user!, userId);
-    const data = await AnalyticsService.getManagerDashboard(userId);
+    const data = await AnalyticsService.getManagerDashboard(userId, req.user!.tenantId);
     res.json(data);
 };
 
@@ -23,7 +23,7 @@ export const getEmployeeDashboard = async (req: AuthenticatedRequest, res: Respo
     const userId = parseInt(req.query.userId as string);
     if (!userId) throw AppError.badRequest('userId required');
     await assertMayViewUser(req.user!, userId);
-    const data = await AnalyticsService.getEmployeeDashboard(userId);
+    const data = await AnalyticsService.getEmployeeDashboard(userId, req.user!.tenantId);
     res.json(data);
 };
 
@@ -31,7 +31,7 @@ export const getTeamEmployees = async (req: AuthenticatedRequest, res: Response)
     const managerId = parseInt(req.query.managerId as string);
     if (!managerId) throw AppError.badRequest('managerId required');
     await assertMayViewUser(req.user!, managerId);
-    const employees = await AnalyticsService.getTeamEmployees(managerId);
+    const employees = await AnalyticsService.getTeamEmployees(managerId, req.user!.tenantId);
     res.json({ items: employees, total: employees.length });
 };
 
@@ -39,7 +39,7 @@ export const getEmployeeProfile = async (req: AuthenticatedRequest, res: Respons
     const { employeeId } = req.params;
     if (!employeeId) throw AppError.badRequest('employeeId required');
     await assertMayViewEmployeeProfile(req.user!, employeeId);
-    const profile = await AnalyticsService.getEmployeeProfile(employeeId);
+    const profile = await AnalyticsService.getEmployeeProfile(employeeId, req.user!.tenantId);
     if (!profile.employee) throw AppError.notFound('Employee not found');
     res.json(profile);
 };

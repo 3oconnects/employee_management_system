@@ -36,7 +36,7 @@ export class TimesheetsService {
             throw AppError.conflict('This timesheet has been submitted and can no longer be edited.');
         }
         return withTransaction(async (client) => {
-            await this.repo.clearEntries(id);
+            await this.repo.clearEntries(id, tenantId);
 
             let totalHours = 0;
             for (const e of entries) {
@@ -44,10 +44,10 @@ export class TimesheetsService {
                     .map(h => parseFloat(h) || 0);
                 const rowTotal = dayHours.reduce((a, b) => a + b, 0);
                 totalHours += rowTotal;
-                await this.repo.insertEntry(id, e, dayHours);
+                await this.repo.insertEntry(id, tenantId, e, dayHours);
             }
 
-            const updated = await this.repo.updateTimesheetHours(id, totalHours);
+            const updated = await this.repo.updateTimesheetHours(id, tenantId, totalHours);
             return updated;
         });
     }

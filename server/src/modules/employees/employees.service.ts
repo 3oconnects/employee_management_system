@@ -420,17 +420,22 @@ export class EmployeesService {
 
         if (email && email.trim()) {
             const cleanEmail = email.trim().toLowerCase();
-            const emp = await this.repo.findByAnyEmail(cleanEmail);
+            const emp = await this.repo.findByAnyEmail(cleanEmail, tenantId);
             if (emp) {
                 available = false;
                 conflictWith = { id: emp.id, name: emp.name };
                 message = `Email is already associated with employee ${emp.id} (${emp.name}) as ${emp.matched_type} email.`;
             } else {
-                const user = await this.repo.findUserByEmail(cleanEmail);
+                const user = await this.repo.findUserByEmail(cleanEmail, tenantId);
                 if (user) {
                     available = false;
-                    conflictWith = { id: user.id, name: user.name };
-                    message = `Email is already registered to user account (${user.name}).`;
+                    if (user.same_tenant) {
+                        conflictWith = { id: user.id, name: user.name };
+                        message = `Email is already registered to user account (${user.name}).`;
+                    } else {
+                        // Another organisation's account: say it is taken, never who owns it.
+                        message = 'Email is already in use.';
+                    }
                 }
             }
         }
@@ -460,8 +465,8 @@ export class EmployeesService {
 
             for (const cand of candidates) {
                 if (suggestions.length >= 3) break;
-                const empExists = await this.repo.findByEmail(cand);
-                const userExists = await this.repo.findUserByEmail(cand);
+                const empExists = await this.repo.findByEmail(cand, tenantId);
+                const userExists = await this.repo.findUserByEmail(cand, tenantId);
                 if (!empExists && !userExists) {
                     suggestions.push(cand);
                 }
@@ -487,43 +492,54 @@ export class EmployeesService {
         if (res.rows.length === 0) {
             throw AppError.notFound('Employee profile not found.');
         }
-        return AnalyticsService.getEmployeeProfile(res.rows[0].id);
+        return AnalyticsService.getEmployeeProfile(res.rows[0].id, tenantId ?? '');
     }
 
-    async isEmployeeOwner(employeeId: string, email?: string, userId?: number): Promise<boolean> {
+    async isEmployeeOwner(employeeId: string, tenantId: string, email?: string, userId?: number): Promise<boolean> {
         const res = await pool.query(
             `SELECT id FROM employees 
-             WHERE id = $1 AND (LOWER(email) = LOWER($2) OR user_id = $3 OR (personal_email IS NOT NULL AND LOWER(personal_email) = LOWER($2)))`,
-            [employeeId, email || '', userId || 0]
+             WHERE id = $1 AND tenant_id = $4 AND (LOWER(email) = LOWER($2) OR user_id = $3 OR (personal_email IS NOT NULL AND LOWER(personal_email) = LOWER($2)))`,
+            [employeeId, email || '', userId || 0, tenantId]
         );
         return res.rows.length > 0;
     }
 
-    async getEducation(employeeId: string) {
-        return this.repo.findEducation(employeeId);
+    /** An employee id from another tenant is indistinguishable from one that does not exist (HF-6). */
+    async assertEmployeeInTenant(employeeId: string, tenantId: string): Promise<void> {
+        if (!(await this.repo.existsInTenant(employeeId, tenantId))) throw AppError.notFound('Employee not found.');
     }
 
-    async saveEducation(employeeId: string, entries: any[]) {
+    async getEducation(employeeId: string, tenantId: string) {
+        await this.assertEmployeeInTenant(employeeId, tenantId);
+        return this.repo.findEducation(employeeId, tenantId);
+    }
+
+    async saveEducation(employeeId: string, tenantId: string, entries: any[]) {
+        await this.assertEmployeeInTenant(employeeId, tenantId);
         return withTransaction(async (client) => {
-            return this.repo.replaceEducation(client, employeeId, entries);
+            return this.repo.replaceEducation(client, employeeId, tenantId, entries);
         });
     }
 
-    async getExperience(employeeId: string) {
-        return this.repo.findExperience(employeeId);
+    async getExperience(employeeId: string, tenantId: string) {
+        await this.assertEmployeeInTenant(employeeId, tenantId);
+        return this.repo.findExperience(employeeId, tenantId);
     }
 
-    async saveExperience(employeeId: string, entries: any[]) {
+    async saveExperience(employeeId: string, tenantId: string, entries: any[]) {
+        await this.assertEmployeeInTenant(employeeId, tenantId);
         return withTransaction(async (client) => {
-            return this.repo.replaceExperience(client, employeeId, entries);
+            return this.repo.replaceExperience(client, employeeId, tenantId, entries);
         });
     }
 
-    async getEmergencyContacts(employeeId: string) {
-        return this.repo.findEmergencyContacts(employeeId);
+    async getEmergencyContacts(employeeId: string, tenantId: string) {
+        await this.assertEmployeeInTenant(employeeId, tenantId);
+        return this.repo.findEmergencyContacts(employeeId, tenantId);
     }
 
     async saveEmergencyContacts(employeeId: string, tenantId: string, contacts: any[]) {
+        await this.assertEmployeeInTenant(employeeId, tenantId);
         return withTransaction(async (client) => {
             return this.repo.replaceEmergencyContacts(client, employeeId, tenantId, contacts);
         });

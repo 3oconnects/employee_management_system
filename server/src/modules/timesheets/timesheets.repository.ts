@@ -22,22 +22,24 @@ export class TimesheetsRepository {
         return result.rows[0];
     }
 
-    async clearEntries(timesheetId: string) {
-        await pool.query(`DELETE FROM timesheet_entries WHERE timesheet_id = $1`, [timesheetId]);
+    async clearEntries(timesheetId: string, tenantId: string) {
+        await pool.query(
+            `DELETE FROM timesheet_entries WHERE timesheet_id = $1
+             AND EXISTS (SELECT 1 FROM timesheets t WHERE t.id = $1 AND t.tenant_id = $2)`, [timesheetId, tenantId]);
     }
 
-    async insertEntry(timesheetId: string, entry: any, dayHours: number[]) {
+    async insertEntry(timesheetId: string, tenantId: string, entry: any, dayHours: number[]) {
         await pool.query(
             `INSERT INTO timesheet_entries (timesheet_id, project_name, task_desc, mon_hours, tue_hours, wed_hours, thu_hours, fri_hours, sat_hours, sun_hours)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-            [timesheetId, entry.project_name, entry.task_desc || null, ...dayHours]
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10 WHERE EXISTS (SELECT 1 FROM timesheets t WHERE t.id = $1 AND t.tenant_id = $11)`,
+            [timesheetId, entry.project_name, entry.task_desc || null, ...dayHours, tenantId]
         );
     }
 
-    async updateTimesheetHours(timesheetId: string, totalHours: number) {
+    async updateTimesheetHours(timesheetId: string, tenantId: string, totalHours: number) {
         const result = await pool.query(
-            `UPDATE timesheets SET total_hours = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-            [totalHours, timesheetId]
+            `UPDATE timesheets SET total_hours = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3 RETURNING *`,
+            [totalHours, timesheetId, tenantId]
         );
         return result.rows[0];
     }

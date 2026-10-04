@@ -206,23 +206,33 @@ export class EmployeesRepository {
         );
     }
 
-    async findEducation(employeeId: string) {
+    /** True only when the employee belongs to this tenant; every sub-record read/write starts here (HF-6). */
+    async existsInTenant(employeeId: string, tenantId: string): Promise<boolean> {
+        const res = await pool.query('SELECT 1 FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
+        return res.rows.length > 0;
+    }
+
+    async findEducation(employeeId: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT * FROM employee_education WHERE employee_id = $1 ORDER BY year DESC, id DESC',
-            [employeeId]
+            `SELECT x.* FROM employee_education x
+             WHERE x.employee_id = $1 AND EXISTS (SELECT 1 FROM employees e WHERE e.id = x.employee_id AND e.tenant_id = $2)
+             ORDER BY x.year DESC, x.id DESC`,
+            [employeeId, tenantId]
         );
         if (res.rows.length > 0) return res.rows;
-        const emp = await pool.query('SELECT education_history FROM employees WHERE id = $1', [employeeId]);
+        const emp = await pool.query('SELECT education_history FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
         return emp.rows[0]?.education_history || [];
     }
 
-    async replaceEducation(client: any, employeeId: string, entries: any[]) {
-        await client.query('DELETE FROM employee_education WHERE employee_id = $1', [employeeId]);
+    async replaceEducation(client: any, employeeId: string, tenantId: string, entries: any[]) {
+        await client.query(
+            `DELETE FROM employee_education WHERE employee_id = $1
+             AND EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $2)`, [employeeId, tenantId]);
         for (const e of entries) {
             await client.query(
                 `INSERT INTO employee_education (employee_id, degree, field, institution, year, grade)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [employeeId, e.degree || '', e.field || '', e.institution || '', e.year ? String(e.year) : '', e.grade || '']
+                 SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $7)`,
+                [employeeId, e.degree || '', e.field || '', e.institution || '', e.year ? String(e.year) : '', e.grade || '', tenantId]
             );
         }
         const latest = entries[0];
@@ -233,35 +243,40 @@ export class EmployeesRepository {
                  field_of_study = COALESCE($3, field_of_study),
                  institution = COALESCE($4, institution),
                  graduation_year = COALESCE($5, graduation_year)
-             WHERE id = $6`,
+             WHERE id = $6 AND tenant_id = $7`,
             [
                 JSON.stringify(entries),
                 latest?.degree || null,
                 latest?.field || null,
                 latest?.institution || null,
                 latest?.year ? String(latest.year) : null,
-                employeeId
+                employeeId,
+                tenantId
             ]
         );
         return entries;
     }
 
-    async findExperience(employeeId: string) {
+    async findExperience(employeeId: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT * FROM employee_experience WHERE employee_id = $1 ORDER BY start_date DESC NULLS LAST, id DESC',
-            [employeeId]
+            `SELECT x.* FROM employee_experience x
+             WHERE x.employee_id = $1 AND EXISTS (SELECT 1 FROM employees e WHERE e.id = x.employee_id AND e.tenant_id = $2)
+             ORDER BY x.start_date DESC NULLS LAST, x.id DESC`,
+            [employeeId, tenantId]
         );
         if (res.rows.length > 0) return res.rows;
-        const emp = await pool.query('SELECT experience_history FROM employees WHERE id = $1', [employeeId]);
+        const emp = await pool.query('SELECT experience_history FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
         return emp.rows[0]?.experience_history || [];
     }
 
-    async replaceExperience(client: any, employeeId: string, entries: any[]) {
-        await client.query('DELETE FROM employee_experience WHERE employee_id = $1', [employeeId]);
+    async replaceExperience(client: any, employeeId: string, tenantId: string, entries: any[]) {
+        await client.query(
+            `DELETE FROM employee_experience WHERE employee_id = $1
+             AND EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $2)`, [employeeId, tenantId]);
         for (const e of entries) {
             await client.query(
                 `INSERT INTO employee_experience (employee_id, job_title, company, start_date, end_date, is_current, description)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                 SELECT $1, $2, $3, $4, $5, $6, $7 WHERE EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $8)`,
                 [
                     employeeId,
                     e.jobTitle || e.job_title || '',
@@ -269,63 +284,69 @@ export class EmployeesRepository {
                     e.startDate || e.start_date || null,
                     e.endDate || e.end_date || null,
                     Boolean(e.current || e.is_current),
-                    e.description || ''
+                    e.description || '',
+                    tenantId
                 ]
             );
         }
         await client.query(
-            `UPDATE employees SET experience_history = $1 WHERE id = $2`,
-            [JSON.stringify(entries), employeeId]
+            `UPDATE employees SET experience_history = $1 WHERE id = $2 AND tenant_id = $3`,
+            [JSON.stringify(entries), employeeId, tenantId]
         );
         return entries;
     }
 
-    async findEmergencyContacts(employeeId: string) {
+    async findEmergencyContacts(employeeId: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT * FROM employee_emergency_contacts WHERE employee_id = $1 ORDER BY is_primary DESC, id ASC',
-            [employeeId]
+            `SELECT c.* FROM employee_emergency_contacts c
+             WHERE c.employee_id = $1 AND EXISTS (SELECT 1 FROM employees e WHERE e.id = c.employee_id AND e.tenant_id = $2)
+             ORDER BY c.is_primary DESC, c.id ASC`,
+            [employeeId, tenantId]
         );
         return res.rows;
     }
 
     async replaceEmergencyContacts(client: any, employeeId: string, tenantId: string, contacts: any[]) {
-        await client.query('DELETE FROM employee_emergency_contacts WHERE employee_id = $1', [employeeId]);
+        await client.query(
+            `DELETE FROM employee_emergency_contacts WHERE employee_id = $1
+             AND EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $2)`, [employeeId, tenantId]);
         for (const c of contacts) {
             await client.query(
                 `INSERT INTO employee_emergency_contacts (tenant_id, employee_id, name, relationship, phone, email, address, is_primary)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                 SELECT $1, $2, $3, $4, $5, $6, $7, $8 WHERE EXISTS (SELECT 1 FROM employees e WHERE e.id = $2 AND e.tenant_id = $1)`,
                 [tenantId, employeeId, c.name, c.relationship, c.phone, c.email || null, c.address || null, Boolean(c.is_primary)]
             );
         }
         return contacts;
     }
 
-    async findByEmail(email: string) {
+    async findByEmail(email: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [email]
+            'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 LIMIT 1',
+            [email, tenantId]
         );
         return res.rows[0] || null;
     }
 
-    async findByAnyEmail(email: string) {
+    async findByAnyEmail(email: string, tenantId: string) {
         const res = await pool.query(
             `SELECT id, name, email, personal_email,
                     CASE WHEN LOWER(email) = LOWER($1) THEN 'work' ELSE 'personal' END as matched_type
              FROM employees 
-             WHERE LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1) 
+             WHERE (LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1)) AND tenant_id = $2
              LIMIT 1`,
-            [email]
+            [email, tenantId]
         );
         return res.rows[0] || null;
     }
 
-    async findUserByEmail(email: string) {
+    /** A user of THIS tenant (identity may be shown), or a user elsewhere (existence only: login e-mails are globally unique). */
+    async findUserByEmail(email: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [email]
+            'SELECT id, name, email, (tenant_id = $2) AS same_tenant FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email, tenantId]
         );
-        return res.rows[0] || null;
+        return (res.rows[0] || null) as { id: number; name: string; email: string; same_tenant: boolean } | null;
     }
 
     async delete(id: string, tenantId: string) {

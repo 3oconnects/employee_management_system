@@ -62,7 +62,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
 };
 
 export const getEducation = async (req: Request, res: Response) => {
-    const data = await service.getEducation(req.params.id);
+    const data = await service.getEducation(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
 
@@ -70,16 +70,16 @@ export const saveEducation = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(req.params.id, user?.email, user?.userId);
+        const isOwn = await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId);
         if (!isOwn) return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     const entries = Array.isArray(req.body.entries) ? req.body.entries : (Array.isArray(req.body) ? req.body : []);
-    const data = await service.saveEducation(req.params.id, entries);
+    const data = await service.saveEducation(req.params.id, user.tenantId, entries);
     res.json({ success: true, items: data });
 };
 
 export const getExperience = async (req: Request, res: Response) => {
-    const data = await service.getExperience(req.params.id);
+    const data = await service.getExperience(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
 
@@ -87,16 +87,16 @@ export const saveExperience = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(req.params.id, user?.email, user?.userId);
+        const isOwn = await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId);
         if (!isOwn) return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     const entries = Array.isArray(req.body.entries) ? req.body.entries : (Array.isArray(req.body) ? req.body : []);
-    const data = await service.saveExperience(req.params.id, entries);
+    const data = await service.saveExperience(req.params.id, user.tenantId, entries);
     res.json({ success: true, items: data });
 };
 
 export const getEmergencyContacts = async (req: Request, res: Response) => {
-    const data = await service.getEmergencyContacts(req.params.id);
+    const data = await service.getEmergencyContacts(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
 
@@ -104,7 +104,7 @@ export const saveEmergencyContacts = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(req.params.id, user?.email, user?.userId);
+        const isOwn = await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId);
         if (!isOwn) return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     const contacts = Array.isArray(req.body.contacts) ? req.body.contacts : (Array.isArray(req.body) ? req.body : []);
@@ -130,7 +130,7 @@ export const checkEmail = async (req: Request, res: Response) => {
 };
 
 export const deleteEmployee = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user?.tenantId || 'tenant_default';
+    const tenantId = (req as any).user.tenantId;
     const { id } = req.params;
     const success = await service.deleteEmployee(id, tenantId);
     if (!success) {

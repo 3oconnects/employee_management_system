@@ -29,7 +29,7 @@ router.get('/check-email', asyncHandler(checkEmail));
 
 // Fetch available system roles for employee assignment
 router.get('/roles', asyncHandler(async (req, res) => {
-    const tenantId = (req as any).user?.tenantId || 'default';
+    const tenantId = (req as any).user.tenantId;
     const result = await pool.query(
         `SELECT id, name, description, is_system, dashboard_type 
          FROM roles 

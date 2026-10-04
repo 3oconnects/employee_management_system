@@ -1,5 +1,6 @@
 import { AttendanceRepository } from './attendance.repository';
 import { AppError } from '../../core/errors/AppError';
+import { randomUUID } from 'crypto';
 
 export class AttendanceService {
     private repo: AttendanceRepository;
@@ -98,11 +99,36 @@ export class AttendanceService {
         return { userId, ...stats };
     }
 
-    async regularize(userId: string | number, tenantId: string, date: string, checkInTime: string, checkOutTime: string | null) {
-        const empId = await this.repo.resolveEmployeeId(userId, tenantId);
-        if (!empId) throw AppError.notFound('Employee not found.');
+    /**
+     * Files a regularization REQUEST. It is pending until an authorised approver (not the requester)
+     * approves it in the approvals inbox; only then is an attendance record written.
+     */
+    async requestRegularization(
+        actor: { userId: number; email: string; tenantId: string },
+        date: string, checkInTime: string, checkOutTime: string | null, reason?: string,
+    ) {
+        const timePattern = /^\d{2}:\d{2}(:\d{2})?$/;
+        const day = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
+        if (!day || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== date) {
+            throw AppError.badRequest('A valid date (YYYY-MM-DD) is required.');
+        }
+        if (date > new Date().toISOString().slice(0, 10)) throw AppError.badRequest('You cannot regularize a future date.');
+        if (!timePattern.test(checkInTime) || (checkOutTime && !timePattern.test(checkOutTime))) {
+            throw AppError.badRequest('Times must be in HH:MM format.');
+        }
+        if (checkOutTime && checkOutTime <= checkInTime) throw AppError.badRequest('Check-out must be after check-in.');
 
-        const row = await this.repo.regularize(empId, tenantId, date, checkInTime, checkOutTime);
-        return { ...row, message: 'Regularization submitted.' };
+        const empId = await this.repo.resolveEmployeeId(actor.userId, actor.tenantId);
+        if (!empId) throw AppError.notFound('Employee not found.');
+        if (await this.repo.hasPendingRegularization(empId, actor.tenantId, date)) {
+            throw AppError.conflict('A regularization request for this date is already waiting for approval.');
+        }
+
+        const id = `REG-${randomUUID()}`;
+        await this.repo.createRegularizationRequest({
+            id, employeeId: empId, tenantId: actor.tenantId, requestedBy: actor.email,
+            metadata: { date, check_in_time: checkInTime, check_out_time: checkOutTime, reason: reason?.trim() || null, user_id: actor.userId },
+        });
+        return { id, status: 'pending', message: 'Regularization request submitted for approval.' };
     }
 }

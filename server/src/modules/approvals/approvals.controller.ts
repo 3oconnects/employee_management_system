@@ -1,8 +1,7 @@
 import { Response } from 'express';
 import { ApprovalsService } from './approvals.service';
-import { AuthenticatedRequest, AuditAction } from '../../types';
-import { EventPublisher } from '../../core/events/eventPublisher';
-import { DomainEventType } from '../../core/events/eventTypes';
+import { AuthenticatedRequest } from '../../types';
+import { publishDecisionAudit } from './approvals.audit';
 
 const service = new ApprovalsService();
 
@@ -25,21 +24,7 @@ export const updateApprovalAction = async (req: AuthenticatedRequest, res: Respo
     // Who decided is always the authenticated user; nothing identity-like is read from the body.
     const result = await service.updateApprovalAction(user, req.params.id, action, type);
 
-    EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, user.tenantId, {
-        action: action === 'approve' ? AuditAction.APPROVAL_APPROVE : AuditAction.APPROVAL_REJECT,
-        entityType: 'approval',
-        entityId: result.id,
-        newValues: {
-            approvalType: result.type,
-            decision: result.decision,
-            subjectEmployeeId: result.subjectEmployeeId,
-            decidedBy: user.userId,
-        },
-        details: {
-            ipAddress: req.ip || '',
-            userAgent: req.headers['user-agent'] || '',
-        },
-    }, user.userId);
+    publishDecisionAudit(req, result, action);
 
     res.json({ success: true });
 };

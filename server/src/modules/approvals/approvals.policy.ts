@@ -46,6 +46,8 @@ const PERMISSIONS_BY_TYPE: Record<string, string[]> = {
     // legacy password-reset approvals can no longer authorise anything (HF-3), but anyone
     // who can still action one must be a settings administrator
     password_reset: ['settings:manage'],
+    // HF-5: a regularization is a request that someone else must approve before attendance changes
+    attendance_regularization: ['attendance:regularize', 'attendance:manage'],
 };
 const GENERIC_PERMISSIONS = ['approvals:approve'];
 
@@ -72,6 +74,7 @@ export const decisionStatus = (kind: ApprovalKind, action: 'approve' | 'reject')
 /** Types that have their own workflow and table, so they cannot be minted via POST /approvals. */
 export const RESERVED_TYPES = new Set([
     'password_reset', 'leave', 'timesheet', 'claim', 'onboarding', 'department_creation', 'team_creation',
+    'attendance_regularization',
 ]);
 
 export interface Actor {

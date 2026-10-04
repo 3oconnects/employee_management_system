@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 export const submitClaimSchema = z.object({
     employee_id: z.string(),
-    amount: z.coerce.number(),
+    // a claim must be a real, positive amount (a negative or zero claim has no business meaning)
+    amount: z.coerce.number().positive().finite(),
     category: z.string(),
     description: z.string().optional()
 });

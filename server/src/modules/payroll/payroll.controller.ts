@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { PayrollService } from './payroll.service';
 import { AuthenticatedRequest } from '../../types';
+import { AppError } from '../../core/errors/AppError';
+import { resolveEmployeeIdForUser } from '../../core/security/identity';
 
 const service = new PayrollService();
 
@@ -12,6 +14,9 @@ export const getPayrollEmployees = async (req: AuthenticatedRequest, res: Respon
 
 export const updatePayrollProfile = async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
+    // Nobody sets their own pay: a salary change must be made by someone else.
+    const own = await resolveEmployeeIdForUser(tenantId, req.user!.userId, req.user!.email);
+    if (own && own === req.params.id) throw AppError.forbidden('You cannot change your own salary structure.');
     await service.updatePayrollProfile(req.params.id, tenantId, req.body);
     res.json({ success: true, message: 'Salary structure updated.' });
 };

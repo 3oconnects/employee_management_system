@@ -48,6 +48,7 @@ export class ApprovalsService {
         idParam: string,
         action: 'approve' | 'reject',
         claimedType: string,
+        options: { recordApprover?: boolean; remarks?: string | null } = {},
     ) {
         const parsed = parseApprovalId(idParam);
         if (!parsed) throw AppError.badRequest('Invalid approval id.');
@@ -90,8 +91,12 @@ export class ApprovalsService {
                 if (!meta) throw AppError.notFound(`${actualType === 'department_creation' ? 'Department' : 'Team'} creation approval metadata`);
                 if (actualType === 'department_creation') await this.repo.executeDepartmentCreation(id, meta, status, tenantId, client);
                 else await this.repo.executeTeamCreation(id, meta, status, tenantId, client);
-            } else {
+            } else if (kind === 'std' && action === 'approve' && actualType === 'attendance_regularization') {
+                await this.repo.applyAttendanceRegularization(client, row, tenantId);
                 await this.repo.setDecision(client, kind, id, status, tenantId);
+            } else {
+                await this.repo.setDecision(client, kind, id, status, tenantId,
+                    options.recordApprover ? { approvedBy: actor.userId, remarks: options.remarks ?? null } : undefined);
             }
 
             if (kind === 'onboarding' && action === 'approve') {
@@ -110,7 +115,11 @@ export class ApprovalsService {
                 };
             }
 
-            return { id: idParam, kind: kind as ApprovalKind, type: actualType, decision: status, subjectEmployeeId: row.employee_id ?? row.id ?? null };
+            return {
+                id: idParam, kind: kind as ApprovalKind, type: actualType, decision: status,
+                subjectEmployeeId: row.employee_id ?? row.id ?? null,
+                row: { ...row, status } as Record<string, any>,
+            };
         });
 
         emailAfterCommit?.();

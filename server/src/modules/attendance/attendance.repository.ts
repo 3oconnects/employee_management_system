@@ -121,12 +121,22 @@ export class AttendanceRepository {
         return result.rows[0];
     }
 
-    async regularize(empId: string, tenantId: string, date: string, checkInTime: string, checkOutTime: string | null) {
+    async hasPendingRegularization(empId: string, tenantId: string, date: string): Promise<boolean> {
         const result = await pool.query(
-            `INSERT INTO attendance (employee_id, check_in_time, check_out_time, date, status, tenant_id)
-             VALUES ($1, $2, $3, $4::date, 'present', $5) RETURNING *`,
-            [empId, `${date} ${checkInTime}`, checkOutTime ? `${date} ${checkOutTime}` : null, date, tenantId]
+            `SELECT 1 FROM approvals
+             WHERE type = 'attendance_regularization' AND status = 'pending'
+               AND employee_id = $1 AND tenant_id = $2 AND metadata->>'date' = $3
+             LIMIT 1`,
+            [empId, tenantId, date]
         );
-        return result.rows[0];
+        return result.rows.length > 0;
+    }
+
+    async createRegularizationRequest(data: { id: string; employeeId: string; tenantId: string; requestedBy: string; metadata: any }) {
+        await pool.query(
+            `INSERT INTO approvals (id, employee_id, type, status, metadata, requested_by, tenant_id)
+             VALUES ($1, $2, 'attendance_regularization', 'pending', $3, $4, $5)`,
+            [data.id, data.employeeId, JSON.stringify(data.metadata), data.requestedBy, data.tenantId]
+        );
     }
 }

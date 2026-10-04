@@ -8,7 +8,7 @@ import {
     deleteLeaveRequest,
     getLeaveBalance,
 } from './leaves.controller';
-import { authenticate, requireSelfOrAdmin } from '../../core/security/authorize';
+import { authenticate, authorize, requireSelfOrAdmin } from '../../core/security/authorize';
 import { validateRequest } from '../../core/validation/validateRequest';
 import { applyLeaveSchema, approveLeaveSchema, updateLeaveSchema } from './leaves.schema';
 import { asyncHandler } from '../../core/errors/asyncHandler';
@@ -33,7 +33,8 @@ router.put('/requests/:id', validateRequest(updateLeaveSchema, 'body'), asyncHan
 // GET balance — accepts ?userId= for admin/HR cross-user viewing; guarded
 router.get('/balance', requireSelfOrAdmin, asyncHandler(getLeaveBalance));
 
-router.put('/:id/approve', validateRequest(approveLeaveSchema, 'body'), asyncHandler(approveLeave));
+// HF-5: route gate; the central approval path re-checks permission, ownership, tenant and state
+router.put('/:id/approve', authorize(['leave:approve']), validateRequest(approveLeaveSchema, 'body'), asyncHandler(approveLeave));
 router.put('/:id', validateRequest(updateLeaveSchema, 'body'), asyncHandler(updateLeaveRequest));
 router.delete('/:id', asyncHandler(deleteLeaveRequest));
 

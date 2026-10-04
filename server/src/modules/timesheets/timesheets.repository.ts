@@ -42,20 +42,19 @@ export class TimesheetsRepository {
         return result.rows[0];
     }
 
-    async submitTimesheet(id: string, tenantId: string) {
+    async getOwnTimesheet(id: string, tenantId: string, userId: number | string) {
+        if (!/^\d+$/.test(String(id))) return undefined;
         const result = await pool.query(
-            `UPDATE timesheets SET status = 'submitted', updated_at = NOW()
-             WHERE id = $1 AND tenant_id = $2 AND status IN ('draft','rejected') RETURNING *`,
-            [id, tenantId]
-        );
+            'SELECT * FROM timesheets WHERE id = $1 AND tenant_id = $2 AND user_id = $3', [id, tenantId, userId]);
         return result.rows[0];
     }
 
-    async approveTimesheet(id: string, tenantId: string, action: string, approvedBy: string | number | null, remarks: string | null) {
+    async submitTimesheet(id: string, tenantId: string, userId: number | string) {
+        if (!/^\d+$/.test(String(id))) return undefined;
         const result = await pool.query(
-            `UPDATE timesheets SET status = $1, approved_by = $2, remarks = $3, updated_at = NOW()
-             WHERE id = $4 AND tenant_id = $5 RETURNING *`,
-            [action, approvedBy, remarks, id, tenantId]
+            `UPDATE timesheets SET status = 'submitted', updated_at = NOW()
+             WHERE id = $1 AND tenant_id = $2 AND user_id = $3 AND status IN ('draft','rejected') RETURNING *`,
+            [id, tenantId, userId]
         );
         return result.rows[0];
     }

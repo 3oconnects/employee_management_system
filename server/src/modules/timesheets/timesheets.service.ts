@@ -1,9 +1,12 @@
 import { TimesheetsRepository } from './timesheets.repository';
 import { AppError } from '../../core/errors/AppError';
 import { withTransaction } from '../../database/transaction';
+import { ApprovalsService } from '../approvals/approvals.service';
 
 export class TimesheetsService {
     private repo: TimesheetsRepository;
+
+    private approvals = new ApprovalsService();
 
     constructor() {
         this.repo = new TimesheetsRepository();
@@ -25,7 +28,13 @@ export class TimesheetsService {
         return timesheet;
     }
 
-    async saveTimesheetEntries(id: string, entries: any[]) {
+    /** Only the owner may edit, and only while the sheet is a draft or was sent back (HF-5). */
+    async saveTimesheetEntries(id: string, tenantId: string, userId: number, entries: any[]) {
+        const sheet = await this.repo.getOwnTimesheet(id, tenantId, userId);
+        if (!sheet) throw AppError.notFound('Timesheet not found.');
+        if (!['draft', 'rejected'].includes(String(sheet.status).toLowerCase())) {
+            throw AppError.conflict('This timesheet has been submitted and can no longer be edited.');
+        }
         return withTransaction(async (client) => {
             await this.repo.clearEntries(id);
 
@@ -43,16 +52,20 @@ export class TimesheetsService {
         });
     }
 
-    async submitTimesheet(id: string, tenantId: string) {
-        const result = await this.repo.submitTimesheet(id, tenantId);
-        if (!result) throw AppError.notFound('Timesheet not found or cannot be submitted.');
-        return result;
+    async submitTimesheet(id: string, tenantId: string, userId: number) {
+        const result = await this.repo.submitTimesheet(id, tenantId, userId);
+        if (result) return result;
+        if (await this.repo.getOwnTimesheet(id, tenantId, userId)) {
+            throw AppError.conflict('This timesheet cannot be submitted in its current state.');
+        }
+        throw AppError.notFound('Timesheet not found.');
     }
 
-    async approveTimesheet(id: string, tenantId: string, action: string, approvedBy: string | number | null, remarks: string | null) {
-        const result = await this.repo.approveTimesheet(id, tenantId, action, approvedBy, remarks);
-        if (!result) throw AppError.notFound('Timesheet not found.');
-        return result;
+    /** Decided by the one central approval path (HF-4); the approver is recorded from the token. */
+    async approveTimesheet(actor: any, id: string, action: 'approved' | 'rejected', remarks: string | null) {
+        const decision = await this.approvals.updateApprovalAction(
+            actor, `ts-${id}`, action === 'approved' ? 'approve' : 'reject', 'timesheet', { recordApprover: true, remarks });
+        return { row: decision.row, decision };
     }
 
     async getTimesheetHistory(userId: string | number, tenantId: string) {

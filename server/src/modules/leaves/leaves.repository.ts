@@ -34,36 +34,36 @@ export class LeavesRepository {
         return { items: result.rows, total: result.rowCount };
     }
 
-    async approveLeave(id: string, tenantId: string, action: string, approvedBy: string | number | null) {
+    async updateLeaveRequest(id: string, tenantId: string, userId: number | string, data: any) {
+        if (!/^\d+$/.test(String(id))) return undefined;
         const result = await pool.query(
-            `UPDATE leave_requests SET status = $1, approved_by = $2, updated_at = NOW()
-             WHERE id = $3 AND tenant_id = $4 RETURNING *`,
-            [action, approvedBy, id, tenantId]
-        );
-        return result.rows[0];
-    }
-
-    async updateLeaveRequest(id: string, tenantId: string, data: any) {
-        const result = await pool.query(
-            `UPDATE leave_requests 
-             SET leave_type_id = COALESCE($1, leave_type_id), 
-                 start_date = COALESCE($2, start_date), 
-                 end_date = COALESCE($3, end_date), 
-                 reason = COALESCE($4, reason), 
+            `UPDATE leave_requests
+             SET leave_type_id = COALESCE($1, leave_type_id),
+                 start_date = COALESCE($2, start_date),
+                 end_date = COALESCE($3, end_date),
+                 reason = COALESCE($4, reason),
                  updated_at = NOW()
-             WHERE id = $5 AND status = 'pending' AND tenant_id = $6
+             WHERE id = $5 AND status = 'pending' AND tenant_id = $6 AND user_id = $7
              RETURNING *`,
-            [data.leave_type_id, data.start_date, data.end_date, data.reason, id, tenantId]
+            [data.leave_type_id, data.start_date, data.end_date, data.reason, id, tenantId, userId]
         );
         return result.rows[0];
     }
 
-    async deleteLeaveRequest(id: string, tenantId: string) {
+    async deleteLeaveRequest(id: string, tenantId: string, userId: number | string) {
+        if (!/^\d+$/.test(String(id))) return undefined;
         const result = await pool.query(
-            `DELETE FROM leave_requests WHERE id = $1 AND status = 'pending' AND tenant_id = $2 RETURNING *`,
-            [id, tenantId]
+            `DELETE FROM leave_requests WHERE id = $1 AND status = 'pending' AND tenant_id = $2 AND user_id = $3 RETURNING *`,
+            [id, tenantId, userId]
         );
         return result.rows[0];
+    }
+
+    async leaveBelongsToUser(id: string, tenantId: string, userId: number | string): Promise<boolean> {
+        if (!/^\d+$/.test(String(id))) return false;
+        const result = await pool.query(
+            'SELECT 1 FROM leave_requests WHERE id = $1 AND tenant_id = $2 AND user_id = $3', [id, tenantId, userId]);
+        return result.rows.length > 0;
     }
 
     async getLeaveBalance(userId: string | number, tenantId: string, year: number) {

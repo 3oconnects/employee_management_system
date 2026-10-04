@@ -1,5 +1,6 @@
 import { pool } from '../../config/db';
 import { ApprovalKind } from './approvals.policy';
+import { resolveEmployeeIdForUser } from '../../core/security/identity';
 
 export class ApprovalsRepository {
     async getEmployeeIdByUserId(userId: string | number) {
@@ -177,14 +178,7 @@ export class ApprovalsRepository {
 
     /** The acting user's employee id (users and employees are linked by user_id or by email). */
     async resolveActorEmployeeId(client: any, tenantId: string, userId: number | string, email: string): Promise<string | null> {
-        const { rows } = await client.query(
-            `SELECT id FROM employees
-             WHERE tenant_id = $1 AND (user_id = $2 OR LOWER(email) = LOWER($3))
-             ORDER BY (user_id = $2) DESC NULLS LAST
-             LIMIT 1`,
-            [tenantId, userId, email]
-        );
-        return rows[0]?.id ?? null;
+        return resolveEmployeeIdForUser(tenantId, userId, email, client);
     }
 
     /**
@@ -202,9 +196,44 @@ export class ApprovalsRepository {
         return rows[0] ?? null;
     }
 
-    async setDecision(client: any, kind: ApprovalKind, id: string, status: string, tenantId: string) {
+    /**
+     * Writes the decision. `extras` is used only by the direct leave/timesheet routes, which have always
+     * recorded the approver and (timesheets) remarks; the unified-inbox path writes the status alone.
+     */
+    async setDecision(
+        client: any, kind: ApprovalKind, id: string, status: string, tenantId: string,
+        extras?: { approvedBy?: number | string; remarks?: string | null },
+    ) {
         const table = { std: 'approvals', leave: 'leave_requests', onboarding: 'employees', timesheet: 'timesheets', claim: 'claims' }[kind];
+        if (extras?.approvedBy !== undefined && kind === 'leave') {
+            await client.query(
+                'UPDATE leave_requests SET status = $1, approved_by = $2, updated_at = NOW() WHERE id = $3 AND tenant_id = $4',
+                [status, extras.approvedBy, id, tenantId]);
+            return;
+        }
+        if (extras?.approvedBy !== undefined && kind === 'timesheet') {
+            await client.query(
+                'UPDATE timesheets SET status = $1, approved_by = $2, remarks = $3, updated_at = NOW() WHERE id = $4 AND tenant_id = $5',
+                [status, extras.approvedBy, extras.remarks ?? null, id, tenantId]);
+            return;
+        }
         await client.query(`UPDATE ${table} SET status = $1 WHERE id = $2 AND tenant_id = $3`, [status, id, tenantId]);
+    }
+
+    /** Applies an approved attendance regularization: the one place attendance is changed by a request. */
+    async applyAttendanceRegularization(client: any, row: Record<string, any>, tenantId: string) {
+        const m = row.metadata || {};
+        await client.query(
+            `INSERT INTO attendance (employee_id, check_in_time, check_out_time, date, status, tenant_id)
+             VALUES ($1, $2, $3, $4::date, 'present', $5)`,
+            [
+                row.employee_id,
+                `${m.date} ${m.check_in_time}`,
+                m.check_out_time ? `${m.date} ${m.check_out_time}` : null,
+                m.date,
+                tenantId,
+            ]
+        );
     }
 
     async employeeExistsInTenant(employeeId: string | number, tenantId: string): Promise<boolean> {

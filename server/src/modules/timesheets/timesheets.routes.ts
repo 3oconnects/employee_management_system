@@ -7,7 +7,7 @@ import {
     getTimesheetHistory,
     getPendingTimesheets,
 } from './timesheets.controller';
-import { authenticate, requireSelfOrAdmin } from '../../core/security/authorize';
+import { authenticate, authorize, requireSelfOrAdmin } from '../../core/security/authorize';
 import { validateRequest } from '../../core/validation/validateRequest';
 import { saveTimesheetEntriesSchema, approveTimesheetSchema } from './timesheets.schema';
 import { asyncHandler } from '../../core/errors/asyncHandler';
@@ -21,11 +21,12 @@ router.use(authenticate);
 router.get('/week',    requireSelfOrAdmin, asyncHandler(getTimesheetByWeek));
 router.get('/history', requireSelfOrAdmin, asyncHandler(getTimesheetHistory));
 
-// Admin-only list of pending timesheets — no userId param, no guard needed
-router.get('/pending', asyncHandler(getPendingTimesheets));
+// Everyone's submitted timesheets, with names and e-mails: approvers only (HF-5)
+router.get('/pending', authorize(['timesheet:approve']), asyncHandler(getPendingTimesheets));
 
 router.put('/:id/entries', validateRequest(saveTimesheetEntriesSchema, 'body'), asyncHandler(saveTimesheetEntries));
 router.put('/:id/submit', asyncHandler(submitTimesheet));
-router.put('/:id/approve', validateRequest(approveTimesheetSchema, 'body'), asyncHandler(approveTimesheet));
+// HF-5: route gate; the central approval path re-checks permission, ownership, tenant and state
+router.put('/:id/approve', authorize(['timesheet:approve']), validateRequest(approveTimesheetSchema, 'body'), asyncHandler(approveTimesheet));
 
 export default router;

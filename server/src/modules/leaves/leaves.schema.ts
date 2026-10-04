@@ -19,6 +19,6 @@ export const updateLeaveSchema = z.object({
 });
 
 export const approveLeaveSchema = z.object({
+    // approved_by is deliberately not accepted: the approver is always the authenticated user (HF-5)
     action: z.enum(['approved', 'rejected']),
-    approved_by: z.union([z.string(), z.number()]).optional()
 });

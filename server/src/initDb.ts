@@ -446,23 +446,24 @@ export const initDb = async () => {
       ON CONFLICT (id) DO UPDATE SET slug = 'default'
     `);
 
-    // --- Seed/Repair default admin user ---
-    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+    // --- Seed default admin user (HF-1) ---
+    // No credential is hardcoded here and an existing account is never touched:
+    // setup must not reset, reactivate or undelete anyone's login. A missing admin
+    // is created only when the operator supplies ADMIN_BOOTSTRAP_PASSWORD (min 12 chars).
     const { rows: adminRows } = await pool.query("SELECT id FROM users WHERE email = 'admin@company.com'");
 
     if (adminRows.length === 0) {
-      console.log('🌱 Seeding default admin user...');
-      await pool.query(`
-        INSERT INTO users (name, email, password, role, tenant_id, is_active)
-        VALUES ('System Admin', 'admin@company.com', $1, 'admin', 'tenant_default', true)
-      `, [hashedAdminPassword]);
-    } else {
-      console.log('🔧 Synchronizing admin credentials...');
-      await pool.query(`
-        UPDATE users 
-        SET password = $1, is_active = true, deleted_at = NULL, tenant_id = 'tenant_default'
-        WHERE email = 'admin@company.com'
-      `, [hashedAdminPassword]);
+      const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || '';
+      if (bootstrapPassword.length >= 12) {
+        console.log('🌱 Seeding default admin user...');
+        const hashedAdminPassword = await bcrypt.hash(bootstrapPassword, 10);
+        await pool.query(`
+          INSERT INTO users (name, email, password, role, tenant_id, is_active)
+          VALUES ('System Admin', 'admin@company.com', $1, 'admin', 'tenant_default', true)
+        `, [hashedAdminPassword]);
+      } else {
+        console.warn('⚠️  No admin user seeded: set ADMIN_BOOTSTRAP_PASSWORD (min 12 chars) to create one.');
+      }
     }
 
     // Seed Departments
@@ -482,20 +483,6 @@ export const initDb = async () => {
         ('Legal', 'Legal and compliance'),
         ('Management', 'Executive leadership and strategy')
       `);
-
-      // Seed demo accounts with temp passwords for security rotation demo
-      const demoUsers = [
-        { email: 'saranbtech@gmail.com', pass: 'AURA_SARAN_2026' },
-        { email: 'roughu049@gmail.com', pass: 'AURA_SRIDHAR_2026' }
-      ];
-
-      for (const d of demoUsers) {
-        const hashed = await bcrypt.hash(d.pass, 10);
-        await pool.query(
-          'UPDATE users SET password=$1, temp_password=$2, is_password_temp=true WHERE email=$3',
-          [hashed, d.pass, d.email]
-        );
-      }
 
       // Seed Teams for Engineering
       const { rows: engDept } = await pool.query("SELECT id FROM departments WHERE name = 'Engineering'");

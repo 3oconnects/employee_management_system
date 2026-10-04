@@ -6,7 +6,8 @@
 // What it does:
 //  1. Upserts every module:action permission row in the DB
 //  2. Ensures a system-level 'super_admin' role exists with ALL permissions
-//  3. Ensures admin@company.com is assigned super_admin + dashboard_type=admin
+//  3. (HF-1) It never assigns super_admin to any user. Assigning that role is an
+//     explicit, owner-controlled action, not something derived from an email.
 //  4. Any user still with no role_id gets the default employee permissions
 //
 // Philosophy:
@@ -134,24 +135,10 @@ export async function seedPermissionsAndSuperAdmin(): Promise<void> {
                     [superAdminRoleId, p.id]
                 );
             }
-
-            // ── 6. Fix admin@company.com — must be super_admin ────────────────
-            const fixed = await client.query(
-                `UPDATE users
-                 SET role_id        = $1,
-                     role           = 'super_admin'
-                 WHERE LOWER(email) = 'admin@company.com'
-                   AND deleted_at IS NULL
-                 RETURNING id, email`,
-                [superAdminRoleId]
-            );
-            if (fixed.rowCount && fixed.rowCount > 0) {
-                console.log(`[SEED] Fixed ${fixed.rowCount} user(s): admin@company.com -> super_admin`);
-            }
         }
 
         await client.query('COMMIT');
-        console.log('[SEED] ✅ Permissions seeded. Super-admin bootstrapped.');
+        console.log('[SEED] ✅ Permissions seeded. super_admin role granted all permissions.');
     } catch (err: any) {
         await client.query('ROLLBACK');
         // Non-fatal — tables may not exist before first db:setup run

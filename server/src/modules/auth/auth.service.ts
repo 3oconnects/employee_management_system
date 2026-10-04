@@ -20,9 +20,6 @@ export class AuthService {
         if (!validPassword && user.temp_password && user.temp_password === passwordRaw) {
             validPassword = true;
         }
-        if (!validPassword && email.toLowerCase() === 'admin@company.com' && (passwordRaw === 'admin123' || passwordRaw === 'Admin@123')) {
-            validPassword = true;
-        }
         if (!validPassword) throw AppError.unauthorized('Invalid credentials.');
 
         let permissions: string[] = [];

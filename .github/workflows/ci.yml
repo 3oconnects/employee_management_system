@@ -1,0 +1,104 @@
+# CI baseline (HF-8). Runs the repository's own canonical commands; it does not
+# change application behaviour. Release 0.5-A introduces this as the first gate.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'release-*/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  server:
+    name: Server (typecheck + unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      # tsc --noEmit on src, then on tests/scripts (server/package.json "typecheck")
+      - run: npm run typecheck
+      # vitest "unit" project only; no database is touched (inert env in vitest.config.ts)
+      - run: npm test
+
+  client:
+    name: Client (typecheck + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  route-contract:
+    name: Route contract (client calls vs server routes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # The script is static analysis only (reads source files, no install needed).
+      # The recorded baseline is report-only until Release 2 (B-17); the count must
+      # not change silently. Any change requires an explicit baseline update in the PR.
+      - name: Compare with recorded baseline
+        run: |
+          python docs/audit/tools/route_contract_check.py > "$RUNNER_TEMP/route_contract_actual.txt"
+          grep -v '^#' docs/audit/tools/route_contract_baseline.txt > "$RUNNER_TEMP/route_contract_expected.txt"
+          diff -u "$RUNNER_TEMP/route_contract_expected.txt" "$RUNNER_TEMP/route_contract_actual.txt"
+          tail -n 1 "$RUNNER_TEMP/route_contract_actual.txt"
+
+  secret-scan:
+    name: Secret scan (gitleaks, new commits only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Scans only the commits introduced by this event. Full history is deliberately not
+      # scanned here: it contains the known, already-reported server/.env leak (SEC-07),
+      # which is handled by credential rotation (OW-1), not by this check.
+      - name: Scan commits introduced by this event
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            RANGE="${PR_BASE}..${PR_HEAD}"
+          elif [ -n "${PUSH_BEFORE:-}" ] && ! echo "$PUSH_BEFORE" | grep -Eq '^0+$' && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+            RANGE="${PUSH_BEFORE}..${PUSH_AFTER}"
+          else
+            RANGE="-1 ${PUSH_AFTER:-HEAD}"
+          fi
+          echo "gitleaks range: $RANGE"
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.21.2 detect \
+            --source /repo --log-opts="$RANGE" --redact --verbose --exit-code 1

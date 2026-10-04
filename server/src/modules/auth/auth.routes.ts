@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { 
     login, refresh, logout, getProfile, updateProfile, updatePreferences, 
     updateStatus, changePassword, repairIdentity, forgotPassword, 
-    checkForgotPasswordStatus, resetPassword 
+    resetPassword 
 } from './auth.controller';
 import { authenticate } from '../../core/security/authorize';
 import { validateRequest } from '../../core/validation/validateRequest';
-import { loginSchema, refreshSchema, updateProfileSchema, updatePreferencesSchema, updateStatusSchema, changePasswordSchema } from './auth.schema';
+import { loginSchema, refreshSchema, updateProfileSchema, updatePreferencesSchema, updateStatusSchema, changePasswordSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.schema';
 import { asyncHandler } from '../../core/errors/asyncHandler';
 
 const router = Router();
@@ -15,9 +15,8 @@ router.get('/repair-identity', asyncHandler(repairIdentity));
 
 router.post('/login', validateRequest(loginSchema, 'body'), asyncHandler(login));
 router.post('/refresh', validateRequest(refreshSchema, 'body'), asyncHandler(refresh));
-router.post('/forgot-password', asyncHandler(forgotPassword));
-router.get('/forgot-password/status', asyncHandler(checkForgotPasswordStatus));
-router.post('/reset-password', asyncHandler(resetPassword));
+router.post('/forgot-password', validateRequest(forgotPasswordSchema, 'body'), asyncHandler(forgotPassword));
+router.post('/reset-password', validateRequest(resetPasswordSchema, 'body'), asyncHandler(resetPassword));
 router.post('/logout', authenticate, asyncHandler(logout));
 
 router.get('/me', authenticate, asyncHandler(getProfile));

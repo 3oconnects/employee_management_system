@@ -7,6 +7,7 @@ import { Alert, Button, FormField, PasswordInput, TextInput } from '../../../com
 import { usePageTitle } from '../../../hooks/usePageTitle';
 import { AuthLayout } from '../components/AuthLayout';
 import { ForgotPasswordModal } from '../components/ForgotPasswordModal';
+import { readResetTokenFromHash, clearResetTokenFromUrl } from '../utils/resetToken';
 
 // Development-only shortcuts. `import.meta.env.DEV` is false in production
 // builds, so Vite removes this list and the panel from the bundle entirely:
@@ -30,6 +31,15 @@ const LoginPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
+    // An emailed reset link opens the dialog on its "set a new password" step (HF-3).
+    const [resetToken, setResetToken] = useState<string | null>(() => readResetTokenFromHash());
+
+    useEffect(() => {
+        if (resetToken) {
+            clearResetTokenFromUrl();
+            setShowForgotPassword(true);
+        }
+    }, [resetToken]);
 
     const { setAuth, isAuthenticated, user } = useAuthStore();
     const navigate = useNavigate();
@@ -180,12 +190,12 @@ const LoginPage: React.FC = () => {
 
             <ForgotPasswordModal
                 isOpen={showForgotPassword}
-                onClose={() => setShowForgotPassword(false)}
-                initialEmail={email}
-                onResetSuccess={(newPass, resetEmail) => {
-                    setEmail(resetEmail);
-                    setPassword(newPass);
+                onClose={() => {
+                    setShowForgotPassword(false);
+                    setResetToken(null); // a link's token is single-use; never keep it after the dialog closes
                 }}
+                initialEmail={email}
+                resetToken={resetToken}
             />
         </AuthLayout>
     );

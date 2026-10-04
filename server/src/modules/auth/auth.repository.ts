@@ -132,43 +132,143 @@ export class AuthRepository {
         return res.rows[0] || null;
     }
 
-    async createPasswordResetApproval(data: { id: string; employeeId: string; metadata: any; tenantId: string }) {
-        await pool.query(
-            `INSERT INTO approvals (id, employee_id, type, status, metadata, requested_by, tenant_id)
-             VALUES ($1, $2, 'password_reset', 'pending', $3, $4, $5)`,
-            [data.id, data.employeeId, JSON.stringify(data.metadata), data.metadata.email, data.tenantId]
-        );
-    }
+    // ── Password reset (HF-3) ────────────────────────────────────────────────
+    // Reset records live in `approvals` (type 'password_reset') so no schema change is
+    // needed. Only the SHA-256 hash of the token is stored, never the token itself.
+    // Status lifecycle: issued -> completed | superseded. 'issued' rows are not shown in
+    // the approvals inbox (it lists pending/active/onboarding and approved/rejected/completed).
 
-    async getLatestPasswordResetApproval(email: string) {
+    async findUserForPasswordReset(email: string) {
         const res = await pool.query(
-            `SELECT id, status, metadata, created_at 
-             FROM approvals 
-             WHERE type = 'password_reset' AND LOWER(metadata->>'email') = LOWER($1)
-             ORDER BY created_at DESC 
+            `SELECT u.id, u.name, u.email, u.tenant_id, e.id AS employee_id
+             FROM users u
+             JOIN employees e ON LOWER(u.email) = LOWER(e.email) AND u.tenant_id = e.tenant_id
+             WHERE LOWER(u.email) = LOWER($1)
+               AND u.is_active = true AND u.deleted_at IS NULL
              LIMIT 1`,
             [email]
         );
         return res.rows[0] || null;
     }
 
-    async completePasswordReset(email: string, hashedPassword: string, approvalId: string) {
+    async hasRecentPasswordReset(userId: number, withinSeconds: number): Promise<boolean> {
+        const res = await pool.query(
+            `SELECT 1 FROM approvals
+             WHERE type = 'password_reset'
+               AND metadata->>'user_id' = $1::text
+               AND created_at > NOW() - make_interval(secs => $2)
+             LIMIT 1`,
+            [userId, withinSeconds]
+        );
+        return res.rows.length > 0;
+    }
+
+    /** Issues a new reset record and supersedes any older outstanding one for the same user. */
+    async createPasswordResetToken(data: {
+        id: string;
+        employeeId: string;
+        tenantId: string;
+        userId: number;
+        email: string;
+        tokenHash: string;
+        expiresAt: Date;
+    }) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
             await client.query(
-                `UPDATE users 
-                 SET password = $1, temp_password = NULL, is_password_temp = false, updated_at = NOW() 
-                 WHERE LOWER(email) = LOWER($2)`,
-                [hashedPassword, email]
+                `UPDATE approvals SET status = 'superseded'
+                 WHERE type = 'password_reset' AND status = 'issued' AND metadata->>'user_id' = $1::text`,
+                [data.userId]
             );
             await client.query(
-                `UPDATE approvals SET status = 'completed' WHERE id = $1`,
-                [approvalId]
+                `INSERT INTO approvals (id, employee_id, type, status, metadata, requested_by, tenant_id)
+                 VALUES ($1, $2, 'password_reset', 'issued', $3, $4, $5)`,
+                [
+                    data.id,
+                    data.employeeId,
+                    JSON.stringify({
+                        email: data.email,
+                        user_id: data.userId,
+                        token_hash: data.tokenHash,
+                        expires_at: data.expiresAt.toISOString(),
+                        requested_at: new Date().toISOString(),
+                    }),
+                    data.email,
+                    data.tenantId,
+                ]
             );
             await client.query('COMMIT');
         } catch (err) {
             await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
+
+    async findPasswordResetByTokenHash(tokenHash: string) {
+        const res = await pool.query(
+            `SELECT id, status, tenant_id, metadata
+             FROM approvals
+             WHERE type = 'password_reset' AND metadata->>'token_hash' = $1
+             LIMIT 1`,
+            [tokenHash]
+        );
+        return res.rows[0] || null;
+    }
+
+    /**
+     * Atomically consumes a reset token and sets the new password. Returns false (and changes
+     * nothing) if the token is not currently valid: not issued, expired, already used, or the
+     * user is not in the record's tenant / is inactive. Two concurrent uses cannot both win.
+     */
+    async consumePasswordReset(data: {
+        recordId: string;
+        tokenHash: string;
+        userId: number;
+        tenantId: string;
+        hashedPassword: string;
+    }): Promise<boolean> {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const used = await client.query(
+                `UPDATE approvals SET status = 'completed'
+                 WHERE id = $1 AND type = 'password_reset' AND status = 'issued'
+                   AND metadata->>'token_hash' = $2
+                   AND (metadata->>'expires_at')::timestamptz > NOW()
+                 RETURNING id`,
+                [data.recordId, data.tokenHash]
+            );
+            if (used.rowCount !== 1) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            // New password; the plaintext temp password is cleared so it can no longer sign in,
+            // and the stored refresh credential is cleared.
+            const updated = await client.query(
+                `UPDATE users
+                 SET password = $1, temp_password = NULL, is_password_temp = false,
+                     refresh_token = NULL, updated_at = NOW()
+                 WHERE id = $2 AND tenant_id = $3 AND is_active = true AND deleted_at IS NULL
+                 RETURNING id`,
+                [data.hashedPassword, data.userId, data.tenantId]
+            );
+            if (updated.rowCount !== 1) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            await client.query(
+                `UPDATE approvals SET status = 'superseded'
+                 WHERE type = 'password_reset' AND status = 'issued'
+                   AND metadata->>'user_id' = $1::text AND id <> $2`,
+                [data.userId, data.recordId]
+            );
+            await client.query('COMMIT');
+            return true;
+        } catch (err) {
+            await client.query('ROLLBACK').catch(() => undefined);
             throw err;
         } finally {
             client.release();

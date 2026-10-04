@@ -640,3 +640,46 @@ export const sendEmployeeActionNotification = async (
     }
 };
 
+// ─── PASSWORD RESET (HF-3) ───────────────────────────────────────────────────
+
+const escapeHtml = (value: string): string =>
+    value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+
+export const buildPasswordResetEmail = (opts: {
+    name: string;
+    resetUrl: string;
+    expiresInMinutes: number;
+}): string => {
+    const name = escapeHtml(opts.name || 'there');
+    const url = escapeHtml(opts.resetUrl);
+    const product = escapeHtml(BRAND.productName);
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8" /></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fc;margin:0;padding:24px;color:#1f2937;">
+  <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:32px;">
+    <h1 style="font-size:18px;margin:0 0 16px;">Reset your ${product} password</h1>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 16px;">Hi ${name},</p>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 24px;">We received a request to reset your password. Use the button below to choose a new one. The link works once and expires in ${opts.expiresInMinutes} minutes.</p>
+    <p style="margin:0 0 24px;"><a href="${url}" style="display:inline-block;background:#2f5bea;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;">Choose a new password</a></p>
+    <p style="font-size:12px;line-height:1.6;color:#6b7280;margin:0 0 8px;">If the button does not work, copy this link into your browser:</p>
+    <p style="font-size:12px;line-height:1.6;word-break:break-all;margin:0 0 24px;"><a href="${url}" style="color:#2f5bea;">${url}</a></p>
+    <p style="font-size:12px;line-height:1.6;color:#6b7280;margin:0;">If you did not request this, you can ignore this email. Your password will not change.</p>
+  </div>
+</body>
+</html>`;
+};
+
+export const sendPasswordResetEmail = async (opts: {
+    to: string;
+    name: string;
+    resetUrl: string;
+    expiresInMinutes: number;
+    tenantId?: string;
+}): Promise<boolean> =>
+    sendEmail({
+        to: opts.to,
+        subject: `Reset your ${BRAND.productName} password`,
+        html: buildPasswordResetEmail({ name: opts.name, resetUrl: opts.resetUrl, expiresInMinutes: opts.expiresInMinutes }),
+        tenantId: opts.tenantId,
+    });

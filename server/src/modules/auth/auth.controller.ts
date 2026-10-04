@@ -126,29 +126,13 @@ export const repairIdentity = async (req: Request, res: Response) => {
 };
 
 export const forgotPassword = async (req: Request, res: Response) => {
-    const { email, reason } = req.body;
-    if (!email) {
-        return res.status(400).json({ success: false, message: 'Email address is required.' });
-    }
-    const result = await service.requestPasswordReset(email, reason);
-    res.json({ success: true, ...result });
-};
-
-export const checkForgotPasswordStatus = async (req: Request, res: Response) => {
-    const email = req.query.email as string;
-    if (!email) {
-        return res.status(400).json({ success: false, message: 'Email address is required.' });
-    }
-    const result = await service.checkPasswordResetStatus(email);
+    // Always the same body, whether or not the account exists. No token or request id is returned.
+    const result = await service.requestPasswordReset(req.body.email);
     res.json({ success: true, ...result });
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
-    const { email, newPassword, password, resetToken } = req.body;
-    const pass = newPassword || password;
-    if (!email || !pass) {
-        return res.status(400).json({ success: false, message: 'Email and new password are required.' });
-    }
-    const result = await service.resetPasswordWithApproval(email, pass, resetToken);
+    const { token, email, newPassword, password } = req.body;
+    const result = await service.resetPasswordWithToken(token, newPassword || password, email);
     res.json(result);
 };

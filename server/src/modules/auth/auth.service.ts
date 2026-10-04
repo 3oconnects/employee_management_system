@@ -4,6 +4,24 @@ import { PasswordService } from '../../core/security/password.service';
 import { JwtService } from '../../core/security/jwt.service';
 import { AppError } from '../../core/errors/AppError';
 import { UserRole } from '../../types';
+import { sendPasswordResetEmail } from '../../services/emailService';
+
+// HF-3: self-service password reset by emailed, single-use, expiring link.
+const RESET_TOKEN_TTL_MINUTES = 30;
+const RESET_REQUEST_COOLDOWN_SECONDS = 60;
+export const PASSWORD_RESET_REQUEST_MESSAGE =
+    'If an account exists for that email, we have sent a password reset link. It is valid for 30 minutes.';
+export const PASSWORD_RESET_INVALID_MESSAGE =
+    'This password reset link is invalid or has expired. Please request a new one.';
+
+export const hashResetToken = (token: string): string =>
+    crypto.createHash('sha256').update(token).digest('hex');
+
+const buildResetUrl = (token: string): string => {
+    const base = (process.env.APP_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    // The token travels in the URL fragment so it is never sent to a server, proxy log or Referer.
+    return `${base}/login#reset_token=${token}`;
+};
 
 export class AuthService {
     private repo: AuthRepository;
@@ -135,121 +153,76 @@ export class AuthService {
         await this.repo.updatePassword(userId, hashedNew);
     }
 
-    async requestPasswordReset(emailRaw: string, reason?: string) {
+    /**
+     * Always resolves with the same generic message, whether or not the account exists, so the
+     * response cannot be used to discover accounts. Nothing credential-like is ever returned.
+     */
+    async requestPasswordReset(emailRaw: string) {
         const email = emailRaw.trim().toLowerCase();
-        const user = await this.repo.findUserWithEmployee(email);
-        if (!user) {
-            throw AppError.notFound('No registered user account found with this email address.');
-        }
-
-        // Check for existing request
-        const existing = await this.repo.getLatestPasswordResetApproval(email);
-        if (existing) {
-            if (existing.status === 'pending') {
-                return {
-                    status: 'pending',
-                    requestId: existing.id,
-                    message: 'A password reset request is already submitted and awaiting Administrator approval.'
-                };
+        try {
+            const user = await this.repo.findUserForPasswordReset(email);
+            if (user && !(await this.repo.hasRecentPasswordReset(user.id, RESET_REQUEST_COOLDOWN_SECONDS))) {
+                const token = crypto.randomBytes(32).toString('base64url');
+                await this.repo.createPasswordResetToken({
+                    id: `PR-${crypto.randomUUID()}`,
+                    employeeId: user.employee_id,
+                    tenantId: user.tenant_id,
+                    userId: user.id,
+                    email: user.email,
+                    tokenHash: hashResetToken(token),
+                    expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
+                });
+                // Not awaited: the response must not reveal, through its latency, that an email was sent.
+                void sendPasswordResetEmail({
+                    to: user.email,
+                    name: user.name,
+                    resetUrl: buildResetUrl(token),
+                    expiresInMinutes: RESET_TOKEN_TTL_MINUTES,
+                    tenantId: user.tenant_id,
+                }).catch(() => console.error('[Auth] Password reset email could not be sent.'));
             }
-            if (existing.status === 'approved') {
-                return {
-                    status: 'approved',
-                    requestId: existing.id,
-                    resetToken: existing.metadata?.reset_token,
-                    message: 'Your request has been approved by the Administrator! You can now proceed to set your new password.'
-                };
-            }
+        } catch (err: any) {
+            // Swallowed on purpose (a different response here would reveal account state). Never log the token.
+            console.error('[Auth] Password reset request failed:', err?.code || err?.name || 'error');
         }
-
-        const id = `PR-${Date.now()}`;
-        const resetToken = crypto.randomBytes(20).toString('hex');
-        const metadata = {
-            email: user.email,
-            name: user.name,
-            department: user.department || 'General',
-            reason: reason?.trim() || 'Forgot password request from sign-in page',
-            reset_token: resetToken,
-            requested_at: new Date().toISOString()
-        };
-
-        const employeeId = user.employee_id || `EMP-${user.id}`;
-        await this.repo.createPasswordResetApproval({
-            id,
-            employeeId,
-            metadata,
-            tenantId: user.tenant_id || 'tenant_default'
-        });
-
-        return {
-            status: 'pending',
-            requestId: id,
-            message: 'Your password reset request has been submitted to the Administrator for approval.'
-        };
+        return { message: PASSWORD_RESET_REQUEST_MESSAGE };
     }
 
-    async checkPasswordResetStatus(emailRaw: string) {
-        const email = emailRaw.trim().toLowerCase();
-        const req = await this.repo.getLatestPasswordResetApproval(email);
-        if (!req) {
-            return {
-                status: 'none',
-                message: 'No password reset request found for this email address.'
-            };
+    /** The emailed token is mandatory and is the only thing that authorises the reset. */
+    async resetPasswordWithToken(token: string | undefined, newPasswordRaw: string, emailRaw?: string) {
+        if (!token || typeof token !== 'string') {
+            throw AppError.badRequest('Reset token is required.');
         }
-
-        return {
-            status: req.status,
-            requestId: req.id,
-            resetToken: req.status === 'approved' ? req.metadata?.reset_token : undefined,
-            message: req.status === 'approved'
-                ? 'Your password reset request has been approved by the Administrator! Please enter your new password.'
-                : req.status === 'rejected'
-                ? 'Your password reset request was rejected by the Administrator. Please contact HR or submit a new request.'
-                : req.status === 'completed'
-                ? 'This password reset request has already been completed.'
-                : 'Your password reset request is currently awaiting Administrator approval.'
-        };
-    }
-
-    async resetPasswordWithApproval(emailRaw: string, newPasswordRaw: string, resetToken?: string) {
-        const email = emailRaw.trim().toLowerCase();
         if (!newPasswordRaw || newPasswordRaw.length < 6) {
             throw AppError.badRequest('New password must be at least 6 characters.');
         }
 
-        const req = await this.repo.getLatestPasswordResetApproval(email);
-        if (!req) {
-            throw AppError.badRequest('No password reset request found for this email address.');
-        }
+        const tokenHash = hashResetToken(token);
+        const record = await this.repo.findPasswordResetByTokenHash(tokenHash);
+        const invalid = () => AppError.badRequest(PASSWORD_RESET_INVALID_MESSAGE);
 
-        if (req.status === 'pending') {
-            throw AppError.forbidden('Administrator has not approved your password reset request yet. Please wait for approval.');
-        }
-
-        if (req.status === 'rejected') {
-            throw AppError.forbidden('Your password reset request was rejected by the Administrator.');
-        }
-
-        if (req.status === 'completed') {
-            throw AppError.badRequest('This password reset request has already been completed.');
-        }
-
-        if (req.status !== 'approved') {
-            throw AppError.forbidden('Invalid password reset approval state.');
-        }
-
-        // Verify token if provided
-        if (req.metadata?.reset_token && resetToken && req.metadata.reset_token !== resetToken) {
-            throw AppError.unauthorized('Invalid or expired password reset token.');
-        }
+        if (!record || record.status !== 'issued') throw invalid();
+        const expiresAt = Date.parse(record.metadata?.expires_at);
+        if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) throw invalid();
+        // If the caller names an account, it must be the one the token was issued for.
+        if (emailRaw && emailRaw.trim().toLowerCase() !== String(record.metadata?.email || '').toLowerCase()) throw invalid();
+        const userId = Number(record.metadata?.user_id);
+        if (!Number.isInteger(userId) || !record.tenant_id) throw invalid();
 
         const hashedPassword = await PasswordService.hash(newPasswordRaw);
-        await this.repo.completePasswordReset(email, hashedPassword, req.id);
+        // The database re-checks status, expiry, tenant and active user atomically (single use).
+        const done = await this.repo.consumePasswordReset({
+            recordId: record.id,
+            tokenHash,
+            userId,
+            tenantId: record.tenant_id,
+            hashedPassword,
+        });
+        if (!done) throw invalid();
 
         return {
             success: true,
-            message: 'Your password has been successfully reset! You may now sign in with your new password.'
+            message: 'Your password has been reset. You can now sign in with your new password.',
         };
     }
 }

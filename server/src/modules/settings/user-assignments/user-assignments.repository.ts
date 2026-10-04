@@ -18,8 +18,9 @@ export class UserAssignmentsRepository {
         return result.rows;
     }
 
-    async getUsersFallback() {
-        const fallback = await pool.query('SELECT id, name, email, role FROM users LIMIT 100');
+    /** Degraded read used when the main query fails: still only the caller's tenant (HF-6B). */
+    async getUsersFallback(tenantId: string) {
+        const fallback = await pool.query('SELECT id, name, email, role FROM users WHERE tenant_id = $1 LIMIT 100', [tenantId]);
         return fallback.rows;
     }
 

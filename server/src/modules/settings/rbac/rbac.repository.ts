@@ -21,8 +21,12 @@ export class RBACRepository {
         return roles.rows;
     }
 
-    async getRolesFallback() {
-        const fallback = await pool.query('SELECT id, name FROM roles LIMIT 100');
+    /** Degraded read used when the main query fails: the same roles the main query may return, never other tenants' (HF-6B). */
+    async getRolesFallback(tenantId: string) {
+        const fallback = await pool.query(
+            `SELECT id, name FROM roles WHERE tenant_id = $1 OR tenant_id = 'tenant_default' OR tenant_id IS NULL LIMIT 100`,
+            [tenantId]
+        );
         return fallback.rows;
     }
 

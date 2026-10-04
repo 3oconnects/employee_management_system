@@ -18,7 +18,7 @@ export class UserAssignmentsService {
             return { data: await this.repo.getUsers(tenantId) };
         } catch (err: any) {
             console.error('FETCH_USERS_ERROR:', err.message);
-            return { data: await this.repo.getUsersFallback(), warning: 'Limited data mode' };
+            return { data: await this.repo.getUsersFallback(tenantId), warning: 'Limited data mode' };
         }
     }
 

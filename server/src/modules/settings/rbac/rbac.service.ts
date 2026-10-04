@@ -40,7 +40,7 @@ export class RBACService {
             };
         } catch (err: any) {
             console.error('ROLES_FETCH_ERROR:', err.message);
-            const fallbackRoles = await this.repo.getRolesFallback();
+            const fallbackRoles = await this.repo.getRolesFallback(tenantId);
             return {
                 roles: fallbackRoles.map(r => ({ ...r, user_count: 0, permissions: [] })),
                 warning: err.message

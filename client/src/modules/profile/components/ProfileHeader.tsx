@@ -512,6 +512,25 @@ const ProfileHeader: React.FC<Props> = ({
                                 {displayName}
                             </h1>
                             <VerifiedBadge />
+                            {/* Availability: this person's own stored status, spelled out (the avatar dot alone was easy to miss) */}
+                            {(() => {
+                                const st = availabilityOf(emp?.availability_status);
+                                return (
+                                    <span
+                                        data-testid="profile-availability"
+                                        title={`Availability: ${st.label}`}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                                            padding: '3px 10px', borderRadius: 999, whiteSpace: 'nowrap',
+                                            fontSize: '0.72rem', fontWeight: 700, color: st.color,
+                                            background: `${st.color}1A`, border: `1px solid ${st.color}40`,
+                                        }}
+                                    >
+                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
+                                        {st.label}
+                                    </span>
+                                );
+                            })()}
                         </div>
 
                         {/* Role | Dept */}

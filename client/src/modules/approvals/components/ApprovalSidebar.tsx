@@ -1,6 +1,20 @@
 import React from 'react';
 import { Inbox, Shield, Calendar, Users, Briefcase, ChevronLeft, ChevronRight, Clock, Building2, Layers, KeyRound } from 'lucide-react';
 import { ApprovalType } from '../types';
+import { useAuthStore } from '../../../store/authStore';
+
+// Which permission(s) let a person act on each category. Mirrors server/src/modules/approvals/approvals.policy.ts;
+// the server still decides, this only decides what is worth showing. Empty = everyone sees it.
+export const CATEGORY_PERMISSIONS: Record<string, string[]> = {
+    password_reset: ['settings:manage'],
+    department_creation: ['organization:manage', 'employees:manage'],
+    team_creation: ['organization:manage', 'employees:manage'],
+    leave: ['leave:approve'],
+    attendance: ['attendance:regularize', 'attendance:manage'],
+    role_change: ['approvals:approve'],
+    team_change: ['approvals:approve'],
+    promotion: ['approvals:approve'],
+};
 
 interface ApprovalSidebarProps {
     filterType: ApprovalType | 'all';
@@ -17,6 +31,7 @@ const ApprovalSidebar: React.FC<ApprovalSidebarProps> = ({
     setIsCollapsed,
     counts = {}
 }) => {
+    const hasPermission = useAuthStore((st) => st.hasPermission);
     const getBadgeCount = (id: string) => {
         if (id === 'all') {
             return Object.values(counts).reduce((a, b) => a + b, 0);
@@ -49,7 +64,11 @@ const ApprovalSidebar: React.FC<ApprovalSidebarProps> = ({
                         { id: 'team_change', label: 'Team Request', icon: Users, color: 'text-sky-500' },
                         { id: 'promotion', label: 'Promotion Request', icon: Briefcase, color: 'text-emerald-500' },
                         { id: 'attendance', label: 'Attendance Request', icon: Clock, color: 'text-violet-500' },
-                    ].map(t => {
+                    ].filter(t => {
+                        const needed = CATEGORY_PERMISSIONS[t.id];
+                        // keep a category visible if something is waiting in it, so nothing is hidden silently
+                        return !needed || needed.some(hasPermission) || (counts[t.id] || 0) > 0;
+                    }).map(t => {
                         const count = getBadgeCount(t.id);
                         return (
                             <button 

@@ -79,20 +79,31 @@ const ROLE_TO_PERMISSIONS: Record<string, string[]> = {
  * applied where the required permission is only known after loading a record (HF-4).
  * Behaviour is identical to the previous inline logic.
  */
+type AccessSubject = { role?: string; dashboard_type?: string; permissions?: string[] };
+
+/**
+ * The two identities that pass every check. They are named here, once, so the authorization-state
+ * policy (core/security/authzState.ts) and hasAccess() cannot drift apart.
+ * TEMPORARY COMPATIBILITY DEPENDENCY: HF-9A removes both bypasses once the production
+ * role-permission export (OW-4) is available. Nothing new may depend on role names or on
+ * dashboard_type beyond these two helpers.
+ */
+export const isSuperAdminIdentity = (user: AccessSubject): boolean => (user.role || '').toLowerCase() === 'super_admin';
+export const hasDashboardAdminBypass = (user: AccessSubject): boolean => (user.dashboard_type || '').toLowerCase() === 'admin';
+
 export const hasAccess = (
-    user: { role?: string; dashboard_type?: string; permissions?: string[] },
+    user: AccessSubject,
     permissionOrRole: string | string[]
 ): boolean => {
     const userRole = (user.role || '').toLowerCase();
-    const dashType = (user.dashboard_type || '').toLowerCase();
     const userPerms = user.permissions || [];
 
     // 1. super_admin — unconditional pass
-    if (userRole === 'super_admin') return true;
+    if (isSuperAdminIdentity(user)) return true;
 
     // 2. dashboard_type=admin — owner-level pass (used when tenant owner
     //    has a custom role name but full access)
-    if (dashType === 'admin') return true;
+    if (hasDashboardAdminBypass(user)) return true;
 
     const required = Array.isArray(permissionOrRole) ? permissionOrRole : [permissionOrRole];
 

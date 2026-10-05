@@ -64,7 +64,7 @@ export class RBACRepository {
                 name=CASE WHEN is_system=true THEN name ELSE COALESCE($1, name) END, 
                 description=COALESCE($2, description),
                 dashboard_type=COALESCE($3, dashboard_type)
-             WHERE id=$4 AND (tenant_id=$5 OR tenant_id='tenant_default' OR tenant_id IS NULL) RETURNING *`,
+             WHERE id=$4 AND tenant_id=$5 RETURNING *`,
             [name, description, dashboard_type, id, tenantId]
         );
         return result.rows[0];
@@ -76,7 +76,7 @@ export class RBACRepository {
             return { error: 'users_assigned' };
         }
         const result = await pool.query(
-            'DELETE FROM roles WHERE id=$1 AND (tenant_id=$2 OR tenant_id=\'tenant_default\' OR tenant_id IS NULL) AND is_system=false RETURNING id',
+            'DELETE FROM roles WHERE id=$1 AND tenant_id=$2 AND is_system=false RETURNING id',
             [id, tenantId]
         );
         return { deleted: result.rows.length > 0 };
@@ -84,7 +84,7 @@ export class RBACRepository {
 
     async checkRoleExists(id: string, tenantId: string) {
         const roleCheck = await pool.query(
-            'SELECT id FROM roles WHERE id=$1 AND (tenant_id=$2 OR tenant_id=\'tenant_default\' OR tenant_id IS NULL)',
+            'SELECT id FROM roles WHERE id=$1 AND tenant_id=$2',
             [id, tenantId]
         );
         return roleCheck.rows.length > 0;

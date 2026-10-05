@@ -21,25 +21,21 @@ export const getRoles = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const createRole = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const role = await service.createRole(tenantId, req.body);
+    const role = await service.createRole(req.user!, req.body);
     res.status(201).json({ success: true, data: role });
 };
 
 export const updateRole = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const role = await service.updateRole(req.params.id, tenantId, req.body);
+    const role = await service.updateRole(req.params.id, req.user!, req.body);
     res.json({ success: true, data: role });
 };
 
 export const deleteRole = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId;
-    await service.deleteRole(req.params.id, tenantId!);
+    await service.deleteRole(req.params.id, req.user!);
     res.json({ success: true, message: 'Role deleted.' });
 };
 
 export const updateRolePermissions = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    await service.updateRolePermissions(req.params.id, tenantId, req.body.permissions || []);
+    await service.updateRolePermissions(req.params.id, req.user!, req.body.permissions || []);
     res.json({ success: true, message: 'Permissions updated.', permissions: req.body.permissions || [] });
 };

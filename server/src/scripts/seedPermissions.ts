@@ -30,6 +30,11 @@ const ALL_PERMISSIONS: { module: string; action: string; description: string }[]
     { module: 'employees',    action: 'manage',  description: 'Create, edit, and delete employees' },
     // Settings / RBAC
     { module: 'settings',     action: 'manage',  description: 'Full access to system settings, roles, permissions' },
+    // Authorization state (HF-10): who may change roles, grants and accounts
+    { module: 'roles',        action: 'assign',  description: 'Assign roles to user accounts' },
+    { module: 'roles',        action: 'manage',  description: 'Create, edit and delete roles' },
+    { module: 'permissions',  action: 'grant',   description: 'Change which permissions a role holds' },
+    { module: 'users',        action: 'manage',  description: 'Create user accounts and manage their password, status and removal' },
     // Payroll
     { module: 'payroll',      action: 'read',    description: 'View payroll data' },
     { module: 'payroll',      action: 'manage',  description: 'Run payroll and edit salary profiles' },
@@ -136,6 +141,19 @@ export async function seedPermissionsAndSuperAdmin(): Promise<void> {
                 );
             }
         }
+
+        // ── 6. (HF-10) Whoever legitimately holds settings:manage keeps the ability to administer roles and
+        //    accounts: the four authorization-state permissions are granted to exactly those roles. Idempotent;
+        //    nothing is inferred from role names, and roles without settings:manage gain nothing.
+        await client.query(
+            `INSERT INTO role_permissions (role_id, permission_id)
+             SELECT DISTINCT rp.role_id, np.id
+               FROM role_permissions rp
+               JOIN permissions sp ON sp.id = rp.permission_id AND sp.module = 'settings' AND sp.action = 'manage'
+              CROSS JOIN permissions np
+              WHERE (np.module, np.action) IN (('roles','assign'), ('roles','manage'), ('permissions','grant'), ('users','manage'))
+             ON CONFLICT DO NOTHING`
+        );
 
         await client.query('COMMIT');
         console.log('[SEED] ✅ Permissions seeded. super_admin role granted all permissions.');

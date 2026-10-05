@@ -27,8 +27,7 @@ export const getEmployees = async (req: Request, res: Response) => {
 };
 
 export const createEmployee = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user?.tenantId;
-    const result = await service.createEmployee(tenantId, req.body);
+    const result = await service.createEmployee((req as any).user, req.body);
     res.status(201).json({ success: true, employeeId: result.employeeId });
 };
 
@@ -57,7 +56,7 @@ export const updateEmployee = async (req: Request, res: Response) => {
         }
     }
 
-    await service.updateEmployee(targetId, tenantId, req.body);
+    await service.updateEmployee(targetId, user, req.body);
     res.json({ success: true, message: 'Employee updated successfully.' });
 };
 
@@ -113,8 +112,7 @@ export const saveEmergencyContacts = async (req: Request, res: Response) => {
 };
 
 export const bulkUpload = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user?.tenantId;
-    const result = await service.bulkUpload(tenantId, req.body.employees);
+    const result = await service.bulkUpload((req as any).user, req.body.employees);
     res.json({ success: true, ...result });
 };
 

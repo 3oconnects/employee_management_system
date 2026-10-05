@@ -357,6 +357,11 @@ const PERMISSIONS_LIST = [
     { module: 'settings', action: 'branding' },
     { module: 'settings', action: 'integrations' },
     { module: 'settings', action: 'security' },
+    // Authorization state (HF-10)
+    { module: 'roles', action: 'assign' },
+    { module: 'roles', action: 'manage' },
+    { module: 'permissions', action: 'grant' },
+    { module: 'users', action: 'manage' },
 ];
 
 // Role → permissions mapping

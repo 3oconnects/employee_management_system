@@ -83,18 +83,18 @@ export class EmployeesRepository {
         return res.rows[0];
     }
 
-    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string, isPasswordTemp: boolean = true, roleId: number | null = null) {
-        await client.query(
-            `INSERT INTO users (name, email, password, role, tenant_id, is_password_temp, is_active, role_id) 
-             VALUES ($1, $2, $3, $4, $5, $6, true, COALESCE($7, (SELECT id FROM roles WHERE LOWER(name) = LOWER($4) LIMIT 1))) 
-             ON CONFLICT (email) DO UPDATE 
-             SET password = EXCLUDED.password, 
-                 is_password_temp = EXCLUDED.is_password_temp,
-                 role = EXCLUDED.role,
-                 role_id = COALESCE($7, EXCLUDED.role_id, users.role_id, (SELECT id FROM roles WHERE LOWER(name) = LOWER(EXCLUDED.role) LIMIT 1), 4),
-                 is_active = true`,
+    /**
+     * Creates a login account. An existing account is NEVER touched (HF-10): on an e-mail collision nothing is
+     * written and false is returned, whichever tenant the existing account belongs to.
+     */
+    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string, isPasswordTemp: boolean = true, roleId: number): Promise<boolean> {
+        const res = await client.query(
+            `INSERT INTO users (name, email, password, role, tenant_id, is_password_temp, is_active, role_id)
+             VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+             ON CONFLICT (email) DO NOTHING`,
             [name, email, hashedPassword, role, tenantId, isPasswordTemp, roleId]
         );
+        return (res.rowCount ?? 0) > 0;
     }
 
     async createPayrollProfile(client: any, profileData: any[]) {
@@ -134,39 +134,6 @@ export class EmployeesRepository {
             `UPDATE employees SET ${setClause}, updated_at = NOW() WHERE id = $${params.length - 1} AND (tenant_id = $${params.length} OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
             params
         );
-    }
-
-    async ensureRoleExists(client: any, roleName: string, tenantId: string): Promise<{ id: number; name: string }> {
-        const trimmed = roleName.trim();
-        const existingRole = await client.query(
-            `SELECT id, name FROM roles 
-             WHERE LOWER(name) = LOWER($1) AND (tenant_id = $2 OR tenant_id = 'tenant_default' OR tenant_id = 'default')
-             LIMIT 1`,
-            [trimmed, tenantId]
-        );
-        if (existingRole.rows.length > 0) {
-            return { id: existingRole.rows[0].id, name: existingRole.rows[0].name };
-        }
-
-        const newRole = await client.query(
-            `INSERT INTO roles (tenant_id, name, description, dashboard_type, is_system)
-             VALUES ($1, $2, $3, $4, false)
-             RETURNING id, name`,
-            [tenantId, trimmed, `${trimmed} role`, 'employee']
-        );
-        const createdRole = newRole.rows[0];
-
-        const basePerms = await client.query(
-            `SELECT id FROM permissions WHERE module IN ('attendance', 'leave', 'timesheet', 'profile') AND action = 'view'`
-        );
-        for (const p of basePerms.rows) {
-            await client.query(
-                `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                [createdRole.id, p.id]
-            );
-        }
-
-        return createdRole;
     }
 
     async updateUserRole(client: any, email: string, roleName: string, roleId: number, tenantId: string) {

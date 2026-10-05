@@ -15,6 +15,12 @@ import {
 import { NotificationService } from '../../services/notificationService';
 import { withTransaction } from '../../database/transaction';
 import { AppError } from '../../core/errors/AppError';
+import { AuthzActor, assertMayAssignRole, assertMayManageUser, findTenantUserByEmail, resolveRoleForNewAccount } from '../../core/security/authzState';
+
+// Default for a new login account (a default, not an authorization rule).
+const BASELINE_ROLE_NAME = 'employee';
+// Said when an e-mail address belongs to another organisation: never who owns it.
+const EMAIL_NOT_AVAILABLE = 'Email is already in use.';
 import { pool } from '../../config/db';
 import { AnalyticsService } from '../../services/analyticsService';
 
@@ -38,22 +44,29 @@ export class EmployeesService {
         return this.repo.findMany(tenantId, options);
     }
 
-    async createEmployee(tenantId: string, data: any) {
+    async createEmployee(actor: AuthzActor, data: any) {
+        const tenantId = actor.tenantId;
         return withTransaction(async (client) => {
+            // The role is decided (and authorized) before anything is written. It is never created from here.
+            const grantedRole = data.email ? await resolveRoleForNewAccount(actor, { roleName: data.role }, BASELINE_ROLE_NAME) : null;
+
             if (data.email) {
                 const existingEmp = await client.query(
-                    'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1)',
+                    'SELECT id, name, email, tenant_id FROM employees WHERE LOWER(email) = LOWER($1)',
                     [data.email.trim()]
                 );
                 if (existingEmp.rows.length > 0) {
-                    throw AppError.conflict(`An employee with email '${data.email}' already exists (${existingEmp.rows[0].id} - ${existingEmp.rows[0].name}).`);
+                    const mine = existingEmp.rows.find((r: any) => r.tenant_id === tenantId);
+                    if (!mine) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
+                    throw AppError.conflict(`An employee with email '${data.email}' already exists (${mine.id} - ${mine.name}).`);
                 }
 
                 const existingUser = await client.query(
-                    'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1)',
+                    'SELECT id, name, email, tenant_id FROM users WHERE LOWER(email) = LOWER($1)',
                     [data.email.trim()]
                 );
                 if (existingUser.rows.length > 0) {
+                    if (!existingUser.rows.some((r: any) => r.tenant_id === tenantId)) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
                     throw AppError.conflict(`A login account with email '${data.email}' already exists.`);
                 }
             }
@@ -61,18 +74,20 @@ export class EmployeesService {
             if (data.personalEmail && data.personalEmail.trim()) {
                 const cleanPersonal = data.personalEmail.trim().toLowerCase();
                 const existingPersonal = await client.query(
-                    'SELECT id, name, email FROM employees WHERE LOWER(email) = $1 OR LOWER(COALESCE(personal_email, \'\')) = $1 LIMIT 1',
+                    'SELECT id, name, email, tenant_id FROM employees WHERE LOWER(email) = $1 OR LOWER(COALESCE(personal_email, \'\')) = $1 LIMIT 1',
                     [cleanPersonal]
                 );
                 if (existingPersonal.rows.length > 0) {
+                    if (existingPersonal.rows[0].tenant_id !== tenantId) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
                     throw AppError.conflict(`Personal email '${data.personalEmail}' is already registered to employee ${existingPersonal.rows[0].id} (${existingPersonal.rows[0].name}).`);
                 }
 
                 const existingPersonalUser = await client.query(
-                    'SELECT id, name, email FROM users WHERE LOWER(email) = $1 LIMIT 1',
+                    'SELECT id, name, email, tenant_id FROM users WHERE LOWER(email) = $1 LIMIT 1',
                     [cleanPersonal]
                 );
                 if (existingPersonalUser.rows.length > 0) {
+                    if (existingPersonalUser.rows[0].tenant_id !== tenantId) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
                     throw AppError.conflict(`Personal email '${data.personalEmail}' is already registered to user account (${existingPersonalUser.rows[0].name}).`);
                 }
             }
@@ -114,8 +129,9 @@ export class EmployeesService {
                 const hashedPassword = await PasswordService.hash(tempPassword);
                 
                 // Submodel: Role & User account creation
-                const roleInfo = await this.repo.ensureRoleExists(client, data.role || 'employee', tenantId);
-                await this.repo.createUserAccount(client, data.name, data.email, hashedPassword, roleInfo.name, tenantId, true, roleInfo.id);
+                const created = await this.repo.createUserAccount(client, data.name, data.email, hashedPassword, grantedRole!.name, tenantId, true, grantedRole!.id);
+                // Lost a race with another creator of the same address: nothing was written; never overwrite the account.
+                if (!created) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
 
                 const loginUrl = `${process.env.APP_URL || 'http://localhost:5173'}/login`;
                 
@@ -163,7 +179,8 @@ export class EmployeesService {
         });
     }
 
-    async updateEmployee(id: string, tenantId: string, updates: any) {
+    async updateEmployee(id: string, actor: AuthzActor, updates: any) {
+        const tenantId = actor.tenantId;
         return withTransaction(async (client) => {
             const current = await this.repo.findById(id, tenantId);
             if (!current) throw AppError.notFound('Employee');
@@ -171,11 +188,31 @@ export class EmployeesService {
             // 1. Email check if changing email
             if (updates.email && updates.email.trim().toLowerCase() !== current.email?.toLowerCase()) {
                 const existing = await client.query(
-                    'SELECT id FROM employees WHERE LOWER(email) = LOWER($1) AND id != $2',
+                    'SELECT id, tenant_id FROM employees WHERE LOWER(email) = LOWER($1) AND id != $2',
                     [updates.email.trim(), id]
                 );
                 if (existing.rows.length > 0) {
+                    if (existing.rows[0].tenant_id !== tenantId) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
                     throw AppError.conflict(`Email '${updates.email}' is already in use by employee ${existing.rows[0].id}.`);
+                }
+                // login e-mails are unique across every tenant
+                const takenLogin = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [updates.email.trim()]);
+                if (takenLogin.rows.length > 0) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
+            }
+
+            // Changing who can sign in (login e-mail) or what they hold (role) is authorization state:
+            // it is restricted to this tenant's own rows and goes through the shared policy.
+            const user0 = extractEmployeeUserUpdates(updates);
+            const emailChanging = !!user0.email && user0.email.toLowerCase() !== (current.email || '').toLowerCase();
+            const roleChanging = !!user0.role && user0.role.trim().toLowerCase() !== (current.role || '').trim().toLowerCase();
+            let grantedRole: Awaited<ReturnType<typeof assertMayAssignRole>> | null = null;
+            if (emailChanging || roleChanging) {
+                if (current.tenant_id !== tenantId) throw AppError.notFound('Employee');
+                const account = current.email ? await findTenantUserByEmail(actor, current.email) : null;
+                if (emailChanging && account && account.id !== actor.userId) await assertMayManageUser(actor, account.id);
+                if (roleChanging) {
+                    if (!account) throw AppError.badRequest('This employee has no login account to assign a role to.');
+                    grantedRole = await assertMayAssignRole(actor, account.id, { roleName: user0.role });
                 }
             }
 
@@ -197,9 +234,8 @@ export class EmployeesService {
                 await this.repo.updateUserEmail(client, userSubmodel.email, current.email, tenantId);
             }
 
-            if (userSubmodel.role && targetEmail) {
-                const roleInfo = await this.repo.ensureRoleExists(client, userSubmodel.role, tenantId);
-                await this.repo.updateUserRole(client, targetEmail, roleInfo.name, roleInfo.id, tenantId);
+            if (grantedRole && targetEmail) {
+                await this.repo.updateUserRole(client, targetEmail, grantedRole.name, grantedRole.id, tenantId);
             }
 
             // 4. Submodel: Payroll & Compensation (payroll_profiles table)
@@ -308,7 +344,8 @@ export class EmployeesService {
         });
     }
 
-    async bulkUpload(tenantId: string, employees: any[]) {
+    async bulkUpload(actor: AuthzActor, employees: any[]) {
+        const tenantId = actor.tenantId;
         // ── Hard cap ─────────────────────────────────────────────────────────
         if (employees.length > BULK_UPLOAD_MAX_ROWS) {
             throw AppError.badRequest(
@@ -369,6 +406,14 @@ export class EmployeesService {
                     validationErrors.push({ row: rowNum, name, reason: `Email already exists: ${email}` });
                     continue;
                 }
+
+                // A row may not smuggle in a role the actor cannot grant: the whole batch is refused.
+                try {
+                    await resolveRoleForNewAccount(actor, { roleName: emp?.role }, BASELINE_ROLE_NAME);
+                } catch (err: any) {
+                    validationErrors.push({ row: rowNum, name, reason: err.message });
+                    continue;
+                }
             }
         }
 
@@ -401,7 +446,7 @@ export class EmployeesService {
                 emp.joinDate = normalizeDate(emp.joinDate);
                 emp.dateOfBirth = normalizeDate(emp.dateOfBirth);
 
-                await this.createEmployee(tenantId, emp);
+                await this.createEmployee(actor, emp);
                 results.push({ row: rowNum, name: emp.name, status: 'inserted' });
                 inserted++;
             } catch (err: any) {

@@ -130,8 +130,10 @@ export class AuthService {
         await this.repo.updatePreferences(userId, preferences);
     }
 
-    async updateStatus(userId: number, status: string) {
-        await this.repo.updateStatus(userId, status);
+    async updateStatus(userId: number, tenantId: string, status: string): Promise<string> {
+        const saved = await this.repo.updateStatus(userId, tenantId, status);
+        if (!saved) throw AppError.notFound('User');
+        return saved;
     }
 
     async changePassword(userId: number, currentPassword?: string, newPassword?: string) {

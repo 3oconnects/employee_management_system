@@ -102,8 +102,13 @@ export class AuthRepository {
         await pool.query('UPDATE users SET preferences = $1 WHERE id = $2', [JSON.stringify(preferences), id]);
     }
 
-    async updateStatus(id: number, status: string) {
-        await pool.query('UPDATE users SET availability_status = $1 WHERE id = $2', [status, id]);
+    /** Changes ONE account's availability (the caller's own, in the caller's tenant). Returns the stored value, or null if no such account. */
+    async updateStatus(id: number, tenantId: string, status: string): Promise<string | null> {
+        const res = await pool.query(
+            'UPDATE users SET availability_status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING availability_status',
+            [status, id, tenantId]
+        );
+        return res.rows[0]?.availability_status ?? null;
     }
 
     async updatePassword(id: number, hashed: string) {

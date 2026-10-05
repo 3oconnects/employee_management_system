@@ -21,8 +21,11 @@ export const updatePreferencesSchema = z.object({
     preferences: z.any()
 });
 
+// The only values the product knows. Anything else is rejected instead of being stored.
+export const AVAILABILITY_STATUSES = ['available', 'busy', 'away', 'lunch', 'break', 'dnd', 'offline'] as const;
+
 export const updateStatusSchema = z.object({
-    status: z.string().min(1, 'Status is required')
+    status: z.enum(AVAILABILITY_STATUSES, { message: 'Unknown status.' })
 });
 
 export const changePasswordSchema = z.object({

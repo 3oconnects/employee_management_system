@@ -653,8 +653,10 @@ export class AnalyticsService {
                     e.institution, e.graduation_year, e.bank_account_number, e.annual_ctc, 
                     e.employment_type, e.created_at, e.updated_at,
                     d.name AS department_name, d.code AS department_code,
-                    mgr.name AS manager_name, mgr.email AS manager_email
+                    mgr.name AS manager_name, mgr.email AS manager_email,
+                    own_u.availability_status
                 FROM employees e
+                LEFT JOIN users own_u ON own_u.email = e.email AND own_u.tenant_id = e.tenant_id
                 LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id
                 LEFT JOIN users mgr_u ON mgr_u.id = e.reporting_manager_id AND mgr_u.tenant_id = e.tenant_id
                 LEFT JOIN employees mgr ON mgr.email = mgr_u.email AND mgr.tenant_id = e.tenant_id

@@ -9,6 +9,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 const updateUser = useAuthStore.getState().updateUser;
+import { AVAILABILITY, availabilityOf, AvailabilityKey } from '../../../utils/availability';
 import { AdminDashboard }    from '../components/AdminDashboard';
 import { ManagerDashboard }  from '../components/ManagerDashboard';
 import { EmployeeDashboard } from '../components/EmployeeDashboard';
@@ -31,15 +32,8 @@ import TeamStatusWidget      from '../components/widgets/TeamStatusWidget';
 const COLORS: Record<string,string> = {A:'#6366f1',B:'#8b5cf6',C:'#ec4899',D:'#f59e0b',E:'#10b981',F:'#3b82f6',G:'#ef4444',H:'#14b8a6',I:'#f97316',J:'#84cc16',K:'#06b6d4',L:'#a855f7',M:'#e11d48',N:'#0ea5e9',O:'#22c55e',P:'#d946ef',Q:'#fb923c',R:'#64748b',S:'#6366f1',T:'#8b5cf6',U:'#ec4899',V:'#10b981',W:'#3b82f6',X:'#f59e0b',Y:'#14b8a6',Z:'#ef4444'};
 const clr = (name?:string) => COLORS[(name?.[0]??'U').toUpperCase()]??'#6366f1';
 const ROLE_LABEL:Record<string,string> = {admin:'Administrator',super_admin:'Super Admin',hr:'HR Manager',manager:'Team Manager',employee:'Employee'};
-const STATUSES = [
-    {key:'available', label:'Available',      color:'#10b981', dot:'bg-emerald-500', pulse:true },
-    {key:'busy',      label:'Busy',           color:'#ef4444', dot:'bg-red-500',     pulse:false},
-    {key:'lunch',     label:'At Lunch',       color:'#f59e0b', dot:'bg-amber-400',   pulse:false},
-    {key:'break',     label:'On Break',       color:'#f97316', dot:'bg-orange-400',  pulse:false},
-    {key:'dnd',       label:'Do Not Disturb', color:'#8b5cf6', dot:'bg-violet-500',  pulse:false},
-    {key:'offline',   label:'Offline',        color:'#64748b', dot:'bg-slate-400',   pulse:false},
-] as const;
-type SK = typeof STATUSES[number]['key'];
+const STATUSES = AVAILABILITY.filter(s => s.selectable);
+type SK = AvailabilityKey;
 
 function fmt(ms:number){const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;return`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;}
 function greeting(){const h=new Date().getHours();if(h<12)return{text:'Good Morning',Icon:Sun,cls:'text-amber-500'};if(h<17)return{text:'Good Afternoon',Icon:Sunset,cls:'text-orange-500'};return{text:'Good Evening',Icon:Moon,cls:'text-indigo-400'};}
@@ -64,7 +58,9 @@ const Dashboard:React.FC = () => {
     const [elapsed,   setElapsed]   = useState(0);
     const [busy,      setBusy]      = useState(false);
     const [err,       setErr]       = useState<string|null>(null);
-    const [status,    setStatus_]   = useState<SK>(()=>(user?.availability_status as SK)?? (localStorage.getItem('usr_status') as SK)?? 'available');
+    // The status belongs to the signed-in ACCOUNT and lives on the server. Nothing is kept in the browser, so it can never
+    // carry over from one account to another on the same machine.
+    const [status,    setStatus_]   = useState<SK>(()=>availabilityOf(user?.availability_status).key);
     const [statusOpen,setSO]        = useState(false);
     const [orgSection,setOrgSection] = useState<OrgSection>('overview');
     const sRef = useRef<HTMLDivElement>(null);
@@ -72,7 +68,7 @@ const Dashboard:React.FC = () => {
     const c   = clr(user?.name);
     const ini = user?.name?.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2)?? 'U';
     const g   = greeting();
-    const cur = STATUSES.find(s=>s.key===status)??STATUSES[0];
+    const cur = availabilityOf(status);
     const today = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
     useEffect(()=>{
@@ -80,14 +76,29 @@ const Dashboard:React.FC = () => {
         document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);
     },[]);
 
+    // Show what the server holds for THIS account, whoever used this browser before.
+    useEffect(()=>{
+        if(!user?.id)return;
+        let alive=true;
+        setStatus_(availabilityOf(user.availability_status).key);
+        api.get('/auth/me').then(r=>{
+            const s=availabilityOf(r.data?.user?.availability_status).key;
+            if(alive){setStatus_(s);updateUser({availability_status:s});}
+        }).catch(()=>{});
+        return()=>{alive=false;};
+    },[user?.id]);
+
     const setStatus=async (k:SK)=>{
+        const previous=status;
         setStatus_(k);
-        localStorage.setItem('usr_status',k);
         setSO(false);
         try {
-            await api.put('/auth/status', { status: k });
-            updateUser({ availability_status: k });
+            const {data}=await api.put('/auth/status', { status: k });
+            const saved=availabilityOf(data?.status??k).key;
+            setStatus_(saved);
+            updateUser({ availability_status: saved });
         } catch (e) {
+            setStatus_(previous);   // the server refused or was unreachable: show what is really stored
             console.error('Failed to sync status', e);
         }
     };

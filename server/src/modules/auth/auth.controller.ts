@@ -104,15 +104,16 @@ export const updatePreferences = async (req: AuthenticatedRequest, res: Response
 };
 
 export const updateStatus = async (req: AuthenticatedRequest, res: Response) => {
-    await service.updateStatus(req.user!.userId, req.body.status);
-    
+    // Identity comes only from the token; the body carries nothing but the new value.
+    const saved = await service.updateStatus(req.user!.userId, req.user!.tenantId, req.body.status);
+
     EventPublisher.publish(DomainEventType.REALTIME_BROADCAST_REQUESTED, req.user!.tenantId, {
         userId: req.user!.userId,
         email: req.user!.email,
-        status: req.body.status
+        status: saved
     });
 
-    res.json({ success: true, message: 'Status updated.' });
+    res.json({ success: true, message: 'Status updated.', status: saved });
 };
 
 export const changePassword = async (req: AuthenticatedRequest, res: Response) => {

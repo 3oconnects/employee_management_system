@@ -5,6 +5,7 @@ import {
     MessageSquare, RefreshCw, Zap, X, BellRing, ExternalLink, Check
 } from 'lucide-react';
 import { toast } from '../../../components/ui';
+import { availabilityOf } from '../../../utils/availability';
 
 interface Props {
     emp: any;
@@ -353,7 +354,7 @@ const ProfileHeader: React.FC<Props> = ({
                             )}
                         </div>
 
-                        {/* Concentric online status badge */}
+                        {/* Availability badge: this person's own stored status (was a fixed green "Online" for everyone) */}
                         <div
                             style={{
                                 position: 'absolute',
@@ -362,16 +363,16 @@ const ProfileHeader: React.FC<Props> = ({
                                 width: 20,
                                 height: 20,
                                 borderRadius: '50%',
-                                background: '#10b981',
+                                background: availabilityOf(emp?.availability_status).color,
                                 border: '2.5px solid #ffffff',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                boxShadow: '0 2px 8px rgba(16,185,129,0.5)',
-                                animation: 'emsPulseBadge 3s ease-in-out infinite',
+                                boxShadow: `0 2px 8px ${availabilityOf(emp?.availability_status).color}80`,
+                                animation: availabilityOf(emp?.availability_status).pulse ? 'emsPulseBadge 3s ease-in-out infinite' : undefined,
                                 zIndex: 4,
                             }}
-                            title="Online"
+                            title={availabilityOf(emp?.availability_status).label}
                         >
                             <div
                                 style={{

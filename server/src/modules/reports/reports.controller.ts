@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../../types';
 import { AppError } from '../../core/errors/AppError';
 import { pool } from '../../config/db';
 import { assertMayViewUser, assertMayViewEmployeeProfile } from './reports.access';
+import { applyProfileAccess, profileAccess } from '../employees/profile.visibility';
 
 export const getAdminDashboard = async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
@@ -38,10 +39,11 @@ export const getTeamEmployees = async (req: AuthenticatedRequest, res: Response)
 export const getEmployeeProfile = async (req: AuthenticatedRequest, res: Response) => {
     const { employeeId } = req.params;
     if (!employeeId) throw AppError.badRequest('employeeId required');
-    await assertMayViewEmployeeProfile(req.user!, employeeId);
+    const { isOwn } = await assertMayViewEmployeeProfile(req.user!, employeeId);
     const profile = await AnalyticsService.getEmployeeProfile(employeeId, req.user!.tenantId);
     if (!profile.employee) throw AppError.notFound('Employee not found');
-    res.json(profile);
+    // someone else's profile carries only what the viewer is entitled to (work card by default)
+    res.json(applyProfileAccess(profile, profileAccess(req.user!, isOwn)));
 };
 
 export const getAnalytics = async (req: AuthenticatedRequest, res: Response) => {

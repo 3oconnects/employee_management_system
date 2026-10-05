@@ -12,6 +12,8 @@ interface Props {
     user: any;
     onEdit?: () => void;
     isOwn?: boolean;
+    /** the viewer is looking at their own page (only changes the wording of the edit button) */
+    isSelf?: boolean;
     onAvatarUpload?: (file: File) => void;
     onAvatarRemove?: () => void;
     uploadingAvatar?: boolean;
@@ -83,6 +85,7 @@ const ProfileHeader: React.FC<Props> = ({
     user,
     onEdit,
     isOwn,
+    isSelf,
     onAvatarUpload,
     onAvatarRemove,
     uploadingAvatar
@@ -721,7 +724,7 @@ const ProfileHeader: React.FC<Props> = ({
                                 className="hover:scale-105 active:scale-95 hover:shadow-xl"
                             >
                                 <Edit3 size={12} strokeWidth={2.4} color="#4f46e5" />
-                                <span>{isOwn ? 'Edit Profile' : 'Edit Employee'}</span>
+                                <span>{(isSelf ?? isOwn) ? 'Edit Profile' : 'Edit Employee'}</span>
                             </button>
                         )}
                     </div>

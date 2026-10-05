@@ -74,7 +74,7 @@ app.use(globalErrorHandler);
 type Who = { id: number; email: string; tenant: string; role: string; perms: string[] };
 const annHr: Who = { id: 1, email: 'ann@a.test', tenant: 'tA', role: 'hr', perms: ['employees:manage'] };
 const bobHr: Who = { id: 2, email: 'bob@b.test', tenant: 'tB', role: 'hr', perms: ['employees:manage'] };
-const bobAdmin: Who = { id: 3, email: 'root@b.test', tenant: 'tB', role: 'admin', perms: [] };
+const bobAdmin: Who = { id: 3, email: 'root@b.test', tenant: 'tB', role: 'admin', perms: ['employees:update'] };   // personal records need a grant, not a role name
 
 const bearer = (w: Who) =>
     'Bearer ' + JwtService.generateAccessToken({ userId: w.id, email: w.email, tenantId: w.tenant, role: w.role as any, permissions: w.perms } as any);

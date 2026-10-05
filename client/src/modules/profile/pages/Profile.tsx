@@ -9,7 +9,7 @@ import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import { InfoRow, Section, StatBox, EmptyState } from '../components/ProfileWidgets';
 import ProfileHeader  from '../components/ProfileHeader';
-import ProfileTabs, { type TabKey } from '../components/ProfileTabs';
+import ProfileTabs, { type TabKey, hiddenProfileTabs, type ProfileAccess } from '../components/ProfileTabs';
 import OverviewTab   from '../components/OverviewTab';
 import EducationTab  from '../components/EducationTab';
 import ExperienceTab from '../components/ExperienceTab';
@@ -337,6 +337,11 @@ const Profile: React.FC = () => {
     }
 
     const emp      = profile?.employee;
+    // What the server let this viewer have (it removed the rest). Without it, only the owner's own page is assumed open.
+    const access: ProfileAccess =
+        profile?.access ?? { own: isOwnProfile, personal: isOwnProfile, pay: isOwnProfile, edit: isOwnProfile };
+    const hiddenTabs = hiddenProfileTabs(access);
+    const view: TabKey = hiddenTabs.includes(tab) ? 'overview' : tab;   // never render a tab the viewer may not open
     const comp     = profile?.compensation;
     const joinDate = emp?.join_date ? new Date(emp.join_date) : null;
     const tenureY  = joinDate ? Math.floor((Date.now() - joinDate.getTime()) / (365.25 * 864e5)) : 0;
@@ -348,23 +353,25 @@ const Profile: React.FC = () => {
             <ProfileHeader 
                 emp={emp} 
                 user={user} 
-                onEdit={() => setEditing(true)} 
-                isOwn={isOwnProfile} 
+                onEdit={access.edit ? () => setEditing(true) : undefined} 
+                isOwn={access.edit} isSelf={access.own} 
                 onAvatarUpload={handleAvatarUpload}
                 onAvatarRemove={handleAvatarRemove}
                 uploadingAvatar={uploadingAvatar}
             />
 
             {/* ── Tabs Navigation ── */}
-            <ProfileTabs active={tab} onChange={setTab} />
+            <ProfileTabs active={view} onChange={setTab} hidden={hiddenTabs} />
 
             {/* ── OVERVIEW TAB ── */}
-            {tab === 'overview' && (
+            {view === 'overview' && (
                 <OverviewTab
                     emp={emp}
                     user={user}
                     profile={profile}
-                    isOwnProfile={isOwnProfile}
+                    isOwnProfile={access.edit}
+                    isSelf={access.own}
+                    canSeePersonal={access.personal}
                     editing={editing}
                     saveLoading={saveLoading}
                     editForm={editForm}
@@ -380,17 +387,17 @@ const Profile: React.FC = () => {
             )}
 
             {/* ── EDUCATION TAB ── */}
-            {tab === 'education' && (
-                <EducationTab empId={empId} isOwn={isOwnProfile} list={eduList} setList={setEduList} />
+            {view === 'education' && (
+                <EducationTab empId={empId} isOwn={access.edit} list={eduList} setList={setEduList} />
             )}
 
             {/* ── EXPERIENCE TAB ── */}
-            {tab === 'experience' && (
-                <ExperienceTab empId={empId} isOwn={isOwnProfile} list={expList} setList={setExpList} />
+            {view === 'experience' && (
+                <ExperienceTab empId={empId} isOwn={access.edit} list={expList} setList={setExpList} />
             )}
 
             {/* ── JOB DETAILS TAB ── */}
-            {tab === 'job' && (
+            {view === 'job' && (
                 <Section title="Employment Contract & Lifecycle" icon={Briefcase}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
                         <InfoRow icon={Hash}        label="Employee ID"       value={emp?.id} />
@@ -408,7 +415,7 @@ const Profile: React.FC = () => {
             )}
 
             {/* ── COMPENSATION TAB ── */}
-            {tab === 'compensation' && (
+            {view === 'compensation' && (
                 <Section title="Compensation & Payroll Structure" icon={CreditCard}>
                     {comp ? (
                         <>
@@ -443,10 +450,10 @@ const Profile: React.FC = () => {
             )}
 
             {/* ── ATTENDANCE TAB ── */}
-            {tab === 'attendance' && <AttendanceTab profileUserId={user?.id} />}
+            {view === 'attendance' && <AttendanceTab profileUserId={user?.id} />}
 
             {/* ── LEAVE TAB ── */}
-            {tab === 'leave' && (
+            {view === 'leave' && (
                 <Section title="Leave Balances & History" icon={Calendar}>
                     {profile?.leaveBalances?.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -475,7 +482,7 @@ const Profile: React.FC = () => {
             )}
 
             {/* ── DOCUMENTS TAB ── */}
-            {tab === 'documents' && (
+            {view === 'documents' && (
                 <Section
                     title="Employee Documents"
                     icon={FileText}

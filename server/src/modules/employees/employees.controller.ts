@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { EmployeesService } from './employees.service';
 import { ApiResponse } from '../../core/response/ApiResponse';
+import { AppError } from '../../core/errors/AppError';
+import { applyProfileAccess, profileAccess } from './profile.visibility';
 
 const service = new EmployeesService();
 
@@ -34,7 +36,7 @@ export const createEmployee = async (req: Request, res: Response) => {
 export const getMyProfile = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const profile = await service.getEmployeeProfileByUserIdOrEmail(user?.userId, user?.email, user?.tenantId);
-    res.json(profile);
+    res.json(applyProfileAccess(profile as any, profileAccess(user, true)));
 };
 
 export const updateEmployee = async (req: Request, res: Response) => {
@@ -60,7 +62,16 @@ export const updateEmployee = async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Employee updated successfully.' });
 };
 
+/** Education, experience and emergency contacts are personal records: the owner, or someone allowed to update employees. */
+const assertMayReadPersonalRecords = async (req: Request): Promise<void> => {
+    const user = (req as any).user;
+    if (profileAccess(user, false).personal) return;
+    if (await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId)) return;
+    throw AppError.forbidden('Access denied: these records are private to the employee and HR.');
+};
+
 export const getEducation = async (req: Request, res: Response) => {
+    await assertMayReadPersonalRecords(req);
     const data = await service.getEducation(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
@@ -78,6 +89,7 @@ export const saveEducation = async (req: Request, res: Response) => {
 };
 
 export const getExperience = async (req: Request, res: Response) => {
+    await assertMayReadPersonalRecords(req);
     const data = await service.getExperience(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
@@ -95,6 +107,7 @@ export const saveExperience = async (req: Request, res: Response) => {
 };
 
 export const getEmergencyContacts = async (req: Request, res: Response) => {
+    await assertMayReadPersonalRecords(req);
     const data = await service.getEmergencyContacts(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };

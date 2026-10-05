@@ -76,17 +76,11 @@ const Dashboard:React.FC = () => {
         document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);
     },[]);
 
-    // Show what the server holds for THIS account, whoever used this browser before.
+    // Show what the server holds for THIS account, whoever used this browser before. The session sync (MainLayout)
+    // keeps user.availability_status current, so this just follows it.
     useEffect(()=>{
-        if(!user?.id)return;
-        let alive=true;
-        setStatus_(availabilityOf(user.availability_status).key);
-        api.get('/auth/me').then(r=>{
-            const s=availabilityOf(r.data?.user?.availability_status).key;
-            if(alive){setStatus_(s);updateUser({availability_status:s});}
-        }).catch(()=>{});
-        return()=>{alive=false;};
-    },[user?.id]);
+        setStatus_(availabilityOf(user?.availability_status).key);
+    },[user?.id, user?.availability_status]);
 
     const setStatus=async (k:SK)=>{
         const previous=status;
@@ -123,7 +117,8 @@ const Dashboard:React.FC = () => {
         finally{setLoading(false);}
     };
 
-    useEffect(()=>{loadData();},[user?.id]);
+    // The layout (admin / manager / employee) follows the person's current role, so a role change reloads it.
+    useEffect(()=>{loadData();},[user?.id, user?.dashboard_type, user?.role]);
 
     useEffect(()=>{
         if(att.status!=='IN'||!att.checkIn){setElapsed(0);return;}

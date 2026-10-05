@@ -13,7 +13,7 @@ export class RBACRepository {
             `SELECT r.id, r.name, r.description, r.is_system, r.dashboard_type,
                     COUNT(DISTINCT u.id) as user_count
              FROM roles r
-             LEFT JOIN users u ON u.role_id = r.id
+             LEFT JOIN users u ON u.role_id = r.id AND u.tenant_id = $1 AND u.deleted_at IS NULL
              WHERE r.tenant_id = $1 OR r.tenant_id = 'tenant_default' OR r.tenant_id IS NULL
              GROUP BY r.id ORDER BY r.is_system DESC, r.name`,
             [tenantId]
@@ -22,6 +22,37 @@ export class RBACRepository {
     }
 
     /** Degraded read used when the main query fails: the same roles the main query may return, never other tenants' (HF-6B). */
+    /**
+     * People of THIS tenant who hold a role (`inRole = true`), or who do not (`inRole = false`, for "add to this role").
+     * One row per login even if the employee table holds duplicates. Only identity fields are returned.
+     * `search` is already escaped for LIKE by the caller.
+     */
+    async findRoleMembers(tenantId: string, roleId: number, inRole: boolean, search: string | null, limit: number, offset: number) {
+        const filter = inRole ? 'u.role_id = $2' : 'u.role_id IS DISTINCT FROM $2';
+        const where = `u.tenant_id = $1 AND u.deleted_at IS NULL AND ${filter}
+                       AND ($3::text IS NULL OR u.name ILIKE $3 OR u.email ILIKE $3 OR emp.department ILIKE $3 OR emp.id ILIKE $3)`;
+        const from = `FROM users u
+                      LEFT JOIN roles cur ON cur.id = u.role_id
+                      LEFT JOIN LATERAL (
+                          SELECT e.id, e.department, e.position FROM employees e
+                           WHERE LOWER(e.email) = LOWER(u.email) AND e.tenant_id = u.tenant_id AND e.deleted_at IS NULL
+                           ORDER BY e.id LIMIT 1
+                      ) emp ON TRUE`;
+        const like = search ? `%${search}%` : null;
+        const [rows, total] = await Promise.all([
+            pool.query(
+                `SELECT u.id, u.name, u.email, COALESCE(u.is_active, true) AS is_active, u.last_login,
+                        u.role_id AS current_role_id, cur.name AS current_role_name,
+                        emp.id AS employee_id, emp.department, emp.position
+                 ${from} WHERE ${where}
+                 ORDER BY u.name ASC, u.id ASC LIMIT $4 OFFSET $5`,
+                [tenantId, roleId, like, limit, offset]
+            ),
+            pool.query(`SELECT COUNT(*)::int AS total ${from} WHERE ${where}`, [tenantId, roleId, like]),
+        ]);
+        return { items: rows.rows, total: total.rows[0].total as number };
+    }
+
     async getRolesFallback(tenantId: string) {
         const fallback = await pool.query(
             `SELECT id, name FROM roles WHERE tenant_id = $1 OR tenant_id = 'tenant_default' OR tenant_id IS NULL LIMIT 100`,

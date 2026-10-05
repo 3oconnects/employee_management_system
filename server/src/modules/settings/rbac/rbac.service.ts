@@ -1,6 +1,6 @@
 import { RBACRepository } from './rbac.repository';
 import { AppError } from '../../../core/errors/AppError';
-import { AuthzActor, assertMayCreateRole, assertMayDeleteRole, assertMayGrantPermissions, assertMayModifyRole } from '../../../core/security/authzState';
+import { AuthzActor, assertMayCreateRole, assertMayDeleteRole, assertMayGrantPermissions, assertMayModifyRole, resolveVisibleRole } from '../../../core/security/authzState';
 
 export class RBACService {
     private repo: RBACRepository;
@@ -17,6 +17,25 @@ export class RBACService {
             grouped[row.module].push({ id: row.id, action: row.action, description: row.description });
         }
         return { grouped, flat: rows };
+    }
+
+    /**
+     * Who holds a role (or, with `candidates`, who could be added to it). Always the caller's own tenant, whatever the role:
+     * a shared template role lists only this tenant's people. A role the tenant cannot see is "not found".
+     */
+    async listRoleMembers(actor: AuthzActor, roleIdParam: string, query: { search?: unknown; limit?: unknown; offset?: unknown }, candidates = false) {
+        const roleId = Number(roleIdParam);
+        if (!Number.isInteger(roleId) || roleId <= 0) throw AppError.badRequest('Invalid role.');
+        await resolveVisibleRole(actor, { roleId });
+
+        const raw = typeof query.search === 'string' ? query.search.trim().slice(0, 100) : '';
+        // the term is data, never a pattern: escape LIKE wildcards
+        const search = raw ? raw.replace(/[\\%_]/g, (c) => '\\' + c) : null;
+        const limit = Math.min(Math.max(parseInt(String(query.limit ?? '25'), 10) || 25, 1), candidates ? 20 : 50);
+        const offset = Math.max(parseInt(String(query.offset ?? '0'), 10) || 0, 0);
+
+        const { items, total } = await this.repo.findRoleMembers(actor.tenantId, roleId, !candidates, search, limit, offset);
+        return { items, total, limit, offset };
     }
 
     async getRoles(tenantId: string) {

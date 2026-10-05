@@ -23,6 +23,7 @@ import { addToastListener, showToast } from '../../hooks';
 
 export * from './form';
 export * from './Alert';
+export { ConfirmDialog } from './ConfirmDialog';
 
 export const toast = {
     success: (msg: string) => showToast('success', msg),

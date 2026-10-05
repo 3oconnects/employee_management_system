@@ -44,15 +44,39 @@ export class AuthRepository {
         return row;
     }
 
+    /**
+     * The signed-in person as the DATABASE sees them right now: current role, dashboard type and permissions, resolved
+     * exactly as login does (COALESCE(role_id, 4)). The browser compares this with its copy so a role change shows up
+     * without signing out.
+     *
+     * Optional profile columns are read through to_jsonb(u), which yields NULL when a column does not exist, so an older
+     * database that lacks users.phone / address / emergency / avatar_url no longer makes this endpoint fail.
+     * One employee row at most, even if the employee table holds duplicates for this e-mail.
+     */
     async findUserProfile(id: number) {
         const result = await pool.query(
-            `SELECT u.id, u.name, u.email, u.role, u.phone, u.address, u.emergency,
-                    COALESCE(u.avatar_url, e.avatar_url) as avatar_url,
-                    u.tenant_id, u.created_at, u.preferences, u.availability_status, 
-                    e.id as employee_id, r.dashboard_type
+            `SELECT u.id, u.name, u.email, u.tenant_id, u.created_at,
+                    to_jsonb(u)->>'phone' AS phone,
+                    to_jsonb(u)->>'address' AS address,
+                    to_jsonb(u)->>'emergency' AS emergency,
+                    COALESCE(to_jsonb(u)->>'avatar_url', to_jsonb(e)->>'avatar_url') AS avatar_url,
+                    to_jsonb(u)->'preferences' AS preferences,
+                    COALESCE(to_jsonb(u)->>'availability_status', 'available') AS availability_status,
+                    e.id AS employee_id,
+                    COALESCE(r.name, to_jsonb(u)->>'role') AS role,
+                    r.id AS role_id,
+                    r.dashboard_type,
+                    ARRAY(SELECT p.module || ':' || p.action
+                            FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+                           WHERE rp.role_id = r.id
+                           ORDER BY 1) AS permissions
              FROM users u
-             LEFT JOIN employees e ON u.email = e.email AND u.tenant_id = e.tenant_id
-             LEFT JOIN roles r ON u.role_id = r.id
+             LEFT JOIN LATERAL (
+                 SELECT e2.* FROM employees e2
+                  WHERE e2.email = u.email AND e2.tenant_id = u.tenant_id
+                  ORDER BY e2.id LIMIT 1
+             ) e ON TRUE
+             LEFT JOIN roles r ON r.id = COALESCE(u.role_id, 4)
              WHERE u.id = $1 AND u.deleted_at IS NULL`,
             [id]
         );

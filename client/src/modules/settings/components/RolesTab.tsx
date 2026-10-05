@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Trash2, ChevronRight, Check, Loader2, Pencil } from 'lucide-react';
 import type { Role, PermissionsMap } from './PermissionMatrix';
 import PermissionMatrix from './PermissionMatrix';
+import RoleMembers from './RoleMembers';
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import api from '../../../services/api';
 
 interface Props {
@@ -22,6 +24,14 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
     const [editName, setEditName] = useState('');
     const [editDesc, setEditDesc] = useState('');
     const [dashboardType, setDashboardType] = useState('employee');
+    const [panel, setPanel] = useState<'permissions' | 'members'>('permissions');
+    const [pendingDelete, setPendingDelete] = useState<Role | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    // After people are added or moved the role list is reloaded; keep the open role's counts current (edits in progress are untouched).
+    useEffect(() => {
+        setSelectedRole(prev => (prev ? roles.find(r => r.id === prev.id) ?? prev : prev));
+    }, [roles]);
 
     // Expose setter for PermissionMatrix (simulating a callback for now)
     (window as any)._setDashboardType = setDashboardType;
@@ -96,16 +106,24 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
         finally { setSaving(false); }
     };
 
-    const deleteRole = async (role: Role) => {
+    // the checks happen first; the confirmation only opens for a role that can actually be deleted
+    const deleteRole = (role: Role) => {
         if (role.is_system) return onNotify('System roles cannot be deleted.', false);
         if (role.user_count > 0) return onNotify(`${role.user_count} user(s) still assigned to this role.`, false);
-        if (!confirm(`Delete role "${role.name}"?`)) return;
+        setPendingDelete(role);
+    };
+
+    const confirmDelete = async () => {
+        const role = pendingDelete;
+        if (!role) return;
+        setDeleting(true);
         try {
             await api.delete(`/settings/roles/${role.id}`);
             onNotify('Role deleted.');
             if (selectedRole?.id === role.id) setSelectedRole(null);
             onRefresh();
-        } catch { onNotify('Failed to delete role', false); }
+        } catch (e: any) { onNotify(e?.message || 'Failed to delete role', false); }
+        finally { setDeleting(false); setPendingDelete(null); }
     };
 
     return (
@@ -242,18 +260,48 @@ const RolesTab: React.FC<Props> = ({ roles, permissions, onRefresh, onNotify }) 
                 </div>
             </div>
 
-            {/* ── Right: Permission matrix ─────────────────────────── */}
-            <div className="col-span-12 lg:col-span-8">
-                <PermissionMatrix
-                    role={selectedRole ? { ...selectedRole, dashboard_type: dashboardType } : null}
-                    permissions={permissions}
-                    editingPerms={editingPerms}
-                    onToggle={togglePerm}
-                    onToggleModule={toggleModule}
-                    onSave={savePermissions}
-                    saving={saving}
-                />
+            {/* ── Right: permissions and people ───────────────────── */}
+            <div className="col-span-12 lg:col-span-8 space-y-3">
+                {selectedRole && (
+                    <div className="inline-flex p-1 bg-white border border-slate-100 rounded-xl shadow-sm" role="tablist">
+                        {([['permissions', 'Permissions'], ['members', `People (${selectedRole.user_count})`]] as const).map(([key, label]) => (
+                            <button
+                                key={key} role="tab" aria-selected={panel === key}
+                                onClick={() => setPanel(key)}
+                                className={`px-4 py-1.5 rounded-lg text-[12px] font-bold transition-all ${panel === key ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {selectedRole && panel === 'members' ? (
+                    <RoleMembers role={selectedRole} roles={roles} onChanged={onRefresh} onNotify={onNotify} />
+                ) : (
+                    <PermissionMatrix
+                        role={selectedRole ? { ...selectedRole, dashboard_type: dashboardType } : null}
+                        permissions={permissions}
+                        editingPerms={editingPerms}
+                        onToggle={togglePerm}
+                        onToggleModule={toggleModule}
+                        onSave={savePermissions}
+                        saving={saving}
+                    />
+                )}
             </div>
+
+            <ConfirmDialog
+                open={!!pendingDelete}
+                tone="danger"
+                title={pendingDelete ? `Delete the role "${pendingDelete.name}"?` : ''}
+                confirmLabel="Delete role"
+                busy={deleting}
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            >
+                <p>This removes the role and the permissions set on it. Nobody holds it right now, so no one loses access.</p>
+                <p className="text-[12px]">This cannot be undone.</p>
+            </ConfirmDialog>
         </div>
     );
 };

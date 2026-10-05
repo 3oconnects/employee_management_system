@@ -81,7 +81,7 @@ export const logout = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
-    const profile = await service.getProfile(req.user!.userId, req.user!.permissions);
+    const profile = await service.getProfile(req.user!.userId);
     res.json({ success: true, user: profile });
 };
 

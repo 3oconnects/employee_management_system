@@ -114,10 +114,11 @@ export class AuthService {
         await this.repo.updateRefreshToken(userId, null);
     }
 
-    async getProfile(userId: number, permissions: string[]) {
+    /** Fresh from the database (role, dashboard type, permissions), never echoed from the login token. */
+    async getProfile(userId: number) {
         const profile = await this.repo.findUserProfile(userId);
         if (!profile) throw AppError.notFound('User');
-        return { ...profile, dashboard_type: profile.dashboard_type || 'employee', permissions };
+        return { ...profile, dashboard_type: profile.dashboard_type || 'employee', permissions: profile.permissions || [] };
     }
 
     async updateProfile(userId: number, data: any) {

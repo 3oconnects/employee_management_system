@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Network, Loader2, Users, ChevronDown, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import api from '../../../../services/api';
+import { buildOrgTree, OrgNode } from './orgTree';
+import { TreeForest } from './OrgTreeLayout';
 
 /* ── Types ──────────────────────────────────────────── */
 interface DeptData {
@@ -8,7 +10,8 @@ interface DeptData {
     count: number;
     percentage: number;
     head?: { id: string; name: string; position?: string };
-    members: { id: string; name: string; position?: string; manager_id?: string }[];
+    members: any[];
+    forest: OrgNode[];
 }
 
 const DEPT_COLORS = [
@@ -29,10 +32,9 @@ const DeptCard: React.FC<{ dept: DeptData; colorIdx: number }> = ({ dept, colorI
     const [open, setOpen] = useState(false);
     const c = DEPT_COLORS[colorIdx % DEPT_COLORS.length];
 
-    // Build mini-tree inside department: head → managers → members
-    const headId = dept.head?.id;
-    const managers = dept.members.filter(m => m.id !== headId && dept.members.some(sub => sub.manager_id === m.id));
-    const others = dept.members.filter(m => m.id !== headId && !managers.find(mg => mg.id === m.id));
+    const renderMember = (n: OrgNode, { depth, hasChildren }: { depth: number; hasChildren: boolean }) => (
+        <MemberCard name={n.name} position={n.position} color={c} isManager={hasChildren || depth === 0}/>
+    );
 
     return (
         <div className="flex flex-col items-center">
@@ -76,76 +78,14 @@ const DeptCard: React.FC<{ dept: DeptData; colorIdx: number }> = ({ dept, colorI
                 </div>
             </button>
 
-            {/* Connector line */}
-            {open && dept.members.length > 0 && (
-                <div className="w-px h-5" style={{ backgroundColor: c.accent, opacity: 0.2 }}/>
-            )}
-
-            {/* Expanded: show internal hierarchy */}
-            {open && (
-                <div className="relative">
-                    {/* Horizontal bar */}
-                    {(managers.length + (others.length > 0 ? 1 : 0)) > 1 && (
-                        <div className="h-px mx-auto mb-0" style={{
-                            backgroundColor: c.accent, opacity: 0.15,
-                            width: '80%', marginLeft: '10%'
-                        }}/>
-                    )}
-
-                    <div className="flex gap-3 flex-wrap justify-center">
-                        {/* Managers with their reports */}
-                        {managers.map(mgr => {
-                            const reports = dept.members.filter(m => m.manager_id === mgr.id && m.id !== mgr.id);
-                            return (
-                                <div key={mgr.id} className="flex flex-col items-center">
-                                    <div className="w-px h-4" style={{ backgroundColor: c.accent, opacity: 0.15 }}/>
-                                    <MemberCard name={mgr.name} position={mgr.position} color={c} isManager/>
-                                    {reports.length > 0 && (
-                                        <>
-                                            <div className="w-px h-3" style={{ backgroundColor: c.accent, opacity: 0.1 }}/>
-                                            <div className="flex gap-2 flex-wrap justify-center">
-                                                {reports.slice(0, 6).map(r => (
-                                                    <div key={r.id} className="flex flex-col items-center">
-                                                        <div className="w-px h-3" style={{ backgroundColor: c.accent, opacity: 0.1 }}/>
-                                                        <MemberCard name={r.name} position={r.position} color={c}/>
-                                                    </div>
-                                                ))}
-                                                {reports.length > 6 && (
-                                                    <div className="flex items-end pb-1">
-                                                        <span className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                                                            +{reports.length - 6} more
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        {/* Unmanaged members */}
-                        {others.length > 0 && (
-                            <div className="flex flex-col items-center">
-                                <div className="w-px h-4" style={{ backgroundColor: c.accent, opacity: 0.15 }}/>
-                                <div className="flex gap-2 flex-wrap justify-center max-w-[400px]">
-                                    {others.slice(0, 8).map(m => (
-                                        <div key={m.id} className="flex flex-col items-center">
-                                            <MemberCard name={m.name} position={m.position} color={c}/>
-                                        </div>
-                                    ))}
-                                    {others.length > 8 && (
-                                        <div className="flex items-center">
-                                            <span className="text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                                                +{others.length - 8} more
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+            {/* Expanded: the department's own reporting tree, left to right */}
+            {open && dept.forest.length > 0 && (
+                <>
+                    <div className="w-px h-5" style={{ backgroundColor: c.accent, opacity: 0.25 }}/>
+                    <div className="max-w-[90vw] overflow-x-auto pb-2">
+                        <TreeForest roots={dept.forest} render={renderMember} openDepth={9}/>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );
@@ -183,18 +123,17 @@ const DeptTreeWidget: React.FC = () => {
                 const employees: any[] = eRes.data?.items || eRes.data || [];
 
                 const enriched: DeptData[] = departments.map((d: any) => {
-                    const members = employees
-                        .filter((e: any) => (e.department_name || e.department) === d.name)
-                        .map((e: any) => ({ id: e.id, name: e.name, position: e.position, manager_id: e.manager_id }));
-
-                    // Find department head — person who manages others but has no manager in this dept
-                    const memberIds = new Set(members.map(m => m.id));
-                    const head = members.find(m =>
-                        members.some(sub => sub.manager_id === m.id) &&
-                        (!m.manager_id || !memberIds.has(m.manager_id))
-                    );
-
-                    return { ...d, members, head: head ? { id: head.id, name: head.name, position: head.position } : undefined };
+                    const people = employees.filter((e: any) => (e.department_name || e.department) === d.name);
+                    // reporting lines inside the department: someone whose manager sits in another department tops their own branch
+                    const forest = buildOrgTree(people, { standInManagers: false });
+                    // the head: the person at the top who has people reporting to them
+                    const top = forest.find(n => n.children.length > 0) ?? (forest.length === 1 ? forest[0] : undefined);
+                    return {
+                        ...d,
+                        members: people,
+                        forest,
+                        head: top ? { id: top.id, name: top.name, position: top.position } : undefined,
+                    };
                 });
 
                 setDepts(enriched);

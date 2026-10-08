@@ -3,6 +3,8 @@ import { AnalyticsService } from '../../services/analyticsService';
 import { AuthenticatedRequest } from '../../types';
 import { AppError } from '../../core/errors/AppError';
 import { pool } from '../../config/db';
+import { assertMayViewUser, assertMayViewEmployeeProfile } from './reports.access';
+import { applyProfileAccess, profileAccess } from '../employees/profile.visibility';
 
 export const getAdminDashboard = async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
@@ -10,33 +12,50 @@ export const getAdminDashboard = async (req: AuthenticatedRequest, res: Response
     res.json(data);
 };
 
-export const getManagerDashboard = async (req: Request, res: Response) => {
+export const getManagerDashboard = async (req: AuthenticatedRequest, res: Response) => {
     const userId = parseInt(req.query.userId as string);
     if (!userId) throw AppError.badRequest('userId required');
-    const data = await AnalyticsService.getManagerDashboard(userId);
+    await assertMayViewUser(req.user!, userId);
+    const data = await AnalyticsService.getManagerDashboard(userId, req.user!.tenantId);
     res.json(data);
 };
 
-export const getEmployeeDashboard = async (req: Request, res: Response) => {
+export const getEmployeeDashboard = async (req: AuthenticatedRequest, res: Response) => {
     const userId = parseInt(req.query.userId as string);
     if (!userId) throw AppError.badRequest('userId required');
-    const data = await AnalyticsService.getEmployeeDashboard(userId);
+    await assertMayViewUser(req.user!, userId);
+    const data = await AnalyticsService.getEmployeeDashboard(userId, req.user!.tenantId);
     res.json(data);
 };
 
-export const getTeamEmployees = async (req: Request, res: Response) => {
+export const getTeamEmployees = async (req: AuthenticatedRequest, res: Response) => {
     const managerId = parseInt(req.query.managerId as string);
     if (!managerId) throw AppError.badRequest('managerId required');
-    const employees = await AnalyticsService.getTeamEmployees(managerId);
+    await assertMayViewUser(req.user!, managerId);
+    const employees = await AnalyticsService.getTeamEmployees(managerId, req.user!.tenantId);
     res.json({ items: employees, total: employees.length });
 };
 
-export const getEmployeeProfile = async (req: Request, res: Response) => {
+export const getEmployeeProfile = async (req: AuthenticatedRequest, res: Response) => {
     const { employeeId } = req.params;
     if (!employeeId) throw AppError.badRequest('employeeId required');
-    const profile = await AnalyticsService.getEmployeeProfile(employeeId);
+    const { isOwn } = await assertMayViewEmployeeProfile(req.user!, employeeId);
+    const profile = await AnalyticsService.getEmployeeProfile(employeeId, req.user!.tenantId);
     if (!profile.employee) throw AppError.notFound('Employee not found');
-    res.json(profile);
+    // someone else's profile carries only what the viewer is entitled to (work card by default)
+    res.json(applyProfileAccess(profile, profileAccess(req.user!, isOwn)));
+};
+
+export const getEmployeeAttendanceAnalytics = async (req: AuthenticatedRequest, res: Response) => {
+    const { employeeId } = req.params;
+    if (!employeeId) throw AppError.badRequest('employeeId required');
+    await assertMayViewEmployeeProfile(req.user!, employeeId);
+
+    const month = parseInt(req.query.month as string) || (new Date().getMonth() + 1);
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+    const result = await AnalyticsService.getEmployeeAttendanceAnalysis(employeeId, req.user!.tenantId, month, year);
+    res.json(result);
 };
 
 export const getAnalytics = async (req: AuthenticatedRequest, res: Response) => {
@@ -124,4 +143,36 @@ export const getReportSummary = async (req: AuthenticatedRequest, res: Response)
             { name: 'Leave Balance Statement', type: 'HR Ops', size: '840 KB', date: new Date().toLocaleDateString() }
         ],
     });
+};
+
+export const getHolidays = async (req: AuthenticatedRequest, res: Response) => {
+    const tenantId = req.user!.tenantId;
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+    const result = await pool.query(
+        `SELECT id, name, date, type 
+         FROM holidays 
+         WHERE (tenant_id = $1 OR tenant_id = 'tenant_default' OR tenant_id IS NULL)
+           AND EXTRACT(YEAR FROM date::date) = $2
+         ORDER BY date ASC`,
+        [tenantId, year]
+    ).catch(() => ({ rows: [] as any[] }));
+
+    if (result.rows.length === 0) {
+        const fallbackHolidays = [
+            { name: "New Year's Day", date: `${year}-01-01`, type: 'gazetted' },
+            { name: "Republic Day", date: `${year}-01-26`, type: 'national' },
+            { name: "Holi", date: `${year}-03-25`, type: 'gazetted' },
+            { name: "Good Friday", date: `${year}-04-03`, type: 'restricted' },
+            { name: "Eid-ul-Fitr", date: `${year}-04-11`, type: 'gazetted' },
+            { name: "Independence Day", date: `${year}-08-15`, type: 'national' },
+            { name: "Gandhi Jayanti", date: `${year}-10-02`, type: 'national' },
+            { name: "Dussehra", date: `${year}-10-12`, type: 'gazetted' },
+            { name: "Diwali", date: `${year}-11-01`, type: 'gazetted' },
+            { name: "Christmas", date: `${year}-12-25`, type: 'gazetted' }
+        ];
+        return res.json({ success: true, items: fallbackHolidays });
+    }
+
+    res.json({ success: true, items: result.rows });
 };

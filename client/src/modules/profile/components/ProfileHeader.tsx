@@ -5,12 +5,15 @@ import {
     MessageSquare, RefreshCw, Zap, X, BellRing, ExternalLink, Check
 } from 'lucide-react';
 import { toast } from '../../../components/ui';
+import { availabilityOf } from '../../../utils/availability';
 
 interface Props {
     emp: any;
     user: any;
     onEdit?: () => void;
     isOwn?: boolean;
+    /** the viewer is looking at their own page (only changes the wording of the edit button) */
+    isSelf?: boolean;
     onAvatarUpload?: (file: File) => void;
     onAvatarRemove?: () => void;
     uploadingAvatar?: boolean;
@@ -82,6 +85,7 @@ const ProfileHeader: React.FC<Props> = ({
     user,
     onEdit,
     isOwn,
+    isSelf,
     onAvatarUpload,
     onAvatarRemove,
     uploadingAvatar
@@ -353,7 +357,7 @@ const ProfileHeader: React.FC<Props> = ({
                             )}
                         </div>
 
-                        {/* Concentric online status badge */}
+                        {/* Availability badge: this person's own stored status (was a fixed green "Online" for everyone) */}
                         <div
                             style={{
                                 position: 'absolute',
@@ -362,16 +366,16 @@ const ProfileHeader: React.FC<Props> = ({
                                 width: 20,
                                 height: 20,
                                 borderRadius: '50%',
-                                background: '#10b981',
+                                background: availabilityOf(emp?.availability_status).color,
                                 border: '2.5px solid #ffffff',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                boxShadow: '0 2px 8px rgba(16,185,129,0.5)',
-                                animation: 'emsPulseBadge 3s ease-in-out infinite',
+                                boxShadow: `0 2px 8px ${availabilityOf(emp?.availability_status).color}80`,
+                                animation: availabilityOf(emp?.availability_status).pulse ? 'emsPulseBadge 3s ease-in-out infinite' : undefined,
                                 zIndex: 4,
                             }}
-                            title="Online"
+                            title={availabilityOf(emp?.availability_status).label}
                         >
                             <div
                                 style={{
@@ -511,6 +515,25 @@ const ProfileHeader: React.FC<Props> = ({
                                 {displayName}
                             </h1>
                             <VerifiedBadge />
+                            {/* Availability: this person's own stored status, spelled out (the avatar dot alone was easy to miss) */}
+                            {(() => {
+                                const st = availabilityOf(emp?.availability_status);
+                                return (
+                                    <span
+                                        data-testid="profile-availability"
+                                        title={`Availability: ${st.label}`}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                                            padding: '3px 10px', borderRadius: 999, whiteSpace: 'nowrap',
+                                            fontSize: '0.72rem', fontWeight: 700, color: st.color,
+                                            background: `${st.color}1A`, border: `1px solid ${st.color}40`,
+                                        }}
+                                    >
+                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
+                                        {st.label}
+                                    </span>
+                                );
+                            })()}
                         </div>
 
                         {/* Role | Dept */}
@@ -701,7 +724,7 @@ const ProfileHeader: React.FC<Props> = ({
                                 className="hover:scale-105 active:scale-95 hover:shadow-xl"
                             >
                                 <Edit3 size={12} strokeWidth={2.4} color="#4f46e5" />
-                                <span>{isOwn ? 'Edit Profile' : 'Edit Employee'}</span>
+                                <span>{(isSelf ?? isOwn) ? 'Edit Profile' : 'Edit Employee'}</span>
                             </button>
                         )}
                     </div>

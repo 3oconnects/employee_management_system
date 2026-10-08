@@ -55,6 +55,8 @@ export enum AuditAction {
     LEAVE_APPROVE = 'LEAVE_APPROVE',
     LEAVE_REJECT = 'LEAVE_REJECT',
     ATTENDANCE_REGULARIZE = 'ATTENDANCE_REGULARIZE',
+    APPROVAL_APPROVE = 'APPROVAL_APPROVE',
+    APPROVAL_REJECT = 'APPROVAL_REJECT',
 }
 
 // ─── JWT & AUTH ─────────────────────────────────────────────────────────────
@@ -66,6 +68,7 @@ export interface JwtPayload {
     role: UserRole;
     dashboard_type?: string;
     permissions: string[];
+    is_password_temp?: boolean;
 }
 
 export interface AuthenticatedRequest extends Request {

@@ -328,12 +328,19 @@ export const initDb = async () => {
     await pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS user_id INTEGER;`).catch(() => { });
     await pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_in TIMESTAMP;`).catch(() => { });
     await pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out TIMESTAMP;`).catch(() => { });
+    await pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;`).catch(() => { });
 
     // Leave Requests
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => { });
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS user_id INTEGER;`).catch(() => { });
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_type_id INTEGER;`).catch(() => { });
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;`).catch(() => { });
+
+    // Approvals
+    await pool.query(`ALTER TABLE approvals ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;`).catch(() => { });
+
+    // Claims
+    await pool.query(`ALTER TABLE claims ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;`).catch(() => { });
 
     // Timesheets (Modern Weekly Structure)
     await pool.query(`ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => { });
@@ -370,6 +377,51 @@ export const initDb = async () => {
     await pool.query(`ALTER TABLE payroll_profiles ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id);`).catch(() => { });
     await pool.query(`ALTER TABLE payroll_profiles ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id);`).catch(() => { });
     await pool.query(`ALTER TABLE payroll_history ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_history ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;`).catch(() => { });
+
+    // Phase 2.2 & 2.3 Hardening: Payroll Locking & Attendance Integration
+    await pool.query(`ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'COMPLETED';`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => { });
+
+    await pool.query(`
+      DO $pr_unique$
+      BEGIN
+          IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid = 'payroll_runs'::regclass
+                AND conname = 'payroll_runs_tenant_month_year_key'
+          ) THEN
+              DELETE FROM payroll_runs a USING payroll_runs b
+              WHERE a.ctid < b.ctid
+                AND a.tenant_id = b.tenant_id
+                AND a.month = b.month
+                AND a.year = b.year;
+
+              ALTER TABLE payroll_runs
+              ADD CONSTRAINT payroll_runs_tenant_month_year_key
+              UNIQUE (tenant_id, month, year);
+          END IF;
+      END $pr_unique$;
+    `).catch(() => { });
+
+    await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'tenant_default';`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS present_days INTEGER DEFAULT 0;`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS absent_days INTEGER DEFAULT 0;`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS leave_days INTEGER DEFAULT 0;`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_days INTEGER DEFAULT 0;`).catch(() => { });
+    await pool.query(`ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_deduction NUMERIC DEFAULT 0;`).catch(() => { });
+
+    // Canonical employee_id on leave_requests
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS employee_id TEXT REFERENCES employees(id);`).catch(() => { });
+    await pool.query(`
+      UPDATE leave_requests lr
+      SET employee_id = e.id
+      FROM employees e
+      WHERE lr.employee_id IS NULL
+        AND (e.user_id = lr.user_id OR LOWER(e.email) = LOWER((SELECT email FROM users WHERE id = lr.user_id)));
+    `).catch(() => { });
 
     // Create audit_logs if missing (needed for admin dashboard activity feed)
     await pool.query(`
@@ -446,23 +498,24 @@ export const initDb = async () => {
       ON CONFLICT (id) DO UPDATE SET slug = 'default'
     `);
 
-    // --- Seed/Repair default admin user ---
-    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+    // --- Seed default admin user (HF-1) ---
+    // No credential is hardcoded here and an existing account is never touched:
+    // setup must not reset, reactivate or undelete anyone's login. A missing admin
+    // is created only when the operator supplies ADMIN_BOOTSTRAP_PASSWORD (min 12 chars).
     const { rows: adminRows } = await pool.query("SELECT id FROM users WHERE email = 'admin@company.com'");
 
     if (adminRows.length === 0) {
-      console.log('🌱 Seeding default admin user...');
-      await pool.query(`
-        INSERT INTO users (name, email, password, role, tenant_id, is_active)
-        VALUES ('System Admin', 'admin@company.com', $1, 'admin', 'tenant_default', true)
-      `, [hashedAdminPassword]);
-    } else {
-      console.log('🔧 Synchronizing admin credentials...');
-      await pool.query(`
-        UPDATE users 
-        SET password = $1, is_active = true, deleted_at = NULL, tenant_id = 'tenant_default'
-        WHERE email = 'admin@company.com'
-      `, [hashedAdminPassword]);
+      const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || '';
+      if (bootstrapPassword.length >= 12) {
+        console.log('🌱 Seeding default admin user...');
+        const hashedAdminPassword = await bcrypt.hash(bootstrapPassword, 10);
+        await pool.query(`
+          INSERT INTO users (name, email, password, role, tenant_id, is_active)
+          VALUES ('System Admin', 'admin@company.com', $1, 'admin', 'tenant_default', true)
+        `, [hashedAdminPassword]);
+      } else {
+        console.warn('⚠️  No admin user seeded: set ADMIN_BOOTSTRAP_PASSWORD (min 12 chars) to create one.');
+      }
     }
 
     // Seed Departments
@@ -482,20 +535,6 @@ export const initDb = async () => {
         ('Legal', 'Legal and compliance'),
         ('Management', 'Executive leadership and strategy')
       `);
-
-      // Seed demo accounts with temp passwords for security rotation demo
-      const demoUsers = [
-        { email: 'saranbtech@gmail.com', pass: 'AURA_SARAN_2026' },
-        { email: 'roughu049@gmail.com', pass: 'AURA_SRIDHAR_2026' }
-      ];
-
-      for (const d of demoUsers) {
-        const hashed = await bcrypt.hash(d.pass, 10);
-        await pool.query(
-          'UPDATE users SET password=$1, temp_password=$2, is_password_temp=true WHERE email=$3',
-          [hashed, d.pass, d.email]
-        );
-      }
 
       // Seed Teams for Engineering
       const { rows: engDept } = await pool.query("SELECT id FROM departments WHERE name = 'Engineering'");

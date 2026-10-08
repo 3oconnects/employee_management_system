@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
+import { pagesFor, canSearchEmployees } from '../../utils/searchAccess';
 
 const routeLabels: Record<string, string> = {
     '/dashboard':  'Dashboard',
@@ -19,8 +20,10 @@ const routeLabels: Record<string, string> = {
     '/profile':    'My Profile',
     '/audit-logs': 'Audit Logs',
     '/organization': 'Hierarchy',
-    '/approvals':  'Approvals',
-    '/settings':   'Settings',
+    '/approvals':       'Approvals',
+    '/settings':        'Settings',
+    '/unauthorized':    'Access Control',
+    '/change-password': 'Security Credentials',
 };
 
 /* Avatar color map — same as Sidebar for consistency */
@@ -34,7 +37,7 @@ const AVATAR_COLORS: Record<string, string> = {
 const getAvatarColor = (name?: string) => AVATAR_COLORS[(name?.[0] ?? 'U').toUpperCase()] ?? '#6366f1';
 
 const Topbar: React.FC = () => {
-    const { user, logout, accessToken } = useAuthStore();
+    const { user, logout, accessToken, hasAnyRole, hasPermission } = useAuthStore();
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -52,36 +55,45 @@ const Topbar: React.FC = () => {
 
     const pageLabel = routeLabels[location.pathname] ?? 'Workspace';
 
-    // Quick-search routes
-    const allRoutes = [
-        { label: 'Dashboard',     path: '/dashboard',  icon: '⊞' },
-        { label: 'Employees',     path: '/employees',  icon: '👥' },
-        { label: 'Attendance',    path: '/attendance', icon: '🕐' },
-        { label: 'Leave',         path: '/leave',      icon: '📅' },
-        { label: 'Timesheet',     path: '/timesheet',  icon: '📋' },
-        { label: 'Payroll',       path: '/payroll',    icon: '💳' },
-        { label: 'Reports',       path: '/reports',    icon: '📊' },
-        { label: 'My Profile',    path: '/profile',    icon: '👤' },
-    ];
-
-    const filteredRoutes = searchQuery
-        ? allRoutes.filter(r => r.label.toLowerCase().includes(searchQuery.toLowerCase()))
-        : allRoutes.slice(0, 6);
+    // Pages this role can open; employees too when the role may open the Employees page
+    const filteredRoutes = pagesFor(hasAnyRole, searchQuery).slice(0, searchQuery ? 8 : 7);
+    const canFindPeople = canSearchEmployees(hasAnyRole);
+    const [people, setPeople] = useState<any[]>([]);
+    const [peopleLoading, setPeopleLoading] = useState(false);
 
     useEffect(() => {
-        if (!accessToken) return;
+        const q = searchQuery.trim();
+        if (!canFindPeople || q.length < 2) { setPeople([]); setPeopleLoading(false); return; }
+        let stale = false;
+        setPeopleLoading(true);
+        const t = setTimeout(() => {
+            api.get('/employees', { params: { search: q, limit: 5 } })
+                .then(res => { if (!stale) setPeople(res.data?.items || []); })
+                .catch(() => { if (!stale) setPeople([]); })
+                .finally(() => { if (!stale) setPeopleLoading(false); });
+        }, 250);
+        return () => { stale = true; clearTimeout(t); };
+    }, [searchQuery, canFindPeople]);
+
+    useEffect(() => {
+        if (!accessToken || !user?.id) return;
+        let isMounted = true;
         const fetchNotifs = () => {
             api.get('/notifications?limit=8')
                 .then(res => {
-                    setNotifications(res.data.data || []);
-                    setUnreadCount(res.data.unreadCount || 0);
+                    if (!isMounted) return;
+                    setNotifications(res.data?.data || []);
+                    setUnreadCount(res.data?.unreadCount ?? res.data?.meta?.unreadCount ?? 0);
                 })
                 .catch(() => {});
         };
         fetchNotifs();
         const interval = setInterval(fetchNotifs, 60000);
-        return () => clearInterval(interval);
-    }, [accessToken]);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, [accessToken, user?.id]);
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -172,7 +184,7 @@ const Topbar: React.FC = () => {
                                 ref={searchInput}
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                placeholder="Search pages, employees, actions..."
+                                placeholder={canFindPeople ? 'Search pages and employees...' : 'Search pages...'}
                                 className="flex-1 bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400"
                                 onClick={e => e.stopPropagation()}
                             />
@@ -198,7 +210,7 @@ const Topbar: React.FC = () => {
                                     </button>
                                 )}
                             </div>
-                            <div className="py-1.5 max-h-60 overflow-y-auto">
+                            <div className="py-1.5 max-h-80 overflow-y-auto">
                                 {filteredRoutes.map(route => (
                                     <button
                                         key={route.path}
@@ -210,7 +222,31 @@ const Topbar: React.FC = () => {
                                         <span className="ml-auto text-[10px] text-slate-300 group-hover:text-indigo-300 font-mono transition-colors opacity-0 group-hover:opacity-100">↵</span>
                                     </button>
                                 ))}
-                                {filteredRoutes.length === 0 && (
+                                {canFindPeople && searchQuery.trim().length >= 2 && (
+                                    <>
+                                        <p className="px-4 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Employees</p>
+                                        {people.map(p => (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => { navigate(`/profile/${p.id}`); setSearchOpen(false); setSearchQuery(''); }}
+                                                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-indigo-50/70 transition-colors text-left group"
+                                            >
+                                                {p.avatar_url
+                                                    ? <img src={p.avatar_url} alt="" className="w-6 h-6 rounded-md object-cover flex-shrink-0" />
+                                                    : <span className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ backgroundColor: getAvatarColor(p.name) }}>{(p.name?.[0] ?? '?').toUpperCase()}</span>}
+                                                <span className="min-w-0">
+                                                    <span className="block text-[13px] font-medium text-slate-700 truncate">{p.name}</span>
+                                                    <span className="block text-[11px] text-slate-400 truncate">{[p.position, p.department_name || p.department, p.id].filter(Boolean).join(' · ')}</span>
+                                                </span>
+                                            </button>
+                                        ))}
+                                        {!peopleLoading && people.length === 0 && (
+                                            <div className="px-4 py-2 text-[12px] text-slate-400">No employees match</div>
+                                        )}
+                                        {peopleLoading && <div className="px-4 py-2 text-[12px] text-slate-400">Searching…</div>}
+                                    </>
+                                )}
+                                {filteredRoutes.length === 0 && !(canFindPeople && searchQuery.trim().length >= 2) && (
                                     <div className="py-8 text-center text-[12px] text-slate-400">No results found</div>
                                 )}
                             </div>
@@ -337,9 +373,9 @@ const Topbar: React.FC = () => {
                                 </button>
                                 <button onClick={() => { navigate('/settings'); setUserMenuOpen(false); }}
                                     className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
-                                    <Settings size={14} /> Settings
+                                    <Settings size={14} /> Settings & Preferences
                                 </button>
-                                {(user?.role === 'admin' || user?.role === 'super_admin' || user?.dashboard_type === 'admin') && (
+                                {hasPermission('audit:read') && (
                                     <button onClick={() => { navigate('/audit-logs'); setUserMenuOpen(false); }}
                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
                                         <Shield size={14} /> Audit Logs

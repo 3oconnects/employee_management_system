@@ -9,7 +9,7 @@ interface CanProps {
 }
 
 const Can: React.FC<CanProps> = ({ perform, role, children, fallback = null }) => {
-    const { user } = useAuthStore();
+    const { user, hasPermission } = useAuthStore();
 
     if (!user) return <>{fallback}</>;
 
@@ -18,10 +18,10 @@ const Can: React.FC<CanProps> = ({ perform, role, children, fallback = null }) =
         return <>{fallback}</>;
     }
 
-    // Permission check
-    const hasPermission = user.permissions?.includes(perform) ?? false;
+    // Dynamic Permission check (supports dot/colon notation & super_admin bypass)
+    const allowed = hasPermission(perform);
 
-    return hasPermission ? <>{children}</> : <>{fallback}</>;
+    return allowed ? <>{children}</> : <>{fallback}</>;
 };
 
 export default Can;

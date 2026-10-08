@@ -8,7 +8,11 @@ export class UsersService {
         this.repo = new UsersRepository();
     }
 
-    async updateProfile(id: string, name: string, email: string, phone: string, address: string, emergency: string, tenantId: string) {
+    /**
+     * ARC-01: `id` must be the caller's own userId from the JWT.
+     * The controller must never derive this from the request body.
+     */
+    async updateProfile(id: number, name: string, email: string, phone: string, address: string, emergency: string, tenantId: string) {
         const user = await this.repo.updateProfile(id, name, email, phone, address, emergency, tenantId);
         if (!user) throw AppError.notFound('User not found');
         return user;

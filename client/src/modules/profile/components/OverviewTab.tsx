@@ -136,7 +136,12 @@ interface OverviewTabProps {
     emp: any;
     user: any;
     profile: any;
+    /** may change this profile */
     isOwnProfile: boolean;
+    /** this is the viewer's own page (completion meter, stats and prompts are theirs alone) */
+    isSelf?: boolean;
+    /** may read birth date, gender, address and the like */
+    canSeePersonal?: boolean;
     editing: boolean;
     saveLoading: boolean;
     editForm: any;
@@ -154,7 +159,7 @@ const DEFAULT_SKILLS = ['AI/ML', 'Generative AI', 'Python', 'Deep Learning', 'LL
 const DEFAULT_TAGS   = ['AI Architect', 'Machine Learning', 'LLM', 'Python', 'System Design'];
 
 const OverviewTab: React.FC<OverviewTabProps> = ({
-    emp, user, profile, isOwnProfile,
+    emp, user, profile, isOwnProfile, isSelf = true, canSeePersonal = true,
     editing, saveLoading, editForm, setEditForm,
     onEdit, onSave, onCancelEdit, onAddContact, joinDate,
     onAvatarUpload, uploadingAvatar,
@@ -191,7 +196,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* ── ROW 1: About + Personal Info + Right sidebar ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 260px', gap: 20, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isSelf ? '1fr 1fr 260px' : '1fr 1fr', gap: 20, alignItems: 'start' }}>
 
                 {/* ── ABOUT ME ── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -457,19 +462,23 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                 <InfoLine icon={<User size={13} color="#4f46e5" />} label="Full Name" value={emp?.name || user?.name} />
                                 <InfoLine icon={<Mail size={13} color="#4f46e5" />} label="Email" value={email} />
                                 <InfoLine icon={<Phone size={13} color="#4f46e5" />} label="Phone" value={phone} />
-                                <InfoLine icon={<Calendar size={13} color="#4f46e5" />} label="Date of Birth" value={dob} />
-                                <InfoLine icon={<User size={13} color="#4f46e5" />} label="Gender" value={gender} />
-                                <InfoLine icon={<Users size={13} color="#4f46e5" />} label="Marital Status" value={marital} />
-                                <InfoLine icon={<Heart size={13} color="#4f46e5" />} label="Blood Group" value={blood} />
-                                <InfoLine icon={<Globe size={13} color="#4f46e5" />} label="Nationality" value={nationality} />
-                                <InfoLine icon={<MapPin size={13} color="#4f46e5" />} label="Address" value={address} />
+                                {canSeePersonal && (
+                                    <>
+                                        <InfoLine icon={<Calendar size={13} color="#4f46e5" />} label="Date of Birth" value={dob} />
+                                        <InfoLine icon={<User size={13} color="#4f46e5" />} label="Gender" value={gender} />
+                                        <InfoLine icon={<Users size={13} color="#4f46e5" />} label="Marital Status" value={marital} />
+                                        <InfoLine icon={<Heart size={13} color="#4f46e5" />} label="Blood Group" value={blood} />
+                                        <InfoLine icon={<Globe size={13} color="#4f46e5" />} label="Nationality" value={nationality} />
+                                        <InfoLine icon={<MapPin size={13} color="#4f46e5" />} label="Address" value={address} />
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
                 </Card>
 
-                {/* ── RIGHT SIDEBAR: Profile Completion + Quick Stats ── */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* ── RIGHT SIDEBAR: Profile Completion + Quick Stats (the person's own) ── */}
+                {isSelf && <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* Profile Completion */}
                     <Card>
                         <CardHeader icon={<BarChart3 size={15} color="white" />} title="Profile Completion" />
@@ -508,11 +517,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                             <QuickStatRow icon={<FileText size={15} color="#10b981" />} label="Documents" value={docs} color="#10b981" />
                         </div>
                     </Card>
-                </div>
+                </div>}
             </div>
 
             {/* ── ROW 2: CTA Banner ── */}
-            <div style={{
+            {isSelf && <div style={{
                 borderRadius: 16,
                 background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 60%, #ede9fe 100%)',
                 border: '1px solid #c7d2fe',
@@ -547,7 +556,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                 >
                     View My Projects <ArrowRight size={14} />
                 </button>
-            </div>
+            </div>}
         </div>
     );
 };

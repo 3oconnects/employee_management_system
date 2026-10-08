@@ -10,9 +10,16 @@
     "db:migrate": "tsx scripts/db-setup.ts",
     "db:seed": "tsx scripts/db-setup.ts",
     "db:setup": "tsx src/initDb.ts",
-    "migrate:cleanup": "tsx src/scripts/legacy_cleanup.ts"
+    "migrate:cleanup": "tsx src/scripts/legacy_cleanup.ts",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "check:routes": "python ../docs/audit/tools/route_contract_check.py",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.test.json",
+    "staging:rebuild": "tsx scripts/staging/rebuild.ts",
+    "staging:smoke": "tsx scripts/staging/smoke.ts"
   },
   "dependencies": {
+    "@sentry/node": "^11.2.0",
     "@types/adm-zip": "^0.5.8",
     "@types/pdfkit": "^0.17.5",
     "adm-zip": "^0.6.1",
@@ -35,9 +42,12 @@
     "@types/node": "^20.19.37",
     "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.18.0",
+    "@types/supertest": "^7.2.1",
     "nodemon": "^3.1.14",
+    "supertest": "^7.3.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }

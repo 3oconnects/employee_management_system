@@ -12,50 +12,39 @@ export const getUsers = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const createUser = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const newUser = await service.createUser(tenantId, req.body);
+    const newUser = await service.createUser(req.user!, req.body);
     res.status(201).json({ success: true, data: newUser });
 };
 
 export const sendWelcome = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const result = await service.sendWelcome(req.params.id, tenantId, req.body.temp_password);
+    // ARC-07: temp_password is no longer accepted from the request body
+    const result = await service.sendWelcome(req.params.id, req.user!);
     res.json({ success: true, ...result });
 };
 
 export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const temp_password = await service.resetPassword(req.params.id, tenantId);
-    res.json({ success: true, temp_password, message: 'Password reset successful.' });
-};
-
-export const getTempPassword = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    const data = await service.getTempPassword(req.params.id, tenantId);
-    res.json({ success: true, data });
+    // ARC-07: plaintext is emailed to the user, not returned in this response
+    const result = await service.resetPassword(req.params.id, req.user!);
+    res.json({ success: true, ...result });
 };
 
 export const updatePassword = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    await service.updatePassword(req.params.id, tenantId, req.body.password);
+    await service.updatePassword(req.params.id, req.user!, req.body.password);
     res.json({ success: true, message: 'Password updated successfully.' });
 };
 
 export const updateUserRole = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
     const { role, role_id, notify_user } = req.body;
-    await service.updateUserRole(req.params.id, tenantId, role, role_id, notify_user);
+    await service.updateUserRole(req.params.id, req.user!, role, role_id, notify_user);
     res.json({ success: true, message: 'Role updated.' });
 };
 
 export const updateUserStatus = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    await service.updateUserStatus(req.params.id, tenantId, req.body.is_active);
+    await service.updateUserStatus(req.params.id, req.user!, req.body.is_active);
     res.json({ success: true, message: `User ${req.body.is_active ? 'activated' : 'deactivated'}.` });
 };
 
 export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user?.tenantId || DEFAULT_TENANT;
-    await service.deleteUser(req.params.id, tenantId, req.user!.userId);
+    await service.deleteUser(req.params.id, req.user!);
     res.json({ success: true, message: 'User removed.' });
 };

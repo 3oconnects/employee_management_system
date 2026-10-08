@@ -5,9 +5,9 @@ import { z } from 'zod';
 // the body is ignored.
 
 export const applyLeaveSchema = z.object({
-    leave_type_id: z.coerce.number(),
-    start_date: z.string(),
-    end_date: z.string(),
+    leave_type_id: z.coerce.number().int().positive('Please select a valid leave type.'),
+    start_date: z.string().min(1, 'Start date is required.'),
+    end_date: z.string().min(1, 'End date is required.'),
     reason: z.string().optional().nullable()
 });
 
@@ -19,6 +19,6 @@ export const updateLeaveSchema = z.object({
 });
 
 export const approveLeaveSchema = z.object({
+    // approved_by is deliberately not accepted: the approver is always the authenticated user (HF-5)
     action: z.enum(['approved', 'rejected']),
-    approved_by: z.union([z.string(), z.number()]).optional()
 });

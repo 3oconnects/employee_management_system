@@ -7,14 +7,8 @@ import {
     ShieldCheck,
     Files,
     LayoutDashboard,
-    CheckCircle2,
-    Lock,
-    Globe,
     CreditCard,
-    Cpu,
-    Activity,
-    Shield,
-    Terminal
+    Plus,
 } from 'lucide-react';
 import PayRuns                  from '../sections/PayRuns';
 import EmployeePayrollManagement from '../sections/EmployeePayrollManagement';
@@ -26,16 +20,17 @@ import EmployeePayroll          from '../sections/EmployeePayroll';
 import { useAuthStore }         from '../../../store/authStore';
 
 const GeneratePayroll: React.FC = () => {
-    const { user } = useAuthStore();
-    const isAdmin = user?.role === 'admin' || user?.role === 'hr';
+    const { user, hasPermission } = useAuthStore();
+    const canManagePayroll = hasPermission('payroll.process') || hasPermission('payroll:manage');
+    const isAdmin = canManagePayroll;
 
     const adminTabs = [
-        { id: 'dashboard',  label: 'Analytics',  icon: LayoutDashboard },
-        { id: 'management', label: 'Employees',  icon: Users },
-        { id: 'runs',       label: 'Pay Runs',   icon: History },
-        { id: 'approvals',  label: 'Approvals',  icon: ClipboardCheck },
-        { id: 'tax',        label: 'Compliance', icon: ShieldCheck },
-        { id: 'documents',  label: 'Documents',  icon: Files },
+        { id: 'dashboard',  label: 'Overview & Analytics',  icon: LayoutDashboard },
+        { id: 'management', label: 'Employee Salaries',     icon: Users },
+        { id: 'runs',       label: 'Pay Runs',              icon: History },
+        { id: 'approvals',  label: 'Approvals',             icon: ClipboardCheck },
+        { id: 'tax',        label: 'Tax & Compliance',      icon: ShieldCheck },
+        { id: 'documents',  label: 'Payslips & Docs',       icon: Files },
     ];
     const employeeTabs = [
         { id: 'my_payroll', label: 'My Payroll', icon: CreditCard },
@@ -45,61 +40,65 @@ const GeneratePayroll: React.FC = () => {
     const [activeTab, setActiveTab] = useState(isAdmin ? 'dashboard' : 'my_payroll');
 
     return (
-        <div className="max-w-[1440px] mx-auto px-6 py-6 space-y-6 animate-fade-up">
-            {/* ── Financial Header ─────────────────────────── */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-                        <IndianRupee size={20} className="text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-[18px] font-black text-slate-900 tracking-tight">
-                            {isAdmin ? 'Payroll Management' : 'My Payroll'}
-                        </h2>
-                        <div className="flex items-center gap-2.5 mt-1">
-                            <span className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                                <Activity size={10} /> Live
-                            </span>
-                        </div>
-                    </div>
+        <div className="w-full min-w-0 max-w-[1440px] mx-auto px-6 py-6 space-y-5">
+            {/* ── Page Header ────────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                        {isAdmin ? 'Payroll Management' : 'My Payroll'}
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        {isAdmin
+                            ? 'Manage pay runs, salary structures, statutory compliance, and disbursement cycles'
+                            : 'View your payslips, earnings breakdown, and submitted reimbursement claims'}
+                    </p>
                 </div>
-
-                <div className="flex items-center gap-2.5">
-                    <div className="px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg flex items-center gap-2">
-                        <Shield size={12} className="text-indigo-500" />
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">PCI-DSS</span>
-                    </div>
-                    <div className="px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center gap-2">
-                        <Lock size={12} className="text-indigo-600" />
-                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">AES-256</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Console Tabs ─────────────────────────────── */}
-            <div className="bg-white border border-slate-200 p-1.5 rounded-2xl flex items-center gap-1 overflow-x-auto no-scrollbar shadow-sm">
-                {tabs.map(tab => {
-                    const Icon = tab.icon;
-                    const isSelected = activeTab === tab.id;
-                    return (
+                {isAdmin && (
+                    <div className="flex items-center gap-2.5">
                         <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex-shrink-0 flex items-center gap-2.5 px-5 py-3 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 ${
-                                isSelected
-                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                                    : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'
-                            }`}
+                            onClick={() => setActiveTab('management')}
+                            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200/90 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all shadow-xs"
                         >
-                            <Icon size={14} />
-                            {tab.label}
+                            <Users size={14} className="text-slate-500" />
+                            Manage Salaries
                         </button>
-                    );
-                })}
+                        <button
+                            onClick={() => setActiveTab('runs')}
+                            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all shadow-xs"
+                        >
+                            <History size={14} />
+                            Execute Pay Run
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* ── Viewport ─────────────────────────────────── */}
-            <div className="animate-in fade-in slide-in-from-bottom-3 duration-500">
+            {/* ── Navigation Tabs ─────────────────────────────────── */}
+            {tabs.length > 1 && (
+                <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-x-auto no-scrollbar">
+                    {tabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const isSelected = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all ${
+                                    isSelected
+                                        ? 'bg-slate-900 text-white shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                                }`}
+                            >
+                                <Icon size={14} className={isSelected ? 'text-white' : 'text-slate-400'} />
+                                <span>{tab.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── Viewport ────────────────────────────────────────── */}
+            <div className="animate-in fade-in duration-200">
                 {activeTab === 'dashboard'  && <FinancialAnalysis />}
                 {activeTab === 'management' && <EmployeePayrollManagement />}
                 {activeTab === 'runs'       && <PayRuns />}
@@ -113,4 +112,3 @@ const GeneratePayroll: React.FC = () => {
 };
 
 export default GeneratePayroll;
-

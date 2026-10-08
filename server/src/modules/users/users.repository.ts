@@ -1,7 +1,11 @@
 import { pool } from '../../config/db';
 
 export class UsersRepository {
-    async updateProfile(id: string, name: string, email: string, phone: string, address: string, emergency: string, tenantId: string) {
+    /**
+     * ARC-01: `id` is `number` to match JWT userId type.
+     * The controller must derive this from req.user.userId only — never from the request body.
+     */
+    async updateProfile(id: number, name: string, email: string, phone: string, address: string, emergency: string, tenantId: string) {
         const result = await pool.query(
             `UPDATE users
              SET name=$1,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    Loader2, AlertCircle, Inbox
+    Loader2, AlertCircle, Inbox, Plus
 } from 'lucide-react';
 import api from '../../../services/api';
 import { BaseApprovalRequest, ApprovalType, ApprovalStatus } from '../types';
@@ -11,6 +11,7 @@ import ApprovalNav from '../components/ApprovalNav';
 import ApprovalSidebar from '../components/ApprovalSidebar';
 import ApprovalCard from '../components/ApprovalCard';
 import ApprovalTeamCard from '../components/ApprovalTeamCard';
+import NewRequestModal from '../components/NewRequestModal';
 
 // ── Utils ──
 import { getTypeIcon, getTypeName } from '../utils/approvalUtils';
@@ -19,22 +20,40 @@ const Approvals: React.FC = () => {
     const [requests, setRequests] = useState<BaseApprovalRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [acting, setActing] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<ApprovalStatus | 'history'>('pending');
+    const [activeTab, setActiveTab] = useState<ApprovalStatus | 'history' | 'mine'>('mine');
     const [filterType, setFilterType] = useState<ApprovalType | 'all'>('all');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
-    const [viewMode, setViewMode] = useState<'list' | 'grid' | 'teams'>('teams');
+    const [viewMode, setViewMode] = useState<'list' | 'grid' | 'teams'>('grid');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showNew, setShowNew] = useState(false);
+    const [pendingActionCount, setPendingActionCount] = useState<number>(0);
+    const [historyTotalCount, setHistoryTotalCount] = useState<number>(0);
 
     const fetchRequests = async () => {
         setLoading(true);
         setError(null);
         try {
-            const statusParam = activeTab === 'history' ? 'completed' : 'pending';
-            const response = await api.get(`/approvals?status=${statusParam}`);
-            console.log('📦 DATA RECEIVED:', response.data.data);
-            setRequests(response.data.data || []);
+            const [pendingRes, historyRes] = await Promise.all([
+                api.get('/approvals?status=pending'),
+                api.get('/approvals?status=completed'),
+            ]);
+            const pendingRows = pendingRes.data.data || [];
+            const historyRows = historyRes.data.data || [];
+
+            const canActCount = pendingRows.filter((r: any) => r.can_act).length;
+            setPendingActionCount(canActCount);
+            setHistoryTotalCount(historyRows.length);
+
+            if (activeTab === 'mine') {
+                const all = [...pendingRows, ...historyRows];
+                setRequests(all.filter((r: any) => r.is_mine && r.type !== 'onboarding'));
+            } else if (activeTab === 'pending') {
+                setRequests(pendingRows.filter((r: any) => r.can_act));
+            } else {
+                setRequests(historyRows);
+            }
         } catch (err: any) {
             console.error('❌ APPROVALS HUB ERROR:', err);
             setError(err.response?.data?.message || 'Failed to fetch approvals. Please check server connectivity.');
@@ -52,6 +71,7 @@ const Approvals: React.FC = () => {
         try {
             await api.post(`/approvals/${id}/action`, { action, type });
             setRequests(prev => prev.filter(r => r.id !== id));
+            setPendingActionCount(prev => Math.max(0, prev - 1));
             setExpandedId(null);
         } catch (err) {
             console.error(`❌ ${action.toUpperCase()} ERROR:`, err);
@@ -69,19 +89,23 @@ const Approvals: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-900">Approvals</h1>
                     <p className="text-sm text-slate-500 mt-0.5">Review and action pending approval requests</p>
                 </div>
-                <div>
+                <div className="flex items-center gap-2">
                     <button className="px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-50 transition-all">
                         Export Logs
+                    </button>
+                    <button onClick={() => setShowNew(true)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-semibold shadow-sm transition-all">
+                        <Plus size={15} /> New Request
                     </button>
                 </div>
             </div>
 
             {/* ── KPI Metrics Row ── */}
             <ApprovalStats 
-                pendingCount={activeTab === 'pending' ? requests.length : 0}
-                historyCount={activeTab === 'history' ? requests.length : 0}
+                pendingCount={pendingActionCount}
+                historyCount={historyTotalCount}
                 teamCount={new Set(requests.map(r => r.department)).size}
-                activeTab={activeTab}
+                activeTab={activeTab === 'mine' ? 'pending' : activeTab}
             />
 
             {/* ── Sub Navigation ── */}
@@ -110,6 +134,7 @@ const Approvals: React.FC = () => {
                             isCollapsed={isSidebarCollapsed}
                             setIsCollapsed={setIsSidebarCollapsed}
                             counts={categoryCounts}
+                            tab={activeTab}
                         />
                     );
                 })()}
@@ -137,10 +162,10 @@ const Approvals: React.FC = () => {
                                 <Inbox size={24} className="text-slate-400" />
                             </div>
                             <h3 className="text-base font-semibold text-slate-700">No approvals found</h3>
-                            <p className="text-sm text-slate-400 mt-1.5 max-w-xs">There are no {activeTab === 'pending' ? 'pending' : 'completed'} approval requests at this time.</p>
+                            <p className="text-sm text-slate-400 mt-1.5 max-w-xs">{activeTab === 'mine' ? "You haven't raised any requests." : `There are no ${activeTab === 'pending' ? 'pending' : 'completed'} approval requests at this time.`}</p>
                         </div>
                     ) : (
-                        <div className={viewMode === 'teams' ? "grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 pb-20" : "flex-1 space-y-6 pb-20"}>
+                        <div className={viewMode === 'teams' ? "grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6 pb-20 items-start" : "flex-1 space-y-6 pb-20"}>
                             {Object.entries(
                                 requests
                                     .filter(r => filterType === 'all' || r.type === filterType)
@@ -164,8 +189,9 @@ const Approvals: React.FC = () => {
                                     requestCount={deptRequests.length}
                                     viewMode={viewMode}
                                     avatars={deptRequests.map(r => r.employee_name)}
+                                    countLabel={activeTab === 'pending' ? 'to review' : activeTab === 'history' ? 'completed' : 'of yours'}
                                 >
-                                    <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-3"}>
+                                    <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" : "space-y-3"}>
                                         {deptRequests.map(req => (
                                             <ApprovalCard 
                                                 key={req.id}
@@ -175,7 +201,7 @@ const Approvals: React.FC = () => {
                                                 handleAction={handleAction}
                                                 acting={acting}
                                                 viewMode={viewMode}
-                                                activeTab={activeTab}
+                                                activeTab={activeTab === 'mine' ? (['pending','active','onboarding'].includes(String(req.status)) ? 'mine' : 'history') as any : activeTab}
                                                 getTypeIcon={getTypeIcon}
                                                 getTypeName={getTypeName}
                                             />
@@ -187,6 +213,12 @@ const Approvals: React.FC = () => {
                     )}
                 </div>
             </div>
+            {showNew && (
+                <NewRequestModal
+                    onClose={() => setShowNew(false)}
+                    onCreated={() => { setActiveTab('mine'); fetchRequests(); }}
+                />
+            )}
         </div>
     );
 };

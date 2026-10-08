@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, Building2, Globe, Clock, Loader2, Link, Phone, Mail, MapPin, Hash, UserCircle2 } from 'lucide-react';
 import api from '../../../services/api';
+import { setAppLocale } from '../../../utils/locale';
 
 interface Props {
     config: Record<string, string>;
@@ -34,6 +35,12 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
         setSaving(true);
         try {
             await api.put('/settings/config', { category: 'general', settings: form });
+            setAppLocale({
+                currency: form.currency,
+                dateFormat: form.date_format,
+                timezone: form.timezone,
+                fiscalYearStart: form.fiscal_year_start,
+            });
             onNotify('Organization settings saved successfully!');
             onRefresh();
         } catch { onNotify('Failed to save settings', false); }
@@ -51,7 +58,7 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                 )}
                 <input type={type} placeholder={placeholder}
                     value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                    className={`w-full ${Icon ? 'pl-11' : 'px-4'} py-3 text-[13px] font-medium border border-slate-200 rounded-2xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all bg-white`} />
+                    className={`w-full ${Icon ? 'pl-11' : 'px-4'} py-3 text-[13px] font-medium border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all bg-white`} />
             </div>
         </div>
     );
@@ -93,7 +100,7 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {F('Business Registration No', 'registration_no', 'text', 'Company Reg ID', Hash)}
-                            {F('Official App URL', 'app_url', 'url', 'https://aura.ems.com', Link)}
+                            {F('Official App URL', 'app_url', 'url', 'https://nexus.yourcompany.com', Link)}
                         </div>
                     </div>
                 </div>
@@ -147,7 +154,7 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2 ml-1">Timezone</label>
                             <select value={form.timezone} onChange={e => setForm(p => ({ ...p, timezone: e.target.value }))}
-                                className="w-full px-4 py-3 text-[13px] font-medium border border-slate-200 rounded-2xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white transition-all">
+                                className="w-full px-4 py-2.5 text-[13px] font-medium border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 bg-white transition-all">
                                 {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
                             </select>
                         </div>
@@ -156,10 +163,10 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                             <div className="grid grid-cols-1 gap-2">
                                 {DATE_FORMATS.map(fmt => (
                                     <button key={fmt} onClick={() => setForm(p => ({ ...p, date_format: fmt }))}
-                                        className={`px-4 py-2.5 rounded-xl border text-[12px] font-bold transition-all text-left flex items-center justify-between
+                                        className={`px-4 py-2 rounded-lg border text-[12px] font-bold transition-all text-left flex items-center justify-between
                                             ${form.date_format === fmt 
-                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
-                                                : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-300'}`}>
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' 
+                                                : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300'}`}>
                                         {fmt}
                                         {form.date_format === fmt && <Clock size={12} />}
                                     </button>
@@ -169,7 +176,7 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                         <div>
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2 ml-1">Default Currency</label>
                             <select value={form.currency} onChange={e => setForm(p => ({ ...p, currency: e.target.value }))}
-                                className="w-full px-4 py-3 text-[13px] font-medium border border-slate-200 rounded-2xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white transition-all">
+                                className="w-full px-4 py-2.5 text-[13px] font-medium border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 bg-white transition-all">
                                 {['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'CAD', 'AUD'].map(c => <option key={c}>{c}</option>)}
                             </select>
                         </div>
@@ -177,7 +184,7 @@ const GeneralTab: React.FC<Props> = ({ config, onRefresh, onNotify }) => {
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-2 ml-1">Fiscal Year Start</label>
                             <select value={form.fiscal_year_start}
                                 onChange={e => setForm(p => ({ ...p, fiscal_year_start: e.target.value }))}
-                                className="w-full px-4 py-3 text-[13px] font-medium border border-slate-200 rounded-2xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 bg-white transition-all">
+                                className="w-full px-4 py-2.5 text-[13px] font-medium border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 bg-white transition-all">
                                 {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
                                     <option key={m} value={m}>
                                         {new Date(2024, i).toLocaleString('default', { month: 'long' })}

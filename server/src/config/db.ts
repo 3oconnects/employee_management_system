@@ -25,8 +25,8 @@ export const pool = new Pool({
     connectionString: dbUrl,
     ssl: isLocal ? false : { rejectUnauthorized: false },
     max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 25000,
+    idleTimeoutMillis: 20000,        // evict idle clients before Supabase/PgBouncer 60 s hard cut
+    connectionTimeoutMillis: 8000,   // fail fast so the retry fires within the HTTP timeout window
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
 });
@@ -38,8 +38,8 @@ export const directPool = new Pool({
     connectionString: directUrl,
     ssl: isDirectLocal ? false : { rejectUnauthorized: false },
     max: 3,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 25000,
+    idleTimeoutMillis: 20000,
+    connectionTimeoutMillis: 8000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
 });
@@ -64,18 +64,30 @@ directPool.on('connect', (client: any) => {
     });
 });
 
+/** Returns true for any transient network / pool error that is safe to retry once. */
+const isTransient = (err: any): boolean => {
+    const code: string = err?.code ?? '';
+    const msg: string  = err?.message ?? '';
+    // AggregateError wraps multiple socket errors; inspect the individual causes too
+    const causeCodes: string[] = (err?.errors ?? []).map((e: any) => e?.code ?? '');
+    const transientCodes = new Set(['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EHOSTUNREACH', 'ECONNREFUSED']);
+    return (
+        transientCodes.has(code) ||
+        causeCodes.some(c => transientCodes.has(c)) ||
+        err?.constructor?.name === 'AggregateError' ||
+        msg.includes('Connection terminated') ||
+        msg.includes('timeout') ||
+        msg.includes('connection refused')
+    );
+};
+
 export const query = async (text: string, params?: any[]) => {
     try {
         return await pool.query(text, params);
     } catch (err: any) {
-        if (
-            err?.message?.includes('Connection terminated') ||
-            err?.code === 'ECONNRESET' ||
-            err?.code === 'EPIPE' ||
-            err?.message?.includes('timeout')
-        ) {
+        if (isTransient(err)) {
             console.warn('⚠️ [DB Query] Transient connection drop detected, retrying query once...');
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 400));
             return await pool.query(text, params);
         }
         throw err;

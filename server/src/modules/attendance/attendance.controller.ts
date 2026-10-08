@@ -63,10 +63,9 @@ export const getSummary = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const regularize = async (req: AuthenticatedRequest, res: Response) => {
-    const tenantId = req.user!.tenantId;
-    // POST mutation — always use the authenticated user's ID; ignore any userId in body
-    const userId = req.user!.userId;
-    const { date, check_in_time, check_out_time } = req.body;
-    const result = await service.regularize(userId, tenantId, date, check_in_time, check_out_time || null);
+    // HF-5: the request is filed for the authenticated user only (a body userId is ignored) and does
+    // not change attendance. An authorised approver decides it in the approvals inbox.
+    const { date, check_in_time, check_out_time, reason } = req.body;
+    const result = await service.requestRegularization(req.user!, date, check_in_time, check_out_time || null, reason);
     res.status(201).json(result);
 };

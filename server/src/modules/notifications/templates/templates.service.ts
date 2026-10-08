@@ -1,3 +1,4 @@
+import { BRAND } from '../../../config/brand';
 import { NotificationChannelsService } from '../channels/channels.service';
 
 export class NotificationTemplatesService {
@@ -91,7 +92,7 @@ export class NotificationTemplatesService {
         await NotificationChannelsService.notify({
             tenantId,
             userId,
-            title: 'Welcome to AURA 🚀',
+            title: `Welcome to ${BRAND.productName}`,
             message: `Hello ${name}! Your account has been provisioned. Welcome aboard.`,
             type: 'success',
             link: '/dashboard',

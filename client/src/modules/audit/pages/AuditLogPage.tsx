@@ -229,7 +229,7 @@ const AuditLogPage: React.FC = () => {
                                             </div>
                                             <div>
                                                 <p className="text-[14px] font-black text-slate-800">{selectedLog.user_name || 'System'}</p>
-                                                <p className="text-[11px] text-slate-400 font-medium">{selectedLog.user_email || 'automated@auracore.io'}</p>
+                                                <p className="text-[11px] text-slate-400 font-medium">{selectedLog.user_email || 'Automated system action'}</p>
                                             </div>
                                         </div>
                                     </section>

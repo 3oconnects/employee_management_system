@@ -128,15 +128,20 @@ api.interceptors.response.use(
 
             try {
                 const refreshToken = useAuthStore.getState().refreshToken;
-                const currentToken = useAuthStore.getState().accessToken;
+                if (!refreshToken) {
+                    processQueue(error, null);
+                    useAuthStore.getState().logout();
+                    window.location.href = '/login';
+                    return Promise.reject(error);
+                }
 
-                // Try refresh with token in body first, fallback to header
+                // Send refresh token in body and authorization header
                 const { data } = await axios.post(
                     `${api.defaults.baseURL}/auth/refresh`,
                     { refreshToken },
                     {
                         headers: {
-                            Authorization: `Bearer ${currentToken}`,
+                            Authorization: `Bearer ${refreshToken}`,
                             'Content-Type': 'application/json',
                         },
                         withCredentials: true,

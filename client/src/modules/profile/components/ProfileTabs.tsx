@@ -14,14 +14,28 @@ export const TABS = [
 
 export type TabKey = typeof TABS[number]['key'];
 
+export interface ProfileAccess { own: boolean; personal: boolean; pay: boolean; edit: boolean }
+
+/** Tabs a viewer may not open: personal records need personal access, compensation needs pay access, and the
+ *  attendance tab is the person's own clock, so only they get it. */
+export const hiddenProfileTabs = (a: ProfileAccess): TabKey[] => {
+    const hidden: TabKey[] = [];
+    if (!a.personal) hidden.push('education', 'experience', 'documents');
+    if (!a.pay) hidden.push('compensation');
+    if (!a.own) hidden.push('attendance');
+    return hidden;
+};
+
 interface Props {
     active: TabKey;
     onChange: (key: TabKey) => void;
+    /** tabs this viewer may not open */
+    hidden?: readonly TabKey[];
 }
 
-const ProfileTabs: React.FC<Props> = ({ active, onChange }) => (
+const ProfileTabs: React.FC<Props> = ({ active, onChange, hidden = [] }) => (
     <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-x-auto no-scrollbar">
-        {TABS.map(t => {
+        {TABS.filter(t => !hidden.includes(t.key)).map(t => {
             const isActive = active === t.key;
             return (
                 <button

@@ -4,12 +4,11 @@ import {
     Calendar,
     Wallet,
     TrendingUp,
-    Filter,
     Download,
     RefreshCw,
     Activity,
     CreditCard,
-    BarChart2
+    BarChart2,
 } from 'lucide-react';
 import api from '../../../services/api';
 
@@ -43,10 +42,10 @@ interface ReportData {
 }
 
 const TABS = [
-    { id: 'overview',    label: 'Overview',      icon: Activity  },
-    { id: 'attendance',  label: 'Attendance',     icon: Calendar  },
-    { id: 'payroll',     label: 'Payroll',        icon: CreditCard },
-    { id: 'team',        label: 'Organization',   icon: Users     },
+    { id: 'overview',    label: 'Overview & Insights',  icon: Activity   },
+    { id: 'attendance',  label: 'Attendance Analytics', icon: Calendar   },
+    { id: 'payroll',     label: 'Payroll Reports',      icon: CreditCard },
+    { id: 'team',        label: 'Organization Units',   icon: Users      },
 ];
 
 const Reports: React.FC = () => {
@@ -71,100 +70,90 @@ const Reports: React.FC = () => {
     /* ── Loading skeleton ─────────────────────────────────── */
     if (loading || !data) {
         return (
-            <div className="p-8 space-y-6 max-w-[1600px]">
-                {/* Header skeleton */}
+            <div className="w-full min-w-0 max-w-[1440px] mx-auto px-6 py-6 space-y-5 animate-pulse">
                 <div className="flex items-center justify-between">
                     <div className="space-y-2">
-                        <div className="h-5 w-40 bg-slate-100 rounded-lg animate-pulse" />
-                        <div className="h-3 w-64 bg-slate-50 rounded-lg animate-pulse" />
+                        <div className="h-6 w-48 bg-slate-200 rounded-md" />
+                        <div className="h-3.5 w-72 bg-slate-100 rounded-md" />
                     </div>
                     <div className="flex gap-2">
-                        <div className="h-9 w-24 bg-slate-100 rounded-xl animate-pulse" />
-                        <div className="h-9 w-28 bg-indigo-100 rounded-xl animate-pulse" />
+                        <div className="h-9 w-24 bg-slate-200 rounded-lg" />
                     </div>
                 </div>
-                {/* Tab skeleton */}
-                <div className="h-10 w-72 bg-slate-100 rounded-xl animate-pulse" />
-                {/* KPI row skeleton */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="h-10 w-96 bg-slate-200 rounded-xl" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[1,2,3,4].map(i => (
-                        <div key={i} className="h-28 bg-white border border-slate-100 rounded-2xl animate-pulse" />
+                        <div key={i} className="h-28 bg-white border border-slate-200/80 rounded-xl" />
                     ))}
-                </div>
-                {/* Chart row skeleton */}
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-2 h-72 bg-white border border-slate-100 rounded-2xl animate-pulse" />
-                    <div className="h-72 bg-white border border-slate-100 rounded-2xl animate-pulse" />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="p-8 space-y-6 max-w-[1600px]">
-
+        <div className="w-full min-w-0 max-w-[1440px] mx-auto px-6 py-6 space-y-5 animate-in fade-in duration-200">
             {/* ── Page Header ──────────────────────────────────────── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20 flex-shrink-0">
-                        <BarChart2 size={20} className="text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-[20px] font-black text-slate-900 tracking-tight">Reports & Analytics</h2>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-0.5">
-                            Real-time workforce intelligence
-                        </p>
-                    </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reports & Analytics</h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        Comprehensive workforce metrics, attendance patterns, and payroll insights
+                    </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                     <button
                         onClick={fetchData}
-                        className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-all shadow-sm"
+                        className="p-2 bg-white border border-slate-200/90 text-slate-500 hover:text-slate-800 rounded-lg transition-all shadow-xs"
+                        title="Refresh Data"
                     >
-                        <RefreshCw size={16} />
+                        <RefreshCw size={15} />
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[12px] font-bold hover:border-slate-300 transition-all shadow-sm">
-                        <Filter size={14} /> Filter
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-[12px] font-bold hover:bg-indigo-500 transition-all shadow-md shadow-indigo-600/20">
-                        <Download size={14} /> Export PDF
+                    <button 
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all shadow-xs"
+                    >
+                        <Download size={14} />
+                        Export Report
                     </button>
                 </div>
             </div>
 
             {/* ── Tab Bar ──────────────────────────────────────────── */}
-            <div className="flex items-center gap-1 bg-slate-100/70 p-1 rounded-xl w-fit border border-slate-200/50">
-                {TABS.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-[10px] text-[12px] font-bold transition-all whitespace-nowrap ${
-                            activeTab === tab.id
-                                ? 'bg-white text-indigo-600 shadow-sm shadow-slate-200/80 border border-slate-200/60'
-                                : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                        <tab.icon size={14} />
-                        {tab.label}
-                    </button>
-                ))}
+            <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-x-auto no-scrollbar">
+                {TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const isSelected = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all ${
+                                isSelected
+                                    ? 'bg-slate-900 text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                            }`}
+                        >
+                            <Icon size={14} className={isSelected ? 'text-white' : 'text-slate-400'} />
+                            <span>{tab.label}</span>
+                        </button>
+                    );
+                })}
             </div>
 
             {/* ── Tab Content ──────────────────────────────────────── */}
             <div className="space-y-5">
-
                 {activeTab === 'overview' && (
                     <>
                         {/* KPI row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <ReportStatCard
-                                label="Total Employees"
+                                label="Total Workforce"
                                 value={data.headcount.toString()}
                                 trend="+4.2%"
                                 up={true}
                                 icon={Users}
-                                iconColor="text-indigo-600"
-                                iconBg="bg-indigo-50"
+                                iconColor="text-blue-600"
+                                iconBg="bg-blue-50"
                             />
                             <ReportStatCard
                                 label="Avg. Monthly Salary"
@@ -185,29 +174,31 @@ const Reports: React.FC = () => {
                                 iconBg="bg-amber-50"
                             />
                             <ReportStatCard
-                                label="Attendance Rate"
+                                label="Attendance Compliance"
                                 value={`${data.attendance.avgCompliance}%`}
                                 trend="+2.1%"
                                 up={true}
                                 icon={Activity}
-                                iconColor="text-sky-600"
-                                iconBg="bg-sky-50"
+                                iconColor="text-violet-600"
+                                iconBg="bg-violet-50"
                             />
                         </div>
 
                         {/* Row 2: chart + dept */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                            <div className="lg:col-span-2">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                            <div className="lg:col-span-7">
                                 <AttendanceTrendChart
                                     data={data.attendanceTrend}
                                     avgCompliance={data.attendance.avgCompliance}
                                 />
                             </div>
-                            <DepartmentBreakdownCard departments={data.departments} />
+                            <div className="lg:col-span-5">
+                                <DepartmentBreakdownCard departments={data.departments} />
+                            </div>
                         </div>
 
                         {/* Row 3: composition + diversity */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                             <WorkforceComposition types={data.employmentType} total={data.headcount} />
                             <DiversityMetricsCard data={data.genderDistribution} total={data.headcount} />
                         </div>
@@ -230,6 +221,7 @@ const Reports: React.FC = () => {
                         data={data.payroll}
                         avgSalary={data.avgSalary}
                         distribution={data.salaryDistribution}
+                        headcount={data.headcount}
                     />
                 )}
 

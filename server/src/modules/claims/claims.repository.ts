@@ -21,9 +21,4 @@ export class ClaimsRepository {
         );
         return result.rows;
     }
-
-    async updateClaimStatus(id: string, status: string, tenantId: string) {
-        const result = await pool.query('UPDATE claims SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *', [status, id, tenantId]);
-        return result.rows[0];
-    }
 }

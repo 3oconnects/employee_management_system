@@ -12,9 +12,8 @@ import {
     X,
     FileSearch,
     Package,
-    ArrowDownToLine,
     ShieldCheck,
-    Briefcase
+    Users,
 } from 'lucide-react';
 import api from '../../../services/api';
 
@@ -61,7 +60,7 @@ const DocumentsPayslips = () => {
             a.click();
             window.URL.revokeObjectURL(url);
         } catch (err: any) {
-            setError('Bulk export failed. Resource unavailable.');
+            setError('Failed to generate bulk payslips archive. Please verify payroll is processed for this period.');
         } finally {
             setDownloading(null);
         }
@@ -86,7 +85,7 @@ const DocumentsPayslips = () => {
             a.click();
             window.URL.revokeObjectURL(url);
         } catch (err: any) {
-            setError('PDF generation failed.');
+            setError('Failed to generate individual payslip PDF.');
         } finally {
             setDownloading(null);
         }
@@ -111,105 +110,106 @@ const DocumentsPayslips = () => {
             a.click();
             window.URL.revokeObjectURL(url);
         } catch (err: any) {
-            setError('Yearly archive generation failed.');
+            setError('Failed to generate annual payslip archive.');
         } finally {
             setDownloading(null);
         }
     };
 
-    return (
-        <div className="p-6 space-y-8 page-enter">
-            
-            {/* ── Page Header ──────────────────────────────── */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
-                        <FileSearch size={20} className="text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-[17px] font-black text-gray-900 tracking-tight uppercase">Document Archive</h2>
-                        <p className="text-[11.5px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                            Bulk Export & Distribution Management
-                        </p>
-                    </div>
-                </div>
+    const selectedEmpObj = employees.find(e => e.id === selectedEmployee);
 
-                <div className="flex items-center gap-2">
-                    <div className="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100 flex items-center gap-1.5">
-                        <ShieldCheck size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Compliance Validated</span>
-                    </div>
+    return (
+        <div className="space-y-5 animate-in fade-in duration-200">
+            {/* ── Page Header ──────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 className="text-base font-semibold text-slate-900">Payslips & Document Export</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Generate official salary slips for individual staff or export bulk archives</p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200 text-xs font-semibold">
+                    <ShieldCheck size={14} />
+                    <span>Compliance Verified</span>
                 </div>
             </div>
 
             {error && (
-                <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-xl flex items-center gap-3 animate-in fade-in">
-                    <AlertCircle size={18} />
-                    <p className="text-[12px] font-bold">{error}</p>
-                    <button onClick={() => setError(null)} className="ml-auto"><X size={16}/></button>
+                <div className="bg-rose-50 border border-rose-200/80 text-rose-700 p-3.5 rounded-xl flex items-center justify-between gap-3 text-xs font-medium">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-rose-500 shrink-0" />
+                        <p>{error}</p>
+                    </div>
+                    <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-700">
+                        <X size={15}/>
+                    </button>
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                {/* ── Individual Downloads Card ────────────────── */}
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-md"><User size={18}/></div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* ── Individual Employee Card ─────────────────── */}
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-6 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                <User size={18} />
+                            </div>
                             <div>
-                                <h3 className="text-[15px] font-black text-gray-900 uppercase tracking-tight">Individual Precision</h3>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Targeted Employee Export</p>
+                                <h4 className="text-sm font-semibold text-slate-900">Individual Employee Payslips</h4>
+                                <p className="text-xs text-slate-500 mt-0.5">Generate salary slips for specific personnel</p>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="p-8 space-y-8 flex-1">
-                        <div className="relative">
-                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1 mb-2 block">Select Employee</label>
+                        {/* Searchable selector */}
+                        <div className="relative mb-5">
+                            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Select Employee</label>
                             <div 
                                 onClick={() => setIsSelectorOpen(!isSelectorOpen)}
-                                className={`w-full bg-gray-50 border-2 rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-all ${isSelectorOpen ? 'border-indigo-400 bg-white ring-4 ring-indigo-50' : 'border-gray-50 hover:border-gray-100'}`}
+                                className={`w-full bg-slate-50 border rounded-lg p-2.5 flex items-center justify-between cursor-pointer transition-all ${
+                                    isSelectorOpen ? 'border-blue-500 bg-white ring-2 ring-blue-50' : 'border-slate-200 hover:border-slate-300'
+                                }`}
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center text-[10px] font-black">
-                                        {selectedEmployee ? employees.find(e => e.id === selectedEmployee)?.name.charAt(0) : <Search size={14}/>}
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center text-xs font-bold">
+                                        {selectedEmpObj ? selectedEmpObj.name.charAt(0) : <Search size={13} className="text-slate-400" />}
                                     </div>
-                                    <span className={`text-[13px] font-bold ${selectedEmployee ? 'text-gray-900' : 'text-gray-400'}`}>
-                                        {selectedEmployee ? `${employees.find(e => e.id === selectedEmployee)?.name} (${selectedEmployee})` : 'Search employee...'}
+                                    <span className={`text-xs font-medium ${selectedEmpObj ? 'text-slate-900' : 'text-slate-400'}`}>
+                                        {selectedEmpObj ? `${selectedEmpObj.name} (${selectedEmpObj.id})` : 'Search employee by name or ID…'}
                                     </span>
                                 </div>
-                                <ChevronDown size={16} className={`text-gray-400 transition-transform ${isSelectorOpen ? 'rotate-180' : ''}`}/>
+                                <ChevronDown size={15} className={`text-slate-400 transition-transform ${isSelectorOpen ? 'rotate-180' : ''}`} />
                             </div>
 
                             {isSelectorOpen && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl z-[50] p-4 space-y-4 animate-in zoom-in-95">
+                                <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2.5 space-y-2 animate-in zoom-in-95">
                                     <div className="relative">
-                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input 
                                             type="text" 
-                                            className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-9 pr-4 text-[12px] font-bold outline-none focus:bg-white"
-                                            placeholder="Type name or code..."
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 pl-8 pr-3 text-xs outline-none focus:bg-white focus:border-blue-500"
+                                            placeholder="Filter employees..."
                                             value={searchQuery}
                                             onChange={e => setSearchQuery(e.target.value)}
                                             autoFocus
                                         />
                                     </div>
-                                    <div className="max-h-60 overflow-y-auto space-y-1 pr-2">
+                                    <div className="max-h-52 overflow-y-auto space-y-1">
                                         {employees.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()) || e.id.toLowerCase().includes(searchQuery.toLowerCase())).map(e => (
                                             <div 
                                                 key={e.id}
                                                 onClick={() => { setSelectedEmployee(e.id); setIsSelectorOpen(false); }}
-                                                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${selectedEmployee === e.id ? 'bg-indigo-600 text-white' : 'hover:bg-gray-50'}`}
+                                                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all ${
+                                                    selectedEmployee === e.id ? 'bg-blue-50 text-blue-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                                                }`}
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black ${selectedEmployee === e.id ? 'bg-white/20' : 'bg-gray-100 text-gray-400'}`}>{e.name.charAt(0)}</div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="w-6 h-6 rounded bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-semibold">
+                                                        {e.name.charAt(0)}
+                                                    </div>
                                                     <div>
-                                                        <p className="text-[12px] font-bold leading-none">{e.name}</p>
-                                                        <p className={`text-[9px] font-medium mt-1 ${selectedEmployee === e.id ? 'text-indigo-100' : 'text-gray-400'}`}>{e.department}</p>
+                                                        <p className="text-xs leading-none">{e.name}</p>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">{e.department} • {e.id}</p>
                                                     </div>
                                                 </div>
-                                                {selectedEmployee === e.id && <Check size={14}/>}
+                                                {selectedEmployee === e.id && <Check size={14} className="text-blue-600" />}
                                             </div>
                                         ))}
                                     </div>
@@ -217,30 +217,59 @@ const DocumentsPayslips = () => {
                             )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-4">
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><FileText size={14} className="text-blue-600"/> Monthly Document</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <select value={month} onChange={e => setMonth(e.target.value)} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[11px] font-bold text-gray-900 outline-none">
+                        {/* Export actions */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            {/* Monthly Document */}
+                            <div className="p-3.5 bg-slate-50/70 rounded-lg border border-slate-200/80 space-y-3">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                    <FileText size={14} className="text-blue-600" />
+                                    <span>Monthly Payslip</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                        value={month}
+                                        onChange={e => setMonth(e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-md p-1.5 text-xs font-medium text-slate-900 outline-none"
+                                    >
                                         {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
                                     </select>
-                                    <select value={year} onChange={e => setYear(e.target.value)} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[11px] font-bold text-gray-900 outline-none">
-                                        {['2024', '2025', '2026'].map(y => <option key={y} value={y}>{y}</option>)}
+                                    <select
+                                        value={year}
+                                        onChange={e => setYear(e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-md p-1.5 text-xs font-medium text-slate-900 outline-none"
+                                    >
+                                        {['2024', '2025', '2026', '2027'].map(y => <option key={y} value={y}>{y}</option>)}
                                     </select>
                                 </div>
-                                <button onClick={downloadMonthlyPDF} disabled={!selectedEmployee || !!downloading} className="w-full py-3 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                                    {downloading === 'monthly' ? <Loader2 size={14} className="animate-spin"/> : <Download size={14}/>}
+                                <button
+                                    onClick={downloadMonthlyPDF}
+                                    disabled={!selectedEmployee || !!downloading}
+                                    className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-xs"
+                                >
+                                    {downloading === 'monthly' ? <Loader2 size={13} className="animate-spin"/> : <Download size={13}/>}
                                     Download PDF
                                 </button>
                             </div>
 
-                            <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-4">
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><Archive size={14} className="text-emerald-600"/> Annual Archive</p>
-                                <select value={yearlyYear} onChange={e => setYearlyYear(e.target.value)} className="w-full bg-white border border-gray-100 rounded-xl p-2.5 text-[11px] font-bold text-gray-900 outline-none">
-                                    {['2024', '2025', '2026'].map(y => <option key={y} value={y}>FY {y}</option>)}
+                            {/* Annual Archive */}
+                            <div className="p-3.5 bg-slate-50/70 rounded-lg border border-slate-200/80 space-y-3">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                    <Archive size={14} className="text-emerald-600" />
+                                    <span>Annual Statement</span>
+                                </div>
+                                <select
+                                    value={yearlyYear}
+                                    onChange={e => setYearlyYear(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 rounded-md p-1.5 text-xs font-medium text-slate-900 outline-none"
+                                >
+                                    {['2024', '2025', '2026', '2027'].map(y => <option key={y} value={y}>FY {y}</option>)}
                                 </select>
-                                <button onClick={downloadYearlyZip} disabled={!selectedEmployee || !!downloading} className="w-full py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                                    {downloading === 'yearly' ? <Loader2 size={14} className="animate-spin"/> : <Package size={14}/>}
+                                <button
+                                    onClick={downloadYearlyZip}
+                                    disabled={!selectedEmployee || !!downloading}
+                                    className="w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-xs"
+                                >
+                                    {downloading === 'yearly' ? <Loader2 size={13} className="animate-spin"/> : <Package size={13}/>}
                                     Download ZIP
                                 </button>
                             </div>
@@ -249,46 +278,64 @@ const DocumentsPayslips = () => {
                 </div>
 
                 {/* ── Bulk Downloads Card ──────────────────────── */}
-                <div className="bg-gray-900 rounded-3xl p-10 text-white relative flex flex-col justify-between shadow-2xl">
-                    <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-600/20 blur-3xl -mr-20 -mt-20"></div>
-                    <div className="relative z-10 space-y-8">
-                        <div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10 mb-4">
-                                <ArrowDownToLine size={14} className="text-indigo-400" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Global Export</span>
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-6 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-100">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                    <Users size={18} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-semibold text-slate-900">Bulk Pay Run Export</h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">Export all employee payslips for a cycle</p>
+                                </div>
                             </div>
-                            <h3 className="text-[24px] font-black tracking-tight leading-tight">Bulk Transmission Archive</h3>
-                            <p className="text-gray-400 text-[13px] font-medium mt-3 max-w-sm">Generate and download a compressed ZIP bundle containing all verified employee payslips for the chosen fiscal cycle.</p>
+                            <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-[11px] font-semibold">
+                                All Staff
+                            </span>
                         </div>
 
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Target Cycle</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <select value={month} onChange={e => setMonth(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-indigo-500">
-                                            {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                                        </select>
-                                        <select value={year} onChange={e => setYear(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-indigo-500">
-                                            {['2024', '2025', '2026'].map(y => <option key={y} value={y}>{y}</option>)}
-                                        </select>
-                                    </div>
+                        <p className="text-xs text-slate-600 leading-relaxed mb-6">
+                            Generates a compressed ZIP bundle containing official PDF payslips for all eligible employees with processed payroll entries in the selected period.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Payroll Cycle</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                        value={month}
+                                        onChange={e => setMonth(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                                    >
+                                        {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                                    </select>
+                                    <select
+                                        value={year}
+                                        onChange={e => setYear(e.target.value)}
+                                        className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                                    >
+                                        {['2024', '2025', '2026', '2027'].map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
                                 </div>
                             </div>
 
-                            <button onClick={downloadBulkZip} disabled={!!downloading} className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/10 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50">
-                                {downloading === 'bulk' ? <Loader2 size={16} className="animate-spin"/> : <Download size={16}/>}
-                                <span>Generate Collective ZIP</span>
+                            <button
+                                onClick={downloadBulkZip}
+                                disabled={!!downloading}
+                                className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-xs"
+                            >
+                                {downloading === 'bulk' ? <Loader2 size={15} className="animate-spin"/> : <Download size={15}/>}
+                                <span>Export Full Pay Run ZIP ({MONTHS[parseInt(month)-1]} {year})</span>
                             </button>
-
-                            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl">
-                                <AlertCircle size={16} className="text-gray-500 shrink-0" />
-                                <p className="text-[10px] text-gray-400 font-medium">Export includes all employees with an active <span className="text-white">Payable</span> status for the selected period.</p>
-                            </div>
                         </div>
                     </div>
-                </div>
 
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-400">
+                        <Archive size={13} className="shrink-0" />
+                        <span>Formatted for digital distribution, audit records, and offline archiving.</span>
+                    </div>
+                </div>
             </div>
         </div>
     );

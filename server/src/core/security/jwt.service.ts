@@ -2,8 +2,10 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { JwtPayload } from '../../types';
 
-const ACCESS_TOKEN_EXPIRY = '15m';
-const REFRESH_TOKEN_EXPIRY = '7d';
+const ACCESS_TOKEN_EXPIRY: any = process.env.JWT_EXPIRES_IN || '24h';
+const REFRESH_TOKEN_EXPIRY: any = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+
+import crypto from 'crypto';
 
 export class JwtService {
     static generateAccessToken(payload: JwtPayload): string {
@@ -11,7 +13,10 @@ export class JwtService {
     }
 
     static generateRefreshToken(payload: Pick<JwtPayload, 'userId' | 'tenantId'>): string {
-        return jwt.sign(payload, env.JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
+        return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+            expiresIn: REFRESH_TOKEN_EXPIRY,
+            jwtid: crypto.randomUUID(),
+        });
     }
 
     static verifyAccessToken(token: string): JwtPayload {

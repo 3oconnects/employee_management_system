@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "generated": "2026-10-02",
+  "baseline_commit": "83c1e84d9a5834a33f72cc444aa55b89cd71b55b",
+  "branch": "release-0/safety-net",
+  "release_0_gate": "BLOCKED",
+  "release_1_may_start": false,
+  "release_1_start_condition": "All five B0 items RESOLVED with owner evidence (see remaining_release_0_blockers).",
+  "confirmed_production_schema": {
+    "status": "NOT_ESTABLISHED",
+    "reason": "B0-01 production pg_dump and diagnostics have not been run by the owner.",
+    "authoritative_source_when_available": "server/db/baseline/0000_live_schema.sql + 0000_live_schema.md"
+  },
+  "confirmed_schema_drift": {
+    "scope": "code-vs-repository-scripts (production side unknown)",
+    "items": [
+      {
+        "object": "users.phone|address|emergency",
+        "code": "read",
+        "repo_scripts": "absent",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "users.avatar_url",
+        "code": "read",
+        "repo_scripts": "scratch script only",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "payroll_entries.payroll_run_id",
+        "code": "written",
+        "repo_scripts": "absent",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "payroll_entries.tenant_id",
+        "code": "written",
+        "repo_scripts": "schema.ts only (fails on fresh DB)",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "payroll_history.name",
+        "code": "written",
+        "repo_scripts": "absent",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "payroll_history.status + UNIQUE(employee_id,month,year,tenant_id)",
+        "code": "required by ON CONFLICT",
+        "repo_scripts": "phase2_migrations.ts only (not wired)",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "payroll_runs.tenant_id",
+        "code": "written",
+        "repo_scripts": "schema.ts only (fails on fresh DB)",
+        "production": "unknown",
+        "classification": "confirmed-repo / ambiguous-prod"
+      },
+      {
+        "object": "employees.manager_id",
+        "code": "read",
+        "repo_scripts": "absent",
+        "production": "unknown",
+        "classification": "new / ambiguous-prod"
+      },
+      {
+        "object": "leave_types.tenant_id",
+        "code": "needed (T-2)",
+        "repo_scripts": "absent",
+        "production": "unknown",
+        "classification": "new / ambiguous-prod"
+      },
+      {
+        "object": "tenants.is_active",
+        "code": "inserted by initializeDatabase()",
+        "repo_scripts": "absent",
+        "production": "unknown",
+        "classification": "new / ambiguous-prod"
+      }
+    ]
+  },
+  "remaining_release_0_blockers": [
+    {
+      "item": "B0-01",
+      "owner_action": "Run diagnostics.sql and pg_dump --schema-only read-only; review; hand back",
+      "runbook": "server/db/baseline/README.md"
+    },
+    {
+      "item": "B0-02",
+      "owner_action": "Restore drill into scratch project; record PASS; approve RPO/RTO",
+      "runbook": "docs/runbooks/backup-restore.md"
+    },
+    {
+      "item": "B0-03",
+      "owner_action": "None directly; blocked on B0-01 snapshot for integration run",
+      "runbook": null
+    },
+    {
+      "item": "B0-04",
+      "owner_action": "Create Sentry projects ems-api/ems-web; set runtime + build-time DSNs; verify staging events; confirm deployed Node >= 20.19; Node runtime must be confirmed in the deployment configuration BEFORE any SENTRY_DSN is set",
+      "runbook": "docs/runbooks/monitoring.md"
+    },
+    {
+      "item": "B0-05",
+      "owner_action": "Create staging Supabase project + deployment with staging-only secrets and empty SMTP; run rebuild x2 and smoke; run smoke a second time from a different network within 15 min and record R0-F4 proxy result (per-client vs SHARED BUCKET)",
+      "runbook": "docs/runbooks/staging.md"
+    }
+  ],
+  "r0_findings": [
+    {
+      "id": "R0-F1",
+      "status": "confirmed",
+      "summary": "initDb.ts self-executes on import; db:migrate/db:seed race and crash on fresh DB",
+      "target": "Release 5 (O-5)"
+    },
+    {
+      "id": "R0-F2",
+      "status": "confirmed",
+      "summary": "Legacy schema scripts mutually inconsistent (tenants.is_active)",
+      "target": "Release 5 (O-5)"
+    },
+    {
+      "id": "R0-F3",
+      "status": "confirmed-repo, prod pending",
+      "summary": "Code reads columns no repo script creates",
+      "target": "B0-01"
+    },
+    {
+      "id": "R0-F4",
+      "status": "confirmed-local, proxy effect unverified",
+      "summary": "authLimiter (10/15min/IP) covers all /auth/* incl. /me and /refresh; no trust proxy -> possible org-wide login lockout",
+      "target": "Release 1",
+      "severity": "High"
+    },
+    {
+      "id": "R0-F5",
+      "status": "confirmed, unchanged vs baseline",
+      "summary": "Client prod deps: 3 high + 4 moderate (axios, follow-redirects, form-data, lodash, react-router, react-router-dom, @remix-run/router); server: 1 moderate",
+      "target": "Release 1"
+    },
+    {
+      "id": "R0-F6",
+      "status": "open",
+      "summary": "vitest 5 requires @types/node >= 22; pinned vitest 3",
+      "target": "Release 5"
+    },
+    {
+      "id": "R0-F7",
+      "status": "blocked",
+      "summary": "Sentry 11 needs Node >= 20.19; no Node version pinned in repo; Vercel deprecates Node 20 from 2026-10-01",
+      "target": "Owner before enabling Sentry"
+    },
+    {
+      "id": "R0-F8",
+      "status": "confirmed",
+      "summary": "Client Sentry DSN is build-time (Vite inlines env)",
+      "target": "Documented"
+    }
+  ],
+  "required_release_1_security_findings": [
+    {
+      "id": "S1",
+      "title": "Master password backdoor",
+      "location": "server/src/modules/auth/auth.service.ts:23-25"
+    },
+    {
+      "id": "S5/S6",
+      "title": "Leaked secrets in git history + default JWT secrets",
+      "location": "git history server/.env; server/src/config/env.ts:9-10",
+      "note": "Rotation is an owner action and should happen first"
+    },
+    {
+      "id": "S2",
+      "title": "Password reset takeover chain",
+      "location": "approvals.routes.ts:14; approvals.service.ts:25-128; auth.service.ts:141-257"
+    },
+    {
+      "id": "S3",
+      "title": "Unguarded sensitive/mutating endpoints",
+      "location": "payroll, leave approve, approvals action, timesheets approve, claims, audit-logs, reports, users routes"
+    },
+    {
+      "id": "S4",
+      "title": "Manager privilege escalation via legacy role map",
+      "location": "server/src/core/security/authorize.ts:69-131; settings/index.ts:11; employees.routes.ts:50,68,71"
+    },
+    {
+      "id": "H1",
+      "title": "Plaintext temporary passwords + reveal endpoint",
+      "location": "auth.service.ts:20; user-assignments.*"
+    },
+    {
+      "id": "H4",
+      "title": "Destructive bootstrap (admin password reset, forced super_admin, seed on boot)",
+      "location": "initDb.ts:450-463; seedPermissions.ts:139-147; index.ts start()"
+    },
+    {
+      "id": "R0-F4",
+      "title": "Auth limiter scope + proxy keying",
+      "location": "server/src/app.ts:44-104"
+    },
+    {
+      "id": "R0-F5",
+      "title": "Vulnerable dependencies",
+      "location": "client/package.json, server/package.json"
+    }
+  ],
+  "required_migration_dependencies": [
+    "0000_live_schema.sql must exist before any migration is written",
+    "Versioned migration runner (O-5) should be introduced no later than the first Release 2 migration",
+    "Release 1 S2 can store reset-token hash in approvals.metadata (JSONB) to avoid DDL in Release 1",
+    "H1 cleanup (UPDATE users SET temp_password = NULL) requires B0-01 count U1 first"
+  ],
+  "known_route_contract_failures": {
+    "backend_routes": 124,
+    "unmatched_client_calls": 18,
+    "genuine": 16,
+    "dynamic_false_positives": 2,
+    "baseline_file": "docs/audit/tools/route_contract_baseline.txt",
+    "fix_release": "Release 2 (B-17); payroll run button stays disabled until W-2"
+  },
+  "known_dependency_vulnerabilities": {
+    "client_prod": {
+      "high": 3,
+      "moderate": 4,
+      "packages": [
+        "axios",
+        "follow-redirects",
+        "form-data",
+        "lodash",
+        "react-router",
+        "react-router-dom",
+        "@remix-run/router"
+      ]
+    },
+    "server_prod": {
+      "moderate": 1
+    },
+    "introduced_by_release_0": 0
+  },
+  "runtime_compatibility": [
+    "@sentry/node 11 engines: node >=20.19 <22 || >=22.12 <23 || >=23.2",
+    "No Node version pinned in package.json, vercel.json, render.yaml",
+    "vitest pinned to ^3 because project @types/node is ^20",
+    "Client Sentry requires VITE_SENTRY_DSN at build time"
+  ],
+  "open_product_decisions": [
+    "Meaning of employees.status = 'inactive' (W-1)",
+    "Manager identity: employee record vs user account (W-3; recommended employee)",
+    "Primary deployment target: Vercel or Render (O-7)",
+    "Payroll separation of duties / single-operator override (W-2)",
+    "Attendance regularization window (B-14)",
+    "Retention periods for exited-employee records (E-7)",
+    "RPO/RTO approval (B0-02)"
+  ],
+  "recommended_release_1_order": [
+    "0. Complete Release 0 gate (owner actions above)",
+    "1. S5/S6 secret rotation (owner) then make JWT secrets required",
+    "2. S1 remove backdoor (after confirming real admin password works)",
+    "3. Populate authz matrix rows (secure expectations) before guard changes",
+    "4. S4 settings/employee-delete/performance guard fixes",
+    "5. S3 route guards (+ self-scoped payroll endpoint for employees in same PR)",
+    "6. S2 password reset hardening (UI change in ForgotPasswordModal)",
+    "7. H1 temp-password hashing + remove reveal endpoint",
+    "8. H4 destructive bootstrap removal; move seeding out of start()",
+    "9. R0-F4 auth limiter scope + trust proxy (verify on staging)",
+    "10. R0-F5 dependency upgrades with regression run"
+  ],
+  "git_state": "Branch release-0/safety-net remains at 83c1e84. All Release 0 changes are uncommitted and unstaged. No unexpected or unrelated changes were detected.",
+  "keep_visible": [
+    "R0-F4: verify proxy keying on staging (B0-05); fix in Release 1",
+    "R0-F7: confirm deployed Node runtime before enabling Sentry"
+  ],
+  "release_discipline": [
+    "Never invent owner evidence",
+    "Production DB only via owner-run read-only scripts",
+    "No migrations before 0000_live_schema.sql exists",
+    "Report out-of-scope defects; never fix silently"
+  ]
+}

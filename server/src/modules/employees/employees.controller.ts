@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { EmployeesService } from './employees.service';
 import { ApiResponse } from '../../core/response/ApiResponse';
+import { AppError } from '../../core/errors/AppError';
+import { applyProfileAccess, profileAccess } from './profile.visibility';
 
 const service = new EmployeesService();
 
@@ -27,15 +29,14 @@ export const getEmployees = async (req: Request, res: Response) => {
 };
 
 export const createEmployee = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user?.tenantId;
-    const result = await service.createEmployee(tenantId, req.body);
+    const result = await service.createEmployee((req as any).user, req.body);
     res.status(201).json({ success: true, employeeId: result.employeeId });
 };
 
 export const getMyProfile = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const profile = await service.getEmployeeProfileByUserIdOrEmail(user?.userId, user?.email, user?.tenantId);
-    res.json(profile);
+    res.json(applyProfileAccess(profile as any, profileAccess(user, true)));
 };
 
 export const updateEmployee = async (req: Request, res: Response) => {
@@ -46,7 +47,9 @@ export const updateEmployee = async (req: Request, res: Response) => {
     // Check authorization: admin, hr, super_admin OR own profile
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(targetId, user?.email, user?.userId);
+        // Bonus fix (ARC-02 analysis): isEmployeeOwner was called with email in the tenantId position.
+        // Correct signature: isEmployeeOwner(employeeId, tenantId, email?, userId?)
+        const isOwn = await service.isEmployeeOwner(targetId, tenantId, user?.email, user?.userId);
         if (!isOwn) {
             return res.status(403).json({ success: false, message: 'You are only authorized to update your own profile.' });
         }
@@ -57,12 +60,21 @@ export const updateEmployee = async (req: Request, res: Response) => {
         }
     }
 
-    await service.updateEmployee(targetId, tenantId, req.body);
+    await service.updateEmployee(targetId, user, req.body);
     res.json({ success: true, message: 'Employee updated successfully.' });
 };
 
+/** Education, experience and emergency contacts are personal records: the owner, or someone allowed to update employees. */
+const assertMayReadPersonalRecords = async (req: Request): Promise<void> => {
+    const user = (req as any).user;
+    if (profileAccess(user, false).personal) return;
+    if (await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId)) return;
+    throw AppError.forbidden('Access denied: these records are private to the employee and HR.');
+};
+
 export const getEducation = async (req: Request, res: Response) => {
-    const data = await service.getEducation(req.params.id);
+    await assertMayReadPersonalRecords(req);
+    const data = await service.getEducation(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
 
@@ -70,16 +82,17 @@ export const saveEducation = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(req.params.id, user?.email, user?.userId);
+        const isOwn = await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId);
         if (!isOwn) return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     const entries = Array.isArray(req.body.entries) ? req.body.entries : (Array.isArray(req.body) ? req.body : []);
-    const data = await service.saveEducation(req.params.id, entries);
+    const data = await service.saveEducation(req.params.id, user.tenantId, entries);
     res.json({ success: true, items: data });
 };
 
 export const getExperience = async (req: Request, res: Response) => {
-    const data = await service.getExperience(req.params.id);
+    await assertMayReadPersonalRecords(req);
+    const data = await service.getExperience(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
 
@@ -87,16 +100,17 @@ export const saveExperience = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(req.params.id, user?.email, user?.userId);
+        const isOwn = await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId);
         if (!isOwn) return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     const entries = Array.isArray(req.body.entries) ? req.body.entries : (Array.isArray(req.body) ? req.body : []);
-    const data = await service.saveExperience(req.params.id, entries);
+    const data = await service.saveExperience(req.params.id, user.tenantId, entries);
     res.json({ success: true, items: data });
 };
 
 export const getEmergencyContacts = async (req: Request, res: Response) => {
-    const data = await service.getEmergencyContacts(req.params.id);
+    await assertMayReadPersonalRecords(req);
+    const data = await service.getEmergencyContacts(req.params.id, (req as any).user.tenantId);
     res.json(data);
 };
 
@@ -104,7 +118,7 @@ export const saveEmergencyContacts = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(req.params.id, user?.email, user?.userId);
+        const isOwn = await service.isEmployeeOwner(req.params.id, user.tenantId, user?.email, user?.userId);
         if (!isOwn) return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     const contacts = Array.isArray(req.body.contacts) ? req.body.contacts : (Array.isArray(req.body) ? req.body : []);
@@ -113,8 +127,7 @@ export const saveEmergencyContacts = async (req: Request, res: Response) => {
 };
 
 export const bulkUpload = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user?.tenantId;
-    const result = await service.bulkUpload(tenantId, req.body.employees);
+    const result = await service.bulkUpload((req as any).user, req.body.employees);
     res.json({ success: true, ...result });
 };
 
@@ -130,13 +143,13 @@ export const checkEmail = async (req: Request, res: Response) => {
 };
 
 export const deleteEmployee = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user?.tenantId || 'tenant_default';
+    const user = (req as any).user;
+    const tenantId = user.tenantId;
     const { id } = req.params;
-    const success = await service.deleteEmployee(id, tenantId);
+    // ARC-02: Pass actor for audit trail. Tenant isolation is enforced in the repository.
+    const success = await service.deleteEmployee(id, tenantId, { userId: user.userId, email: user.email });
     if (!success) {
         return res.status(404).json({ success: false, message: 'Employee not found or could not be deleted.' });
     }
     res.json({ success: true, message: 'Employee deleted successfully.' });
 };
-
-

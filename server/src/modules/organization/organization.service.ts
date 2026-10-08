@@ -46,6 +46,7 @@ export class OrganizationService {
             parent_team_id: data.parent_team_id,
             description: data.description,
             owner_id: data.manager_id,
+            member_ids: Array.isArray(data.member_ids) ? Array.from(new Set(data.member_ids.map(String))).slice(0, 200) : [],
             metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata,
             category: data.category || 'core'
         }, tenantId);

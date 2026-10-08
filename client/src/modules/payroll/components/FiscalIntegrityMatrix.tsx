@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, BarChart3, Activity, IndianRupee, ShieldCheck, Target } from 'lucide-react';
+import { BarChart3, Activity, IndianRupee, ShieldCheck, Target, ArrowRight } from 'lucide-react';
 
 interface FiscalIntegrityMatrixProps {
     summary: {
@@ -14,51 +14,80 @@ interface FiscalIntegrityMatrixProps {
 
 const FiscalIntegrityMatrix: React.FC<FiscalIntegrityMatrixProps> = ({ summary, avgSalary, inr }) => {
     return (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/20 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
-            
-            <div className="relative flex items-center justify-between mb-8">
+        <div className="bg-white rounded-xl p-6 border border-slate-200/80 shadow-xs flex flex-col">
+            <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-[14px] font-black text-slate-900 tracking-tight uppercase">Fiscal Integrity Matrix</h3>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Consolidated Operational Expenditure</p>
+                    <h3 className="text-base font-semibold text-slate-900">Payroll Cost Breakdown</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Consolidated monthly compensation and liability distribution</p>
                 </div>
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
-                    <TrendingUp size={16} />
-                </div>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Verified Ledger
+                </span>
             </div>
 
-            <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {[
-                    { label: 'Gross Value', value: inr(summary.totalGross), icon: BarChart3, sub: 'Pre-Deduction', color: 'text-indigo-600' },
-                    { label: 'Deductions', value: inr(summary.totalDeductions), icon: Activity, sub: 'PF, PT & TDS', color: 'text-rose-500' },
-                    { label: 'Net Payable', value: inr(summary.netOutflow), icon: IndianRupee, sub: 'Personnel Payout', color: 'text-emerald-600' },
-                    { label: 'Govt. Dues', value: inr(summary.govtPayables), icon: ShieldCheck, sub: 'Compliance Pool', color: 'text-amber-500' },
-                ].map((s) => (
-                    <div key={s.label} className="p-4 rounded-xl border border-slate-50 bg-slate-50/30 hover:bg-white hover:shadow-xl hover:border-indigo-100 transition-all group">
-                        <div className="flex items-center gap-2 mb-2.5">
-                            <div className={`w-6 h-6 rounded-lg bg-white border border-slate-100 flex items-center justify-center ${s.color} group-hover:scale-110 transition-transform`}>
-                                <s.icon size={10} />
-                            </div>
-                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{s.label}</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-6">
+                {/* Gross Value */}
+                <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-xs transition-all">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <BarChart3 size={14} />
                         </div>
-                        <p className="text-[18px] font-black text-slate-900 tracking-tight">{s.value}</p>
-                        <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest mt-1.5 opacity-50">{s.sub}</p>
+                        <span className="text-xs font-semibold text-slate-600">Total Gross Salary</span>
                     </div>
-                ))}
+                    <p className="text-xl font-bold text-slate-900 tracking-tight">{inr(summary.totalGross)}</p>
+                    <p className="text-xs text-slate-400 mt-1">Pre-deduction baseline</p>
+                </div>
+
+                {/* Deductions */}
+                <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-xs transition-all">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
+                            <Activity size={14} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-600">Employee Deductions</span>
+                    </div>
+                    <p className="text-xl font-bold text-slate-900 tracking-tight">{inr(summary.totalDeductions)}</p>
+                    <p className="text-xs text-slate-400 mt-1">Provident Fund, PT & TDS</p>
+                </div>
+
+                {/* Net Payable */}
+                <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-xs transition-all">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <IndianRupee size={14} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-600">Net Take-Home Pay</span>
+                    </div>
+                    <p className="text-xl font-bold text-slate-900 tracking-tight">{inr(summary.netOutflow)}</p>
+                    <p className="text-xs text-slate-400 mt-1">Direct employee disbursements</p>
+                </div>
+
+                {/* Govt Dues */}
+                <div className="p-4 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-xs transition-all">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <ShieldCheck size={14} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-600">Employer & Govt Dues</span>
+                    </div>
+                    <p className="text-xl font-bold text-slate-900 tracking-tight">{inr(summary.govtPayables)}</p>
+                    <p className="text-xs text-slate-400 mt-1">Compliance & tax remittance</p>
+                </div>
             </div>
 
-            <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white shadow-lg shadow-slate-900/20">
-                        <Target size={14} />
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+                        <Target size={16} />
                     </div>
                     <div>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Mean Compensation</p>
-                        <p className="text-[14px] font-black text-slate-900 tracking-tight mt-0.5">{inr(avgSalary)}</p>
+                        <p className="text-xs font-medium text-slate-500">Average Monthly Salary</p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">{inr(avgSalary)} <span className="text-xs font-normal text-slate-400">/ employee</span></p>
                     </div>
                 </div>
-                <div className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 animate-pulse">
-                    Live Matrix
+                <div className="text-xs text-slate-400 font-medium">
+                    Calculated across active profiles
                 </div>
             </div>
         </div>

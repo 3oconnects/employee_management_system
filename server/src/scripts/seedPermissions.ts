@@ -6,7 +6,8 @@
 // What it does:
 //  1. Upserts every module:action permission row in the DB
 //  2. Ensures a system-level 'super_admin' role exists with ALL permissions
-//  3. Ensures admin@company.com is assigned super_admin + dashboard_type=admin
+//  3. (HF-1) It never assigns super_admin to any user. Assigning that role is an
+//     explicit, owner-controlled action, not something derived from an email.
 //  4. Any user still with no role_id gets the default employee permissions
 //
 // Philosophy:
@@ -29,6 +30,11 @@ const ALL_PERMISSIONS: { module: string; action: string; description: string }[]
     { module: 'employees',    action: 'manage',  description: 'Create, edit, and delete employees' },
     // Settings / RBAC
     { module: 'settings',     action: 'manage',  description: 'Full access to system settings, roles, permissions' },
+    // Authorization state (HF-10): who may change roles, grants and accounts
+    { module: 'roles',        action: 'assign',  description: 'Assign roles to user accounts' },
+    { module: 'roles',        action: 'manage',  description: 'Create, edit and delete roles' },
+    { module: 'permissions',  action: 'grant',   description: 'Change which permissions a role holds' },
+    { module: 'users',        action: 'manage',  description: 'Create user accounts and manage their password, status and removal' },
     // Payroll
     { module: 'payroll',      action: 'read',    description: 'View payroll data' },
     { module: 'payroll',      action: 'manage',  description: 'Run payroll and edit salary profiles' },
@@ -72,6 +78,19 @@ export async function seedPermissionsAndSuperAdmin(): Promise<void> {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+
+        // ── 0. Additive table hardening (ensures payroll_runs & entries have required columns) ──
+        await client.query(`
+            ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'COMPLETED';
+            ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS present_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS absent_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS leave_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_deduction NUMERIC DEFAULT 0;
+            ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS employee_id TEXT REFERENCES employees(id);
+        `).catch(() => {});
 
         // ── 1. Ensure permissions table has a unique constraint ───────────────
         await client.query(`
@@ -134,24 +153,23 @@ export async function seedPermissionsAndSuperAdmin(): Promise<void> {
                     [superAdminRoleId, p.id]
                 );
             }
-
-            // ── 6. Fix admin@company.com — must be super_admin ────────────────
-            const fixed = await client.query(
-                `UPDATE users
-                 SET role_id        = $1,
-                     role           = 'super_admin'
-                 WHERE LOWER(email) = 'admin@company.com'
-                   AND deleted_at IS NULL
-                 RETURNING id, email`,
-                [superAdminRoleId]
-            );
-            if (fixed.rowCount && fixed.rowCount > 0) {
-                console.log(`[SEED] Fixed ${fixed.rowCount} user(s): admin@company.com -> super_admin`);
-            }
         }
 
+        // ── 6. (HF-10) Whoever legitimately holds settings:manage keeps the ability to administer roles and
+        //    accounts: the four authorization-state permissions are granted to exactly those roles. Idempotent;
+        //    nothing is inferred from role names, and roles without settings:manage gain nothing.
+        await client.query(
+            `INSERT INTO role_permissions (role_id, permission_id)
+             SELECT DISTINCT rp.role_id, np.id
+               FROM role_permissions rp
+               JOIN permissions sp ON sp.id = rp.permission_id AND sp.module = 'settings' AND sp.action = 'manage'
+              CROSS JOIN permissions np
+              WHERE (np.module, np.action) IN (('roles','assign'), ('roles','manage'), ('permissions','grant'), ('users','manage'))
+             ON CONFLICT DO NOTHING`
+        );
+
         await client.query('COMMIT');
-        console.log('[SEED] ✅ Permissions seeded. Super-admin bootstrapped.');
+        console.log('[SEED] ✅ Permissions seeded. super_admin role granted all permissions.');
     } catch (err: any) {
         await client.query('ROLLBACK');
         // Non-fatal — tables may not exist before first db:setup run

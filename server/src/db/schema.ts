@@ -207,11 +207,19 @@ const CORE_SCHEMA = `
     -- ║  PAYROLL_RUNS (upgraded)                                   ║
     -- ╚══════════════════════════════════════════════════════════════╝
     ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
+    ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'COMPLETED';
+    ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  PAYROLL_ENTRIES (upgraded)                                 ║
     -- ╚══════════════════════════════════════════════════════════════╝
     ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS tenant_id TEXT REFERENCES tenants(id);
+    ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS present_days INTEGER DEFAULT 0;
+    ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS absent_days INTEGER DEFAULT 0;
+    ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS leave_days INTEGER DEFAULT 0;
+    ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_days INTEGER DEFAULT 0;
+    ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_deduction NUMERIC DEFAULT 0;
 
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  PAYROLL_HISTORY (upgraded)                                 ║
@@ -357,6 +365,11 @@ const PERMISSIONS_LIST = [
     { module: 'settings', action: 'branding' },
     { module: 'settings', action: 'integrations' },
     { module: 'settings', action: 'security' },
+    // Authorization state (HF-10)
+    { module: 'roles', action: 'assign' },
+    { module: 'roles', action: 'manage' },
+    { module: 'permissions', action: 'grant' },
+    { module: 'users', action: 'manage' },
 ];
 
 // Role → permissions mapping

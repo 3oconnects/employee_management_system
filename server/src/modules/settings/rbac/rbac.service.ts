@@ -1,5 +1,6 @@
 import { RBACRepository } from './rbac.repository';
 import { AppError } from '../../../core/errors/AppError';
+import { AuthzActor, assertMayCreateRole, assertMayDeleteRole, assertMayGrantPermissions, assertMayModifyRole, resolveVisibleRole } from '../../../core/security/authzState';
 
 export class RBACService {
     private repo: RBACRepository;
@@ -16,6 +17,25 @@ export class RBACService {
             grouped[row.module].push({ id: row.id, action: row.action, description: row.description });
         }
         return { grouped, flat: rows };
+    }
+
+    /**
+     * Who holds a role (or, with `candidates`, who could be added to it). Always the caller's own tenant, whatever the role:
+     * a shared template role lists only this tenant's people. A role the tenant cannot see is "not found".
+     */
+    async listRoleMembers(actor: AuthzActor, roleIdParam: string, query: { search?: unknown; limit?: unknown; offset?: unknown }, candidates = false) {
+        const roleId = Number(roleIdParam);
+        if (!Number.isInteger(roleId) || roleId <= 0) throw AppError.badRequest('Invalid role.');
+        await resolveVisibleRole(actor, { roleId });
+
+        const raw = typeof query.search === 'string' ? query.search.trim().slice(0, 100) : '';
+        // the term is data, never a pattern: escape LIKE wildcards
+        const search = raw ? raw.replace(/[\\%_]/g, (c) => '\\' + c) : null;
+        const limit = Math.min(Math.max(parseInt(String(query.limit ?? '25'), 10) || 25, 1), candidates ? 20 : 50);
+        const offset = Math.max(parseInt(String(query.offset ?? '0'), 10) || 0, 0);
+
+        const { items, total } = await this.repo.findRoleMembers(actor.tenantId, roleId, !candidates, search, limit, offset);
+        return { items, total, limit, offset };
     }
 
     async getRoles(tenantId: string) {
@@ -40,7 +60,7 @@ export class RBACService {
             };
         } catch (err: any) {
             console.error('ROLES_FETCH_ERROR:', err.message);
-            const fallbackRoles = await this.repo.getRolesFallback();
+            const fallbackRoles = await this.repo.getRolesFallback(tenantId);
             return {
                 roles: fallbackRoles.map(r => ({ ...r, user_count: 0, permissions: [] })),
                 warning: err.message
@@ -48,10 +68,11 @@ export class RBACService {
         }
     }
 
-    async createRole(tenantId: string, data: any) {
+    async createRole(actor: AuthzActor, data: any) {
+        const tenantId = actor.tenantId;
         const { name, description, dashboard_type = 'employee', permissions = [] } = data;
-        if (!name?.trim()) throw AppError.badRequest('Role name is required.');
-        
+        await assertMayCreateRole(actor, { name, dashboard_type, permissions });
+
         try {
             const role = await this.repo.createRole(tenantId, name, description, dashboard_type);
             for (const permKey of permissions) {
@@ -68,21 +89,28 @@ export class RBACService {
         }
     }
 
-    async updateRole(id: string, tenantId: string, data: any) {
+    async updateRole(id: string, actor: AuthzActor, data: any) {
+        const tenantId = actor.tenantId;
         const { name, description, dashboard_type } = data;
+        await assertMayModifyRole(actor, id, { name, dashboard_type });
         const role = await this.repo.updateRole(id, tenantId, name || null, description || null, dashboard_type || null);
         if (!role) throw AppError.notFound('Role not found or is a system role.');
         return role;
     }
 
-    async deleteRole(id: string, tenantId: string) {
+    async deleteRole(id: string, actor: AuthzActor) {
+        const tenantId = actor.tenantId;
         if (!tenantId) throw AppError.unauthorized('No tenant context');
+        await assertMayDeleteRole(actor, id);
         const res = await this.repo.deleteRole(id, tenantId);
         if (res.error === 'users_assigned') throw AppError.badRequest('Cannot delete role: users still assigned.');
         if (!res.deleted) throw AppError.notFound('Role not found or is a system role.');
     }
 
-    async updateRolePermissions(id: string, tenantId: string, permissions: string[]) {
+    async updateRolePermissions(id: string, actor: AuthzActor, permissions: string[]) {
+        const tenantId = actor.tenantId;
+        if (!Array.isArray(permissions)) throw AppError.badRequest('permissions must be a list.');
+        await assertMayGrantPermissions(actor, id, permissions);
         const exists = await this.repo.checkRoleExists(id, tenantId);
         if (!exists) throw AppError.notFound('Role');
         

@@ -13,7 +13,7 @@ export interface UserAccount {
     employee_id?: string;
     role_id?: number; role_name?: string; is_active: boolean;
     department?: string; position?: string; last_login?: string;
-    temp_password?: string; is_password_temp?: boolean;
+    is_password_temp?: boolean;
 }
 
 interface Props {
@@ -99,7 +99,7 @@ const UsersTab: React.FC<Props> = ({ users, roles, onRefresh, onNotify }) => {
     };
 
     const autoGenerate = () => {
-        const pass = 'AURA-' + Math.random().toString(36).slice(-8).toUpperCase();
+        const pass = 'NEXUS-' + Math.random().toString(36).slice(-8).toUpperCase();
         setNewManualPass(pass);
     };
 
@@ -337,9 +337,9 @@ const UsersTab: React.FC<Props> = ({ users, roles, onRefresh, onNotify }) => {
                                                             setRevealPass(false);
                                                         }}
                                                         title="Manage Credentials"
-                                                        className={`p-2 rounded-xl transition-all ${user.temp_password ? 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100 animate-pulse' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                        className={`p-2 rounded-xl transition-all ${user.is_password_temp ? 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100 animate-pulse' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                                                     >
-                                                        {user.temp_password ? <Key size={14} /> : <Lock size={14} />}
+                                                        {user.is_password_temp ? <Key size={14} /> : <Lock size={14} />}
                                                     </button>
                                                     <button
                                                         onClick={() => resetPassword(user.id)}
@@ -414,42 +414,15 @@ const UsersTab: React.FC<Props> = ({ users, roles, onRefresh, onNotify }) => {
                             </section>
                         )}
 
-                        {/* 2. Active Credentials */}
-                        {credentialUser?.temp_password && (
-                            <section className="space-y-4">
+                        {/* 2. Credential status (the password itself is never shown or retrievable) */}
+                        {credentialUser?.is_password_temp && (
+                            <section className="space-y-2">
                                 <div className="flex justify-between items-center px-1">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Active Recovery Token</label>
-                                    <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase">Vault Active</span>
-                                </div>
-                                <div className={`p-6 rounded-[24px] border transition-all duration-300 ${revealPass ? 'bg-emerald-50/30 border-emerald-100' : 'bg-slate-50/50 border-slate-100'}`}>
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex-1">
-                                            {revealPass ? (
-                                                <code className="text-lg font-black text-emerald-700 tracking-[0.15em] tabular-nums">{credentialUser.temp_password}</code>
-                                            ) : (
-                                                <div className="flex gap-1.5">
-                                                    {[1, 2, 3, 4, 5, 6].map(i => (
-                                                        <div key={i} className="w-2 h-2 bg-slate-300 rounded-full" />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <button 
-                                            onClick={() => {
-                                                if (!revealPass) setRevealPass(true);
-                                                else {
-                                                    navigator.clipboard.writeText(credentialUser.temp_password || '');
-                                                    onNotify('Token copied to clipboard');
-                                                }
-                                            }}
-                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${revealPass ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-indigo-600 border border-slate-200 hover:border-indigo-300 shadow-sm'}`}
-                                        >
-                                            {revealPass ? 'Copy' : 'Reveal'}
-                                        </button>
-                                    </div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Temporary Password</label>
+                                    <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase">Pending change</span>
                                 </div>
                                 <p className="text-[10px] text-slate-400 font-bold leading-relaxed px-1">
-                                    This token remains retrievable until the user completes their mandatory security rotation.
+                                    A temporary password was issued. It can no longer be viewed here; the user must set their own password at next sign-in. Use Emergency Reset to issue a new one.
                                 </p>
                             </section>
                         )}

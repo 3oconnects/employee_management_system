@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import { useSessionSync } from '../../hooks/useSessionSync';
 
 const PageSkeleton: React.FC = () => (
     <div className="p-6 space-y-4 animate-pulse">
@@ -16,6 +17,7 @@ const PageSkeleton: React.FC = () => (
 );
 
 const MainLayout: React.FC = () => {
+    useSessionSync();
     return (
         <div className="grid grid-cols-[auto_1fr] h-screen bg-[#F4F5F8] overflow-hidden">
             <Sidebar />

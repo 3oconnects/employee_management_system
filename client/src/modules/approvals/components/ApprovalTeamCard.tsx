@@ -7,6 +7,8 @@ interface ApprovalTeamCardProps {
     viewMode: 'list' | 'grid' | 'teams';
     children: React.ReactNode;
     avatars: string[];
+    /** what the count means for the current tab, e.g. 'pending', 'completed', 'of yours' */
+    countLabel?: string;
 }
 
 const getDeptIcon = (name: string) => {
@@ -22,8 +24,12 @@ const ApprovalTeamCard: React.FC<ApprovalTeamCardProps> = ({
     requestCount,
     viewMode,
     children,
-    avatars
+    avatars,
+    countLabel = 'pending'
 }) => {
+    // one bubble per distinct person, not one per request
+    const people = Array.from(new Set(avatars.filter(Boolean)));
+    const tints = ['from-indigo-500 to-violet-500', 'from-emerald-500 to-teal-500', 'from-amber-500 to-orange-500', 'from-rose-500 to-pink-500'];
     // Non-teams view: simple section header
     if (viewMode !== 'teams') {
         return (
@@ -48,7 +54,7 @@ const ApprovalTeamCard: React.FC<ApprovalTeamCardProps> = ({
         <div className="bg-white border border-slate-200/90 rounded-2xl flex flex-col h-full hover:border-slate-300 hover:shadow-md transition-all overflow-hidden shadow-xs">
             {/* Card header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/40">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center justify-center shadow-xs">
                         {getDeptIcon(dept)}
                     </div>
@@ -56,31 +62,31 @@ const ApprovalTeamCard: React.FC<ApprovalTeamCardProps> = ({
                         <h3 className="text-sm font-bold text-slate-800 leading-tight">{dept}</h3>
                         <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
                             <Users size={11} />
-                            <span>{requestCount} pending {requestCount === 1 ? 'request' : 'requests'}</span>
+                            <span>{requestCount} {countLabel} {requestCount === 1 ? 'request' : 'requests'}</span>
                         </p>
                     </div>
                 </div>
 
-                <div className="flex -space-x-2">
-                    {avatars.slice(0, 3).map((name, i) => (
+                <div className="flex -space-x-2 flex-shrink-0">
+                    {people.slice(0, 3).map((name, i) => (
                         <div
-                            key={i}
-                            className="w-7 h-7 rounded-full border-2 border-white bg-gradient-to-tr from-slate-200 to-slate-300 flex items-center justify-center text-xs font-bold text-slate-700 shadow-xs"
+                            key={name}
+                            className={`w-7 h-7 rounded-full border-2 border-white bg-gradient-to-tr ${tints[i % tints.length]} flex items-center justify-center text-[11px] font-bold text-white shadow-xs`}
                             title={name}
                         >
                             {name.charAt(0).toUpperCase()}
                         </div>
                     ))}
-                    {avatars.length > 3 && (
-                        <div className="w-7 h-7 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 shadow-xs">
-                            +{avatars.length - 3}
+                    {people.length > 3 && (
+                        <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shadow-xs">
+                            +{people.length - 3}
                         </div>
                     )}
                 </div>
             </div>
 
             {/* Card body — scrollable request list */}
-            <div className="flex-1 overflow-y-auto max-h-[560px] p-3.5 space-y-3 custom-scrollbar bg-slate-50/20">
+            <div className="flex-1 min-w-0 p-3.5 space-y-3 bg-slate-50/40">
                 {children}
             </div>
         </div>

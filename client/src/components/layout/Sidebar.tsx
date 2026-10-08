@@ -7,11 +7,15 @@ import {
     PlusCircle, History, ListFilter, CheckCircle2, User
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { NexusMark } from '../brand/NexusLogo';
+import { BRAND } from '../../config/brand';
+import { useWorkspace } from '../../hooks/useWorkspace';
 
 interface SubMenuItem {
     label: string;
     path: string;
-    roles: string[];
+    roles?: string[];
+    permissions?: string[];
     icon?: React.ElementType;
 }
 
@@ -19,7 +23,8 @@ interface MenuItem {
     icon: React.ElementType;
     label: string;
     path?: string;
-    roles: string[];
+    roles?: string[];
+    permissions?: string[];
     module?: string;
     children?: SubMenuItem[];
 }
@@ -33,50 +38,51 @@ const sidebarSections: MenuSection[] = [
     {
         title: 'Overview',
         items: [
-            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: [], module: 'dashboard' },
-            { icon: User,            label: 'My Profile', path: '/profile',   roles: ['admin','hr','manager','employee','super_admin'], module: 'profile' },
-            { icon: CheckCircle2,    label: 'Approvals',  path: '/approvals', roles: ['admin','hr','manager','super_admin'], module: 'approvals' },
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', module: 'dashboard' },
+            { icon: User,            label: 'My Profile', path: '/profile',   module: 'profile' },
+            { icon: CheckCircle2,    label: 'Approvals',  path: '/approvals', permissions: ['approvals:read', 'approvals:manage', 'leave:approve', 'timesheet:approve', 'claims:approve'], module: 'approvals' },
         ]
     },
     {
         title: 'Workforce',
         items: [
-            { icon: Users,           label: 'Employees',  path: '/employees',  roles: ['admin','hr','manager','super_admin'],            module: 'employees' },
-            { icon: UserPlus,        label: 'Onboarding', path: '/onboarding', roles: ['admin','hr','super_admin'],                     module: 'onboarding' },
+            { icon: Users,           label: 'Employees',  path: '/employees',  permissions: ['employees:read', 'employees:manage', 'employee.view'], module: 'employees' },
+            { icon: UserPlus,        label: 'Onboarding', path: '/onboarding', permissions: ['onboarding:manage'], module: 'onboarding' },
         ]
     },
     {
         title: 'Organization',
         items: [
-            { icon: Layers,          label: 'Hierarchy',  path: '/organization', roles: ['admin','hr','super_admin'],           module: 'organization' },
+            { icon: Layers,          label: 'Hierarchy',  path: '/organization', permissions: ['organization:read', 'organization:manage', 'governance:read'], module: 'organization' },
         ]
     },
     {
         title: 'Operations',
         items: [
-            { icon: Clock,           label: 'Attendance', path: '/attendance', roles: ['admin','hr','manager','employee','super_admin'], module: 'attendance' },
-            { icon: CalendarDays,    label: 'Time Off',   path: '/leave',      roles: ['admin','hr','manager','employee','super_admin'], module: 'leave' },
-            { icon: ClipboardList,   label: 'Timesheets', path: '/timesheet',  roles: ['admin','hr','manager','employee','super_admin'], module: 'timesheet' },
+            { icon: Clock,           label: 'Attendance', path: '/attendance', permissions: ['attendance:read', 'attendance:manage'], module: 'attendance' },
+            { icon: CalendarDays,    label: 'Time Off',   path: '/leave',      permissions: ['leave:apply', 'leave:approve', 'leave:manage'], module: 'leave' },
+            { icon: ClipboardList,   label: 'Timesheets', path: '/timesheet',  permissions: ['timesheet:submit', 'timesheet:approve'], module: 'timesheet' },
         ]
     },
     {
         title: 'Finance & Systems',
         items: [
-            { icon: CreditCard,      label: 'Payroll',    path: '/payroll',    roles: ['admin','hr','employee','super_admin'],           module: 'payroll' },
-            { icon: BarChart2,       label: 'Reports',    path: '/reports',    roles: ['admin','hr','super_admin'],                     module: 'reports' },
-            { icon: History,         label: 'Audit Log',  path: '/audit-logs', roles: ['admin','super_admin'],                          module: 'audit' },
+            { icon: CreditCard,      label: 'Payroll',    path: '/payroll',    permissions: ['payroll:read', 'payroll:manage', 'payroll.process'], module: 'payroll' },
+            { icon: BarChart2,       label: 'Reports',    path: '/reports',    permissions: ['reports:view', 'reports.view'], module: 'reports' },
+            { icon: History,         label: 'Audit Log',  path: '/audit-logs', permissions: ['audit:read', 'audit.view'], module: 'audit' },
         ]
     },
     {
         title: 'Administration',
         items: [
-            { icon: Settings,        label: 'Settings',   path: '/settings',   roles: ['admin','super_admin'],                          module: 'settings' },
+            { icon: Settings,        label: 'Settings',   path: '/settings',   module: 'settings' },
         ]
     }
 ];
 
 const Sidebar: React.FC = () => {
-    const { user, hasModule, hasAnyRole } = useAuthStore();
+    const { user, hasModule, hasAnyRole, hasAnyPermission } = useAuthStore();
+    const workspace = useWorkspace();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState<boolean>(() => {
         try { return localStorage.getItem('sidebar_collapsed') === 'true'; }
@@ -93,16 +99,19 @@ const Sidebar: React.FC = () => {
         setOpenSubMenus(prev => ({ ...prev, [label]: !prev[label] }));
     };
 
-    const isAuthorized = (item: { roles: string[], module?: string }) => {
-        if (item.roles.length === 0) return true;
-        if (!hasAnyRole(...(item.roles as any))) return false;
-        if (hasAnyRole('admin', 'super_admin')) return true;
+    const isAuthorized = (item: { roles?: string[]; permissions?: string[]; module?: string }) => {
+        // 1. Dynamic permission checking (highest priority)
+        if (item.permissions && item.permissions.length > 0) {
+            return hasAnyPermission(...item.permissions);
+        }
 
-        // Core self-service employee modules are always available to employees and managers
-        const coreModules = ['dashboard', 'attendance', 'leave', 'timesheet', 'payroll', 'profile'];
+        // 2. Core self-service employee modules are always available to all authenticated employees
+        const coreModules = ['dashboard', 'profile', 'settings'];
         if (item.module && coreModules.includes(item.module)) return true;
 
+        // 3. Fallback to module or role check if specified
         if (item.module) return hasModule(item.module);
+        if (item.roles && item.roles.length > 0) return hasAnyRole(...(item.roles as any));
         return true;
     };
 
@@ -131,12 +140,12 @@ const Sidebar: React.FC = () => {
                     </button>
                 ) : (
                     <>
-                        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-600/30">
-                            <Layers size={15} className="text-white" />
-                        </div>
-                        <div className="ml-3 flex-1 min-w-0">
-                            <p className="text-[14px] font-black text-white leading-none tracking-tight">AURA</p>
-                            <p className="text-[10px] font-bold text-indigo-400/70 uppercase tracking-[0.18em] mt-0.5">Personnel Hub</p>
+                        <NexusMark size={30} decorative className="flex-shrink-0" />
+                        <div className="ml-3 flex-1 min-w-0 font-nx">
+                            <p className="text-[14px] font-semibold text-white leading-tight truncate">{BRAND.productName}</p>
+                            <p className="text-xs text-white/50 leading-tight mt-0.5 truncate" title={workspace.name ?? BRAND.tagline}>
+                                {workspace.name ?? BRAND.tagline}
+                            </p>
                         </div>
                         <button
                             onClick={() => setCollapsed(true)}

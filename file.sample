@@ -13,6 +13,8 @@ SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 # Server Configuration
 PORT=4000
 NODE_ENV=development
-JWT_SECRET=ems_super_secret_jwt_key
-JWT_REFRESH_SECRET=ems_super_secret_refresh_key
+# Required, no defaults. The server refuses to start unless both are set to different random
+# values of at least 32 characters, e.g.: node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+JWT_SECRET=
+JWT_REFRESH_SECRET=
 APP_URL=http://localhost:5173

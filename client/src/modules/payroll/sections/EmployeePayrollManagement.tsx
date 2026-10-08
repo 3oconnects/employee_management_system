@@ -105,28 +105,32 @@ const EmployeePayrollManagement = () => {
             <PayrollPersonnelStats stats={stats} formatter={formatter} />
 
             {/* ── Control Bar ─────────────────────────── */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm flex flex-col lg:flex-row items-center gap-4">
+            <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-xs flex flex-col lg:flex-row items-center gap-3">
                 <div className="relative flex-1 w-full lg:w-auto">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                     <input 
                         type="text" 
-                        placeholder="Search by agent name or identity code..."
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-11 pr-4 py-2.5 text-[12px] font-bold text-slate-900 focus:bg-white focus:border-indigo-300 outline-none transition-all placeholder:text-slate-300"
+                        placeholder="Search by employee name or ID..."
+                        className="w-full bg-slate-50 border border-slate-200/80 rounded-lg pl-10 pr-4 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-500 outline-none transition-all placeholder:text-slate-400"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
                 
-                <div className="flex items-center gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-lg border border-slate-200/60 w-full lg:w-auto overflow-x-auto no-scrollbar">
                     {[
-                        { id: 'all', label: 'All Matrix' },
-                        { id: 'active', label: 'Verified' },
-                        { id: 'missing', label: 'Unlinked' },
+                        { id: 'all', label: 'All Employees' },
+                        { id: 'active', label: 'Configured' },
+                        { id: 'missing', label: 'Pending Setup' },
                     ].map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setFilterStatus(tab.id as any)}
-                            className={`flex-1 lg:flex-none px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${filterStatus === tab.id ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-700'}`}
+                            className={`flex-1 lg:flex-none px-3 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap ${
+                                filterStatus === tab.id 
+                                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
                         >
                             {tab.label}
                         </button>
@@ -135,10 +139,10 @@ const EmployeePayrollManagement = () => {
 
                 <button 
                     onClick={() => setShowAddModal(true)}
-                    className="w-full lg:w-auto px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
+                    className="w-full lg:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5 shadow-xs"
                 >
                     <Plus size={14} />
-                    Authorize Profile
+                    Add Salary Profile
                 </button>
             </div>
 

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Clock, CheckCircle, LayoutGrid, List, Users, Search } from 'lucide-react';
+import { Clock, CheckCircle, LayoutGrid, List, Users, Search, User } from 'lucide-react';
 import { ApprovalStatus } from '../types';
 
 interface ApprovalNavProps {
-    activeTab: ApprovalStatus | 'history';
+    activeTab: ApprovalStatus | 'history' | 'mine';
     setActiveTab: (tab: any) => void;
     viewMode: 'list' | 'grid' | 'teams';
     setViewMode: (mode: 'list' | 'grid' | 'teams') => void;
@@ -25,6 +25,7 @@ const ApprovalNav: React.FC<ApprovalNavProps> = ({
         <div className="flex items-center justify-between border-b border-slate-100 pb-1">
             <div className="flex items-center gap-1">
                 {[
+                    { id: 'mine', label: 'My Requests', icon: User },
                     { id: 'pending', label: 'Action Needed', icon: Clock },
                     { id: 'history', label: 'Completed', icon: CheckCircle },
                 ].map(tab => (

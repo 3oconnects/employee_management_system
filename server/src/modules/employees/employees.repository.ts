@@ -7,6 +7,7 @@ export class EmployeesRepository {
         let sql = `
             SELECT e.*, 
                    COALESCE(e.avatar_url, u.avatar_url) as avatar_url,
+                   COALESCE(e.user_id, u.id) as user_id,
                    d.name as department_name, m.name as manager_name, 
                    u.availability_status,
                    COALESCE(r.name, u.role, 'employee') as role,
@@ -83,18 +84,18 @@ export class EmployeesRepository {
         return res.rows[0];
     }
 
-    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string, isPasswordTemp: boolean = true, roleId: number | null = null) {
-        await client.query(
-            `INSERT INTO users (name, email, password, role, tenant_id, is_password_temp, is_active, role_id) 
-             VALUES ($1, $2, $3, $4, $5, $6, true, COALESCE($7, (SELECT id FROM roles WHERE LOWER(name) = LOWER($4) LIMIT 1))) 
-             ON CONFLICT (email) DO UPDATE 
-             SET password = EXCLUDED.password, 
-                 is_password_temp = EXCLUDED.is_password_temp,
-                 role = EXCLUDED.role,
-                 role_id = COALESCE($7, EXCLUDED.role_id, users.role_id, (SELECT id FROM roles WHERE LOWER(name) = LOWER(EXCLUDED.role) LIMIT 1), 4),
-                 is_active = true`,
+    /**
+     * Creates a login account. An existing account is NEVER touched (HF-10): on an e-mail collision nothing is
+     * written and false is returned, whichever tenant the existing account belongs to.
+     */
+    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string, isPasswordTemp: boolean = true, roleId: number): Promise<boolean> {
+        const res = await client.query(
+            `INSERT INTO users (name, email, password, role, tenant_id, is_password_temp, is_active, role_id)
+             VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+             ON CONFLICT (email) DO NOTHING`,
             [name, email, hashedPassword, role, tenantId, isPasswordTemp, roleId]
         );
+        return (res.rowCount ?? 0) > 0;
     }
 
     async createPayrollProfile(client: any, profileData: any[]) {
@@ -136,39 +137,6 @@ export class EmployeesRepository {
         );
     }
 
-    async ensureRoleExists(client: any, roleName: string, tenantId: string): Promise<{ id: number; name: string }> {
-        const trimmed = roleName.trim();
-        const existingRole = await client.query(
-            `SELECT id, name FROM roles 
-             WHERE LOWER(name) = LOWER($1) AND (tenant_id = $2 OR tenant_id = 'tenant_default' OR tenant_id = 'default')
-             LIMIT 1`,
-            [trimmed, tenantId]
-        );
-        if (existingRole.rows.length > 0) {
-            return { id: existingRole.rows[0].id, name: existingRole.rows[0].name };
-        }
-
-        const newRole = await client.query(
-            `INSERT INTO roles (tenant_id, name, description, dashboard_type, is_system)
-             VALUES ($1, $2, $3, $4, false)
-             RETURNING id, name`,
-            [tenantId, trimmed, `${trimmed} role`, 'employee']
-        );
-        const createdRole = newRole.rows[0];
-
-        const basePerms = await client.query(
-            `SELECT id FROM permissions WHERE module IN ('attendance', 'leave', 'timesheet', 'profile') AND action = 'view'`
-        );
-        for (const p of basePerms.rows) {
-            await client.query(
-                `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                [createdRole.id, p.id]
-            );
-        }
-
-        return createdRole;
-    }
-
     async updateUserRole(client: any, email: string, roleName: string, roleId: number, tenantId: string) {
         await client.query(
             `UPDATE users 
@@ -206,23 +174,33 @@ export class EmployeesRepository {
         );
     }
 
-    async findEducation(employeeId: string) {
+    /** True only when the employee belongs to this tenant; every sub-record read/write starts here (HF-6). */
+    async existsInTenant(employeeId: string, tenantId: string): Promise<boolean> {
+        const res = await pool.query('SELECT 1 FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
+        return res.rows.length > 0;
+    }
+
+    async findEducation(employeeId: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT * FROM employee_education WHERE employee_id = $1 ORDER BY year DESC, id DESC',
-            [employeeId]
+            `SELECT x.* FROM employee_education x
+             WHERE x.employee_id = $1 AND EXISTS (SELECT 1 FROM employees e WHERE e.id = x.employee_id AND e.tenant_id = $2)
+             ORDER BY x.year DESC, x.id DESC`,
+            [employeeId, tenantId]
         );
         if (res.rows.length > 0) return res.rows;
-        const emp = await pool.query('SELECT education_history FROM employees WHERE id = $1', [employeeId]);
+        const emp = await pool.query('SELECT education_history FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
         return emp.rows[0]?.education_history || [];
     }
 
-    async replaceEducation(client: any, employeeId: string, entries: any[]) {
-        await client.query('DELETE FROM employee_education WHERE employee_id = $1', [employeeId]);
+    async replaceEducation(client: any, employeeId: string, tenantId: string, entries: any[]) {
+        await client.query(
+            `DELETE FROM employee_education WHERE employee_id = $1
+             AND EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $2)`, [employeeId, tenantId]);
         for (const e of entries) {
             await client.query(
                 `INSERT INTO employee_education (employee_id, degree, field, institution, year, grade)
-                 VALUES ($1, $2, $3, $4, $5, $6)`,
-                [employeeId, e.degree || '', e.field || '', e.institution || '', e.year ? String(e.year) : '', e.grade || '']
+                 SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $7)`,
+                [employeeId, e.degree || '', e.field || '', e.institution || '', e.year ? String(e.year) : '', e.grade || '', tenantId]
             );
         }
         const latest = entries[0];
@@ -233,35 +211,40 @@ export class EmployeesRepository {
                  field_of_study = COALESCE($3, field_of_study),
                  institution = COALESCE($4, institution),
                  graduation_year = COALESCE($5, graduation_year)
-             WHERE id = $6`,
+             WHERE id = $6 AND tenant_id = $7`,
             [
                 JSON.stringify(entries),
                 latest?.degree || null,
                 latest?.field || null,
                 latest?.institution || null,
                 latest?.year ? String(latest.year) : null,
-                employeeId
+                employeeId,
+                tenantId
             ]
         );
         return entries;
     }
 
-    async findExperience(employeeId: string) {
+    async findExperience(employeeId: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT * FROM employee_experience WHERE employee_id = $1 ORDER BY start_date DESC NULLS LAST, id DESC',
-            [employeeId]
+            `SELECT x.* FROM employee_experience x
+             WHERE x.employee_id = $1 AND EXISTS (SELECT 1 FROM employees e WHERE e.id = x.employee_id AND e.tenant_id = $2)
+             ORDER BY x.start_date DESC NULLS LAST, x.id DESC`,
+            [employeeId, tenantId]
         );
         if (res.rows.length > 0) return res.rows;
-        const emp = await pool.query('SELECT experience_history FROM employees WHERE id = $1', [employeeId]);
+        const emp = await pool.query('SELECT experience_history FROM employees WHERE id = $1 AND tenant_id = $2', [employeeId, tenantId]);
         return emp.rows[0]?.experience_history || [];
     }
 
-    async replaceExperience(client: any, employeeId: string, entries: any[]) {
-        await client.query('DELETE FROM employee_experience WHERE employee_id = $1', [employeeId]);
+    async replaceExperience(client: any, employeeId: string, tenantId: string, entries: any[]) {
+        await client.query(
+            `DELETE FROM employee_experience WHERE employee_id = $1
+             AND EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $2)`, [employeeId, tenantId]);
         for (const e of entries) {
             await client.query(
                 `INSERT INTO employee_experience (employee_id, job_title, company, start_date, end_date, is_current, description)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                 SELECT $1, $2, $3, $4, $5, $6, $7 WHERE EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $8)`,
                 [
                     employeeId,
                     e.jobTitle || e.job_title || '',
@@ -269,71 +252,136 @@ export class EmployeesRepository {
                     e.startDate || e.start_date || null,
                     e.endDate || e.end_date || null,
                     Boolean(e.current || e.is_current),
-                    e.description || ''
+                    e.description || '',
+                    tenantId
                 ]
             );
         }
         await client.query(
-            `UPDATE employees SET experience_history = $1 WHERE id = $2`,
-            [JSON.stringify(entries), employeeId]
+            `UPDATE employees SET experience_history = $1 WHERE id = $2 AND tenant_id = $3`,
+            [JSON.stringify(entries), employeeId, tenantId]
         );
         return entries;
     }
 
-    async findEmergencyContacts(employeeId: string) {
+    async findEmergencyContacts(employeeId: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT * FROM employee_emergency_contacts WHERE employee_id = $1 ORDER BY is_primary DESC, id ASC',
-            [employeeId]
+            `SELECT c.* FROM employee_emergency_contacts c
+             WHERE c.employee_id = $1 AND EXISTS (SELECT 1 FROM employees e WHERE e.id = c.employee_id AND e.tenant_id = $2)
+             ORDER BY c.is_primary DESC, c.id ASC`,
+            [employeeId, tenantId]
         );
         return res.rows;
     }
 
     async replaceEmergencyContacts(client: any, employeeId: string, tenantId: string, contacts: any[]) {
-        await client.query('DELETE FROM employee_emergency_contacts WHERE employee_id = $1', [employeeId]);
+        await client.query(
+            `DELETE FROM employee_emergency_contacts WHERE employee_id = $1
+             AND EXISTS (SELECT 1 FROM employees e WHERE e.id = $1 AND e.tenant_id = $2)`, [employeeId, tenantId]);
         for (const c of contacts) {
             await client.query(
                 `INSERT INTO employee_emergency_contacts (tenant_id, employee_id, name, relationship, phone, email, address, is_primary)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                 SELECT $1, $2, $3, $4, $5, $6, $7, $8 WHERE EXISTS (SELECT 1 FROM employees e WHERE e.id = $2 AND e.tenant_id = $1)`,
                 [tenantId, employeeId, c.name, c.relationship, c.phone, c.email || null, c.address || null, Boolean(c.is_primary)]
             );
         }
         return contacts;
     }
 
-    async findByEmail(email: string) {
+    async findByEmail(email: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [email]
+            'SELECT id, name, email FROM employees WHERE LOWER(email) = LOWER($1) AND tenant_id = $2 LIMIT 1',
+            [email, tenantId]
         );
         return res.rows[0] || null;
     }
 
-    async findByAnyEmail(email: string) {
+    async findByAnyEmail(email: string, tenantId: string) {
         const res = await pool.query(
             `SELECT id, name, email, personal_email,
                     CASE WHEN LOWER(email) = LOWER($1) THEN 'work' ELSE 'personal' END as matched_type
              FROM employees 
-             WHERE LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1) 
+             WHERE (LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1)) AND tenant_id = $2 AND deleted_at IS NULL
              LIMIT 1`,
-            [email]
+            [email, tenantId]
         );
         return res.rows[0] || null;
     }
 
-    async findUserByEmail(email: string) {
+    /** A user of THIS tenant (identity may be shown), or a user elsewhere (existence only: login e-mails are globally unique). */
+    async findUserByEmail(email: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT id, name, email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [email]
+            'SELECT id, name, email, (tenant_id = $2) AS same_tenant FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND is_active = true LIMIT 1',
+            [email, tenantId]
         );
-        return res.rows[0] || null;
+        return (res.rows[0] || null) as { id: number; name: string; email: string; same_tenant: boolean } | null;
     }
 
-    async delete(id: string, tenantId: string) {
+    /**
+     * Terminate an employee: keep their records intact on the Terminated list,
+     * but deactivate their system login so they cannot access the platform.
+     */
+    async terminate(id: string, tenantId: string) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            
-            // Clean up child tables referencing this employee
+            const empRes = await client.query(
+                "UPDATE employees SET status = 'terminated', updated_at = NOW() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING email, user_id",
+                [id, tenantId]
+            );
+            if (empRes.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const empEmail = empRes.rows[0].email;
+            const empUserId = empRes.rows[0].user_id;
+            if (empEmail && empEmail !== 'admin@company.com') {
+                await client.query(
+                    'UPDATE users SET is_active = false, updated_at = NOW() WHERE (email = $1 OR ($2::int IS NOT NULL AND id = $2::int)) AND tenant_id = $3',
+                    [empEmail, empUserId, tenantId]
+                );
+            }
+            await client.query('COMMIT');
+            return true;
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
+
+    /**
+     * Hard delete an employee and all their child records, freeing their email.
+     */
+    async delete(id: string, tenantId: string) {
+        const client = await pool.connect();
+        let empEmail = '';
+        let deletedUserId: number | null = null;
+        try {
+            await client.query('BEGIN');
+
+            // ── STEP 1: Verify tenant ownership before any mutation ───────────
+            const ownerCheck = await client.query(
+                'SELECT id, email, user_id, manager_id, reporting_manager_id FROM employees WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE',
+                [id, tenantId]
+            );
+            if (ownerCheck.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const empRow = ownerCheck.rows[0];
+            empEmail = empRow.email || '';
+            deletedUserId = empRow.user_id ?? null;
+            if (!deletedUserId && empEmail) {
+                const uRes = await client.query(
+                    'SELECT id FROM users WHERE email = $1 AND tenant_id = $2 LIMIT 1',
+                    [empEmail, tenantId]
+                );
+                deletedUserId = uRes.rows[0]?.id ?? null;
+            }
+
+            // ── STEP 2: Clean up child tables ────────────────────────────────
             await client.query('DELETE FROM employee_education WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM employee_experience WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM employee_emergency_contacts WHERE employee_id = $1', [id]);
@@ -345,41 +393,74 @@ export class EmployeesRepository {
             await client.query('DELETE FROM approvals WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM payroll_profiles WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM payroll_entries WHERE employee_id = $1', [id]);
-            await client.query('DELETE FROM payroll_history WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM payroll_history WHERE employee_id = $1', [id]).catch(() => {});
             await client.query('DELETE FROM reimbursement_claims WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM claims WHERE employee_id = $1', [id]);
+            await client.query(
+                'DELETE FROM attendance WHERE employee_id = $1 OR ($2::int IS NOT NULL AND user_id = $2::int)',
+                [id, deletedUserId]
+            );
             await client.query('DELETE FROM loans WHERE employee_id = $1', [id]);
 
-            // Unlink manager references
-            await client.query('UPDATE employees SET manager_id = NULL WHERE manager_id = $1', [id]);
+            // ── STEP 3: Resolve reporting chain before removing the employee ─
+            const upperManagerId = empRow.manager_id ?? null;
+            let upperReportingId = empRow.reporting_manager_id ?? null;
+            if (!upperReportingId) {
+                const ceoRes = await client.query(
+                    `SELECT COALESCE(e.user_id, u.id) AS uid FROM employees e
+                     LEFT JOIN users u ON LOWER(u.email) = LOWER(e.email) AND u.tenant_id = e.tenant_id
+                     WHERE e.tenant_id = $1 AND e.id <> $2 AND e.deleted_at IS NULL
+                       AND e.position ~* '(^|[^a-z])(ceo|chief executive)([^a-z]|$)' LIMIT 1`,
+                    [tenantId, id]
+                );
+                upperReportingId = ceoRes.rows[0]?.uid ?? null;
+            }
 
-            // Get employee email
-            const empRes = await client.query('SELECT email FROM employees WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
-            const empEmail = empRes.rows[0]?.email;
+            // Hand direct reports up to the deleted person's manager (tenant-scoped)
+            await client.query(
+                'UPDATE employees SET manager_id = $2 WHERE manager_id = $1 AND tenant_id = $3',
+                [id, upperManagerId, tenantId]
+            );
+            if (deletedUserId) {
+                await client.query(
+                    'UPDATE employees SET reporting_manager_id = $3 WHERE reporting_manager_id = $1 AND tenant_id = $2',
+                    [deletedUserId, tenantId, upperReportingId]
+                );
+            }
 
-            // Delete the employee
-            const res = await client.query('DELETE FROM employees WHERE id = $1 AND tenant_id = $2 RETURNING id', [id, tenantId]);
+            // ── STEP 4: Delete the employee row ──────────────────────────────
+            const res = await client.query(
+                'DELETE FROM employees WHERE id = $1 AND tenant_id = $2 RETURNING id',
+                [id, tenantId]
+            );
 
-            // If an associated user exists, deactivate or delete user
+            // ── STEP 5: Delete associated user account so email is freed ──────
             if (empEmail && empEmail !== 'admin@company.com') {
-                await client.query('UPDATE users SET is_active = false, deleted_at = NOW() WHERE email = $1 AND tenant_id = $2', [empEmail, tenantId]);
+                await client.query(
+                    'DELETE FROM users WHERE (email = $1 OR ($2::int IS NOT NULL AND id = $2::int)) AND tenant_id = $3',
+                    [empEmail, deletedUserId, tenantId]
+                );
             }
 
             await client.query('COMMIT');
             return (res.rowCount ?? 0) > 0;
         } catch (err) {
             await client.query('ROLLBACK');
-            console.error('[EmployeesRepository.delete] Hard delete failed, falling back to soft delete:', err);
-            // Fallback to soft delete
+            console.error('[EmployeesRepository.delete] Hard delete failed, falling back to soft delete with email release:', err);
+            // Fallback to soft delete — always release email so it does not collide with future onboards
             const softRes = await pool.query(
-                "UPDATE employees SET deleted_at = NOW(), status = 'terminated' WHERE id = $1 AND tenant_id = $2 RETURNING id",
+                "UPDATE employees SET deleted_at = NOW(), status = 'terminated', email = 'deleted_' || id || '_' || email, personal_email = NULL WHERE id = $1 AND tenant_id = $2 RETURNING id",
                 [id, tenantId]
             );
+            if (empEmail && empEmail !== 'admin@company.com') {
+                await pool.query(
+                    "UPDATE users SET is_active = false, deleted_at = NOW(), email = 'deleted_' || id || '_' || email WHERE (email = $1 OR ($2::int IS NOT NULL AND id = $2::int)) AND tenant_id = $3",
+                    [empEmail, deletedUserId, tenantId]
+                ).catch(() => {});
+            }
             return ((softRes.rowCount ?? 0) > 0);
         } finally {
             client.release();
         }
     }
 }
-
-

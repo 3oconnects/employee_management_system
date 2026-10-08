@@ -29,7 +29,7 @@ const ManagerPicker: React.FC<Props> = ({ value, displayName, onChange }) => {
     const fetch = async (q: string) => {
         setLoading(true);
         try {
-            const { data } = await api.get('/employees', { params: { search: q, limit: 20 } });
+            const { data } = await api.get('/employees', { params: { search: q, limit: 200 } });
             setEmployees(data.items || []);
         } catch {} finally { setLoading(false); }
     };
@@ -66,7 +66,7 @@ const ManagerPicker: React.FC<Props> = ({ value, displayName, onChange }) => {
                                 className="w-full bg-slate-50 rounded-xl pl-8 pr-3 py-2 text-[12px] outline-none focus:bg-white border border-slate-100 focus:border-indigo-300 transition-all"/>
                         </div>
                     </div>
-                    <div className="max-h-[200px] overflow-y-auto py-1">
+                    <div className="max-h-[260px] overflow-y-auto py-1">
                         {loading ? (
                             <div className="flex items-center justify-center py-6"><Loader2 size={16} className="animate-spin text-indigo-400"/></div>
                         ) : employees.filter(e => e.user_id).length === 0 ? (

@@ -1,0 +1,7 @@
+{
+  // Type-checks code outside the build (tests, staging scripts, schema baseline
+  // loader). The production build still uses tsconfig.json (src/ only).
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "." },
+  "include": ["src/**/*", "test/**/*", "scripts/staging/**/*", "db/baseline/**/*", "vitest.config.ts"]
+}

@@ -1,16 +1,19 @@
 import { LeavesRepository } from './leaves.repository';
+import { PayrollRepository } from '../payroll/payroll.repository';
 import { NotificationService } from '../../services/notificationService';
 import { AppError } from '../../core/errors/AppError';
 import { hasAccess } from '../../core/security/authorize';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { resolveEmployeeIdForUser } from '../../core/security/identity';
 
 export class LeavesService {
     private repo: LeavesRepository;
-
+    private payrollRepo: PayrollRepository;
     private approvals = new ApprovalsService();
 
     constructor() {
         this.repo = new LeavesRepository();
+        this.payrollRepo = new PayrollRepository();
     }
 
     async getLeaveTypes() {
@@ -18,16 +21,82 @@ export class LeavesService {
     }
 
     async applyLeave(tenantId: string, data: any) {
-        const leave = await this.repo.applyLeave(
-            data.userId,
-            data.leave_type_id,
-            data.start_date,
-            data.end_date,
-            data.reason || null,
-            tenantId
-        );
+        // 1. Date range validation
+        if (!data.start_date || !data.end_date) {
+            throw AppError.badRequest('Both start date and end date are required.');
+        }
+        const start = new Date(data.start_date);
+        const end = new Date(data.end_date);
+        if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+            throw AppError.badRequest('Invalid date range: start date must be before or equal to end date.');
+        }
 
-        const { user, leaveType } = await this.repo.getUserAndLeaveTypeName(data.userId, data.leave_type_id);
+        // 2. Resolve canonical employee_id and verify employee is active
+        const employeeId = await resolveEmployeeIdForUser(tenantId, data.userId, data.email || '');
+        if (employeeId && typeof this.repo.getEmployeeById === 'function') {
+            const emp = await this.repo.getEmployeeById(employeeId, tenantId);
+            if (emp && (emp.deleted_at || (emp.status && emp.status.toLowerCase() === 'terminated'))) {
+                throw AppError.badRequest('Inactive or terminated employees cannot apply for leave.');
+            }
+        }
+
+        // 3. Period locking guard: verify dates are not in a frozen payroll cycle
+        if (await this.payrollRepo.isPeriodLocked(tenantId, start.getMonth() + 1, start.getFullYear())) {
+            throw AppError.badRequest(`Cannot apply leave for locked payroll period (${start.getMonth() + 1}/${start.getFullYear()}).`);
+        }
+        if (await this.payrollRepo.isPeriodLocked(tenantId, end.getMonth() + 1, end.getFullYear())) {
+            throw AppError.badRequest(`Cannot apply leave for locked payroll period (${end.getMonth() + 1}/${end.getFullYear()}).`);
+        }
+
+        // 4. Overlapping leave validation
+        if (employeeId && typeof this.repo.getOverlappingLeave === 'function') {
+            const overlapping = await this.repo.getOverlappingLeave(employeeId, tenantId, data.start_date, data.end_date);
+            if (overlapping) {
+                throw AppError.conflict('An active or pending leave request already exists for the selected dates.');
+            }
+        }
+
+        // 5. Leave balance availability check
+        const leaveTypeId = Number(data.leave_type_id);
+        if (typeof this.repo.getLeaveBalance === 'function') {
+            const balances = await this.repo.getLeaveBalance(employeeId || data.userId, tenantId, start.getFullYear());
+            if (Array.isArray(balances) && balances.length > 0) {
+                const typeBal = balances.find((b: any) => Number(b.leave_type_id) === leaveTypeId);
+                if (typeBal && typeBal.available !== undefined) {
+                    const available = Number(typeBal.available);
+                    const requestedDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+                    if (requestedDays > available) {
+                        const pendingText = typeBal.pending ? ` (${typeBal.pending} day${typeBal.pending > 1 ? 's' : ''} currently pending approval)` : '';
+                        throw AppError.badRequest(`Insufficient leave balance. Available: ${available}, Requested: ${requestedDays}${pendingText}.`);
+                    }
+                }
+            }
+        }
+
+        // 6. Insert leave request with canonical employee_id and user_id
+        let leave: any;
+        if (employeeId && this.repo.applyLeave.length >= 7) {
+            leave = await this.repo.applyLeave(
+                employeeId,
+                data.userId,
+                leaveTypeId,
+                data.start_date,
+                data.end_date,
+                data.reason || null,
+                tenantId
+            );
+        } else {
+            leave = await (this.repo.applyLeave as any)(
+                data.userId,
+                leaveTypeId,
+                data.start_date,
+                data.end_date,
+                data.reason || null,
+                tenantId
+            );
+        }
+
+        const { user, leaveType } = await this.repo.getUserAndLeaveTypeName(data.userId, leaveTypeId);
         if (user && leaveType) {
             NotificationService.onLeaveApplied(tenantId, user.name, leaveType.name);
         }

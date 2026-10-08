@@ -44,64 +44,69 @@ const PayRuns: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
-
+        <div className="space-y-5 animate-in fade-in duration-300">
             {/* ── Run engine card ──────────────────────────── */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden group">
-                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                    <h3 className="text-[14px] font-black text-slate-900 uppercase tracking-tight">Orchestration Engine</h3>
-                    <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">
-                        Automated Indian Statutory Calculation Cycle (TDS, PF, ESI, PT)
-                    </p>
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-base font-semibold text-slate-900">Execute Monthly Pay Run</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            Automated calculation cycle for salaries, PF, ESI, Professional Tax, and TDS
+                        </p>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <CreditCard size={16} />
+                    </div>
                 </div>
 
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                     {/* Period selectors */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cycle Month</label>
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-semibold text-slate-600">Cycle Month</label>
                             <select
                                 value={month}
                                 onChange={e => setMonth(e.target.value)}
-                                className="w-full text-[13px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-400 focus:bg-white transition-all appearance-none cursor-pointer"
+                                className="w-full text-xs font-medium text-slate-900 bg-slate-50 border border-slate-200/90 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                             >
                                 {MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
                             </select>
                         </div>
-                        <div className="space-y-2">
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Cycle Year</label>
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-semibold text-slate-600">Cycle Year</label>
                             <select
                                 value={year}
                                 onChange={e => setYear(e.target.value)}
-                                className="w-full text-[13px] font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-400 focus:bg-white transition-all appearance-none cursor-pointer"
+                                className="w-full text-xs font-medium text-slate-900 bg-slate-50 border border-slate-200/90 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer"
                             >
                                 <option value="2024">2024</option>
                                 <option value="2025">2025</option>
                                 <option value="2026">2026</option>
+                                <option value="2027">2027</option>
                             </select>
                         </div>
                     </div>
 
                     {/* Run button + status */}
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3">
                         {status === 'SUCCESS' && (
-                            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2 text-emerald-600 text-[10px] font-black uppercase tracking-tight animate-in slide-in-from-top-2">
-                                <CheckCircle2 size={14} /> Matrix sync successful
+                            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/80 rounded-lg px-3.5 py-2 text-emerald-700 text-xs font-semibold animate-in slide-in-from-top-1">
+                                <CheckCircle2 size={15} /> Payroll cycle completed successfully
                             </div>
                         )}
                         {status === 'ERROR' && (
-                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2 text-rose-600 text-[10px] font-black uppercase tracking-tight animate-in slide-in-from-top-2">
-                                <AlertCircle size={14} /> Authorization failed
+                            <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/80 rounded-lg px-3.5 py-2 text-rose-700 text-xs font-semibold animate-in slide-in-from-top-1">
+                                <AlertCircle size={15} /> Failed to execute payroll cycle. Check error logs.
                             </div>
                         )}
                         <button
                             onClick={handleRun}
                             disabled={status === 'PROCESSING'}
-                            className="flex items-center justify-center gap-2.5 py-3.5 bg-slate-900 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-900/10 active:scale-[0.98] disabled:opacity-40"
+                            className="flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all shadow-xs active:scale-[0.99] disabled:opacity-50"
                         >
                             {status === 'PROCESSING'
-                                ? <><Loader2 size={14} className="animate-spin" /> Processing lifecycle...</>
-                                : <><Play size={14} /> Execute Cycle: {MONTHS[Number(month)-1]} {year}</>
+                                ? <><Loader2 size={14} className="animate-spin" /> Processing payroll…</>
+                                : <><Play size={14} /> Run Payroll for {MONTHS[Number(month)-1]} {year}</>
                             }
                         </button>
                     </div>
@@ -110,35 +115,35 @@ const PayRuns: React.FC = () => {
 
             {/* ── Live financial estimates ──────────────────── */}
             {loadingSum ? (
-                <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
-                    <Loader2 size={18} className="animate-spin text-indigo-400" />
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Synchronizing projections...</span>
+                <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
+                    <Loader2 size={18} className="animate-spin text-blue-600" />
+                    <span className="text-xs font-medium text-slate-500">Loading payroll projections…</span>
                 </div>
             ) : summary && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden group">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                         <div>
-                            <h3 className="text-[14px] font-black text-slate-900 uppercase tracking-tight">Fiscal Projections</h3>
-                            <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-widest">Active Personnel Matrix</p>
+                            <h3 className="text-base font-semibold text-slate-900">Current Cycle Projections</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">Calculated across active employee profiles</p>
                         </div>
-                        <Landmark size={18} className="text-slate-300" />
+                        <Landmark size={16} className="text-slate-400" />
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100">
+                    <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
                         {[
-                            { label: 'Aggregate Gross',   value: inr(summary.totalGross),      icon: IndianRupee,  color: 'text-slate-900',   bg: 'bg-slate-50' },
-                            { label: 'Statutory Pool',    value: inr(summary.totalDeductions),  icon: TrendingDown, color: 'text-rose-500',    bg: 'bg-rose-50' },
-                            { label: 'Net Liability',     value: inr(summary.netOutflow),       icon: TrendingUp,   color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                            { label: 'Compliance Reserve', value: inr(summary.govtPayables),     icon: Landmark,     color: 'text-indigo-600',  bg: 'bg-indigo-50' },
+                            { label: 'Total Gross Pay',      value: inr(summary.totalGross),      icon: IndianRupee,  color: 'text-slate-900',   bg: 'bg-slate-50' },
+                            { label: 'Total Deductions',     value: inr(summary.totalDeductions),  icon: TrendingDown, color: 'text-rose-600',    bg: 'bg-rose-50' },
+                            { label: 'Net Disbursable',      value: inr(summary.netOutflow),       icon: TrendingUp,   color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                            { label: 'Employer Liabilities', value: inr(summary.govtPayables),     icon: Landmark,     color: 'text-indigo-600',  bg: 'bg-indigo-50' },
                         ].map(s => {
                             const Icon = s.icon;
                             return (
-                                <div key={s.label} className="p-6 flex flex-col gap-5 hover:bg-slate-50 transition-colors">
-                                    <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center border border-slate-100 shadow-sm`}>
-                                        <Icon size={14} className={s.color} />
+                                <div key={s.label} className="p-5 flex flex-col gap-3 hover:bg-slate-50/50 transition-colors">
+                                    <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center`}>
+                                        <Icon size={15} className={s.color} />
                                     </div>
                                     <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">{s.label}</p>
-                                        <p className={`text-[18px] font-black ${s.color} tracking-tight leading-none`}>{s.value}</p>
+                                        <p className="text-xs font-medium text-slate-500 mb-1">{s.label}</p>
+                                        <p className={`text-xl font-bold ${s.color} tracking-tight leading-none`}>{s.value}</p>
                                     </div>
                                 </div>
                             );

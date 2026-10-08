@@ -26,6 +26,7 @@ const store = vi.hoisted(() => ({ users: [] as any[], records: [] as any[], fail
 const sendMail = vi.hoisted(() => vi.fn());
 
 vi.mock('nodemailer', () => ({ default: { createTransport: () => ({ sendMail }) } }));
+vi.mock('../../src/middleware/rateLimiter', () => ({ authLimiter: (_req: any, _res: any, next: any) => next() }));
 
 vi.mock('../../src/modules/auth/auth.repository', () => {
     const FRESH_MS = 1000;

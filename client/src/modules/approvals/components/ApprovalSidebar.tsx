@@ -1,5 +1,5 @@
 import React from 'react';
-import { Inbox, Shield, Calendar, Users, Briefcase, ChevronLeft, ChevronRight, Clock, Building2, Layers, KeyRound } from 'lucide-react';
+import { Inbox, Shield, Calendar, Users, Briefcase, ChevronLeft, ChevronRight, Clock, Building2, Layers, KeyRound, Receipt, FileSpreadsheet } from 'lucide-react';
 import { ApprovalType } from '../types';
 import { useAuthStore } from '../../../store/authStore';
 
@@ -14,9 +14,16 @@ export const CATEGORY_PERMISSIONS: Record<string, string[]> = {
     role_change: ['approvals:approve'],
     team_change: ['approvals:approve'],
     promotion: ['approvals:approve'],
+    claim: ['claims:approve'],
+    timesheet: ['timesheet:approve'],
 };
 
+/** Categories anyone can raise for themselves; they always belong in the "My Requests" lens. */
+const SELF_RAISABLE = new Set(['leave', 'attendance', 'role_change', 'promotion', 'team_change', 'claim', 'timesheet']);
+
 interface ApprovalSidebarProps {
+    /** current tab; on 'mine' the sidebar lists what you can raise, not just what you can approve */
+    tab?: string;
     filterType: ApprovalType | 'all';
     setFilterType: (type: any) => void;
     isCollapsed: boolean;
@@ -29,7 +36,8 @@ const ApprovalSidebar: React.FC<ApprovalSidebarProps> = ({
     setFilterType, 
     isCollapsed, 
     setIsCollapsed,
-    counts = {}
+    counts = {},
+    tab
 }) => {
     const hasPermission = useAuthStore((st) => st.hasPermission);
     const getBadgeCount = (id: string) => {
@@ -56,18 +64,21 @@ const ApprovalSidebar: React.FC<ApprovalSidebarProps> = ({
                 <div className="bg-white border border-slate-100 rounded-2xl p-1.5 shadow-sm space-y-1">
                     {[
                         { id: 'all', label: 'All Requests', icon: Inbox, color: 'text-slate-400' },
-                        { id: 'password_reset', label: 'Password Reset', icon: KeyRound, color: 'text-rose-500' },
-                        { id: 'department_creation', label: 'Department Requests', icon: Building2, color: 'text-indigo-600' },
+                        { id: 'claim', label: 'Expense Claims', icon: Receipt, color: 'text-amber-500' },
+                        { id: 'leave', label: 'Leave Requests', icon: Calendar, color: 'text-emerald-500' },
+                        { id: 'timesheet', label: 'Timesheets', icon: FileSpreadsheet, color: 'text-sky-500' },
+                        { id: 'attendance', label: 'Attendance Requests', icon: Clock, color: 'text-teal-500' },
+                        { id: 'role_change', label: 'Role Requests', icon: Shield, color: 'text-purple-500' },
+                        { id: 'promotion', label: 'Promotion Requests', icon: Briefcase, color: 'text-violet-500' },
                         { id: 'team_creation', label: 'Team Requests', icon: Layers, color: 'text-indigo-400' },
-                        { id: 'role_change', label: 'Role Request', icon: Shield, color: 'text-indigo-500' },
-                        { id: 'leave', label: 'Leave Request', icon: Calendar, color: 'text-amber-500' },
-                        { id: 'team_change', label: 'Team Request', icon: Users, color: 'text-sky-500' },
-                        { id: 'promotion', label: 'Promotion Request', icon: Briefcase, color: 'text-emerald-500' },
-                        { id: 'attendance', label: 'Attendance Request', icon: Clock, color: 'text-violet-500' },
+                        { id: 'department_creation', label: 'Department Requests', icon: Building2, color: 'text-indigo-600' },
+                        { id: 'team_change', label: 'Team Transfer', icon: Users, color: 'text-blue-500' },
+                        { id: 'password_reset', label: 'Password Reset', icon: KeyRound, color: 'text-rose-500' },
                     ].filter(t => {
                         const needed = CATEGORY_PERMISSIONS[t.id];
                         // keep a category visible if something is waiting in it, so nothing is hidden silently
-                        return !needed || needed.some(hasPermission) || (counts[t.id] || 0) > 0;
+                        return !needed || needed.some(hasPermission) || (counts[t.id] || 0) > 0
+                            || (tab === 'mine' && SELF_RAISABLE.has(t.id));
                     }).map(t => {
                         const count = getBadgeCount(t.id);
                         return (

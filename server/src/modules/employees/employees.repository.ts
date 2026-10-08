@@ -7,6 +7,7 @@ export class EmployeesRepository {
         let sql = `
             SELECT e.*, 
                    COALESCE(e.avatar_url, u.avatar_url) as avatar_url,
+                   COALESCE(e.user_id, u.id) as user_id,
                    d.name as department_name, m.name as manager_name, 
                    u.availability_status,
                    COALESCE(r.name, u.role, 'employee') as role,
@@ -300,7 +301,7 @@ export class EmployeesRepository {
             `SELECT id, name, email, personal_email,
                     CASE WHEN LOWER(email) = LOWER($1) THEN 'work' ELSE 'personal' END as matched_type
              FROM employees 
-             WHERE (LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1)) AND tenant_id = $2
+             WHERE (LOWER(email) = LOWER($1) OR LOWER(COALESCE(personal_email, '')) = LOWER($1)) AND tenant_id = $2 AND deleted_at IS NULL
              LIMIT 1`,
             [email, tenantId]
         );
@@ -310,18 +311,77 @@ export class EmployeesRepository {
     /** A user of THIS tenant (identity may be shown), or a user elsewhere (existence only: login e-mails are globally unique). */
     async findUserByEmail(email: string, tenantId: string) {
         const res = await pool.query(
-            'SELECT id, name, email, (tenant_id = $2) AS same_tenant FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            'SELECT id, name, email, (tenant_id = $2) AS same_tenant FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND is_active = true LIMIT 1',
             [email, tenantId]
         );
         return (res.rows[0] || null) as { id: number; name: string; email: string; same_tenant: boolean } | null;
     }
 
-    async delete(id: string, tenantId: string) {
+    /**
+     * Terminate an employee: keep their records intact on the Terminated list,
+     * but deactivate their system login so they cannot access the platform.
+     */
+    async terminate(id: string, tenantId: string) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            
-            // Clean up child tables referencing this employee
+            const empRes = await client.query(
+                "UPDATE employees SET status = 'terminated', updated_at = NOW() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING email, user_id",
+                [id, tenantId]
+            );
+            if (empRes.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const empEmail = empRes.rows[0].email;
+            const empUserId = empRes.rows[0].user_id;
+            if (empEmail && empEmail !== 'admin@company.com') {
+                await client.query(
+                    'UPDATE users SET is_active = false, updated_at = NOW() WHERE (email = $1 OR ($2::int IS NOT NULL AND id = $2::int)) AND tenant_id = $3',
+                    [empEmail, empUserId, tenantId]
+                );
+            }
+            await client.query('COMMIT');
+            return true;
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
+
+    /**
+     * Hard delete an employee and all their child records, freeing their email.
+     */
+    async delete(id: string, tenantId: string) {
+        const client = await pool.connect();
+        let empEmail = '';
+        let deletedUserId: number | null = null;
+        try {
+            await client.query('BEGIN');
+
+            // ── STEP 1: Verify tenant ownership before any mutation ───────────
+            const ownerCheck = await client.query(
+                'SELECT id, email, user_id, manager_id, reporting_manager_id FROM employees WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE',
+                [id, tenantId]
+            );
+            if (ownerCheck.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return false;
+            }
+            const empRow = ownerCheck.rows[0];
+            empEmail = empRow.email || '';
+            deletedUserId = empRow.user_id ?? null;
+            if (!deletedUserId && empEmail) {
+                const uRes = await client.query(
+                    'SELECT id FROM users WHERE email = $1 AND tenant_id = $2 LIMIT 1',
+                    [empEmail, tenantId]
+                );
+                deletedUserId = uRes.rows[0]?.id ?? null;
+            }
+
+            // ── STEP 2: Clean up child tables ────────────────────────────────
             await client.query('DELETE FROM employee_education WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM employee_experience WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM employee_emergency_contacts WHERE employee_id = $1', [id]);
@@ -333,41 +393,74 @@ export class EmployeesRepository {
             await client.query('DELETE FROM approvals WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM payroll_profiles WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM payroll_entries WHERE employee_id = $1', [id]);
-            await client.query('DELETE FROM payroll_history WHERE employee_id = $1', [id]);
+            await client.query('DELETE FROM payroll_history WHERE employee_id = $1', [id]).catch(() => {});
             await client.query('DELETE FROM reimbursement_claims WHERE employee_id = $1', [id]);
             await client.query('DELETE FROM claims WHERE employee_id = $1', [id]);
+            await client.query(
+                'DELETE FROM attendance WHERE employee_id = $1 OR ($2::int IS NOT NULL AND user_id = $2::int)',
+                [id, deletedUserId]
+            );
             await client.query('DELETE FROM loans WHERE employee_id = $1', [id]);
 
-            // Unlink manager references
-            await client.query('UPDATE employees SET manager_id = NULL WHERE manager_id = $1', [id]);
+            // ── STEP 3: Resolve reporting chain before removing the employee ─
+            const upperManagerId = empRow.manager_id ?? null;
+            let upperReportingId = empRow.reporting_manager_id ?? null;
+            if (!upperReportingId) {
+                const ceoRes = await client.query(
+                    `SELECT COALESCE(e.user_id, u.id) AS uid FROM employees e
+                     LEFT JOIN users u ON LOWER(u.email) = LOWER(e.email) AND u.tenant_id = e.tenant_id
+                     WHERE e.tenant_id = $1 AND e.id <> $2 AND e.deleted_at IS NULL
+                       AND e.position ~* '(^|[^a-z])(ceo|chief executive)([^a-z]|$)' LIMIT 1`,
+                    [tenantId, id]
+                );
+                upperReportingId = ceoRes.rows[0]?.uid ?? null;
+            }
 
-            // Get employee email
-            const empRes = await client.query('SELECT email FROM employees WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
-            const empEmail = empRes.rows[0]?.email;
+            // Hand direct reports up to the deleted person's manager (tenant-scoped)
+            await client.query(
+                'UPDATE employees SET manager_id = $2 WHERE manager_id = $1 AND tenant_id = $3',
+                [id, upperManagerId, tenantId]
+            );
+            if (deletedUserId) {
+                await client.query(
+                    'UPDATE employees SET reporting_manager_id = $3 WHERE reporting_manager_id = $1 AND tenant_id = $2',
+                    [deletedUserId, tenantId, upperReportingId]
+                );
+            }
 
-            // Delete the employee
-            const res = await client.query('DELETE FROM employees WHERE id = $1 AND tenant_id = $2 RETURNING id', [id, tenantId]);
+            // ── STEP 4: Delete the employee row ──────────────────────────────
+            const res = await client.query(
+                'DELETE FROM employees WHERE id = $1 AND tenant_id = $2 RETURNING id',
+                [id, tenantId]
+            );
 
-            // If an associated user exists, deactivate or delete user
+            // ── STEP 5: Delete associated user account so email is freed ──────
             if (empEmail && empEmail !== 'admin@company.com') {
-                await client.query('UPDATE users SET is_active = false, deleted_at = NOW() WHERE email = $1 AND tenant_id = $2', [empEmail, tenantId]);
+                await client.query(
+                    'DELETE FROM users WHERE (email = $1 OR ($2::int IS NOT NULL AND id = $2::int)) AND tenant_id = $3',
+                    [empEmail, deletedUserId, tenantId]
+                );
             }
 
             await client.query('COMMIT');
             return (res.rowCount ?? 0) > 0;
         } catch (err) {
             await client.query('ROLLBACK');
-            console.error('[EmployeesRepository.delete] Hard delete failed, falling back to soft delete:', err);
-            // Fallback to soft delete
+            console.error('[EmployeesRepository.delete] Hard delete failed, falling back to soft delete with email release:', err);
+            // Fallback to soft delete — always release email so it does not collide with future onboards
             const softRes = await pool.query(
-                "UPDATE employees SET deleted_at = NOW(), status = 'terminated' WHERE id = $1 AND tenant_id = $2 RETURNING id",
+                "UPDATE employees SET deleted_at = NOW(), status = 'terminated', email = 'deleted_' || id || '_' || email, personal_email = NULL WHERE id = $1 AND tenant_id = $2 RETURNING id",
                 [id, tenantId]
             );
+            if (empEmail && empEmail !== 'admin@company.com') {
+                await pool.query(
+                    "UPDATE users SET is_active = false, deleted_at = NOW(), email = 'deleted_' || id || '_' || email WHERE (email = $1 OR ($2::int IS NOT NULL AND id = $2::int)) AND tenant_id = $3",
+                    [empEmail, deletedUserId, tenantId]
+                ).catch(() => {});
+            }
             return ((softRes.rowCount ?? 0) > 0);
         } finally {
             client.release();
         }
     }
 }
-
-

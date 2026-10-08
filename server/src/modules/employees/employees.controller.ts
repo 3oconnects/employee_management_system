@@ -47,7 +47,9 @@ export const updateEmployee = async (req: Request, res: Response) => {
     // Check authorization: admin, hr, super_admin OR own profile
     const isHrOrAdmin = ['admin', 'super_admin', 'hr'].includes(user?.role);
     if (!isHrOrAdmin) {
-        const isOwn = await service.isEmployeeOwner(targetId, user?.email, user?.userId);
+        // Bonus fix (ARC-02 analysis): isEmployeeOwner was called with email in the tenantId position.
+        // Correct signature: isEmployeeOwner(employeeId, tenantId, email?, userId?)
+        const isOwn = await service.isEmployeeOwner(targetId, tenantId, user?.email, user?.userId);
         if (!isOwn) {
             return res.status(403).json({ success: false, message: 'You are only authorized to update your own profile.' });
         }
@@ -141,13 +143,13 @@ export const checkEmail = async (req: Request, res: Response) => {
 };
 
 export const deleteEmployee = async (req: Request, res: Response) => {
-    const tenantId = (req as any).user.tenantId;
+    const user = (req as any).user;
+    const tenantId = user.tenantId;
     const { id } = req.params;
-    const success = await service.deleteEmployee(id, tenantId);
+    // ARC-02: Pass actor for audit trail. Tenant isolation is enforced in the repository.
+    const success = await service.deleteEmployee(id, tenantId, { userId: user.userId, email: user.email });
     if (!success) {
         return res.status(404).json({ success: false, message: 'Employee not found or could not be deleted.' });
     }
     res.json({ success: true, message: 'Employee deleted successfully.' });
 };
-
-

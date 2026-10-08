@@ -2,20 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { 
     ChevronDown, 
     Plus, 
-    Maximize2, 
-    Filter, 
     RefreshCw, 
     Shield, 
-    Activity, 
-    Zap,
+    Users, 
+    CheckCircle2, 
+    Clock, 
+    TrendingUp,
     Upload,
     Search,
-    X
+    X,
+    Filter
 } from 'lucide-react';
 import api from '../../../services/api';
 import { CandidateTable } from '../components/CandidateTable';
 import AddEmployeeModal from '../../employees/components/modals/AddEmployeeModal';
 import BulkUploadModal from '../../employees/components/modals/BulkUploadModal';
+import { useAuthStore } from '../../../store/authStore';
 import { AddEmployeeForm } from '../../employees/components/modals/shared';
 
 const Onboarding: React.FC = () => {
@@ -97,7 +99,6 @@ const Onboarding: React.FC = () => {
             const payload = {
                 ...form,
                 annualCTC: Number(form.annualCTC) || 0,
-                internshipStipend: form.internshipStipend ? Number(form.internshipStipend) : undefined
             };
 
             if (editId) {
@@ -105,22 +106,19 @@ const Onboarding: React.FC = () => {
             } else {
                 await api.post('/employees', payload);
             }
-            
+
             setIsModalOpen(false);
             setForm(emptyForm);
             setEditId(null);
             fetchData();
         } catch (err: any) {
             const data = err.response?.data;
-            if (data?.errors && typeof data.errors === 'object') {
-                const details = Object.entries(data.errors)
-                    .map(([field, msgs]: any) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
-                    .join(' | ');
+            if (data?.details && Array.isArray(data.details)) {
+                const details = data.details.map((d: any) => `${d.path?.join('.')}: ${d.message}`).join(', ');
                 setError(`${data.message || 'Validation failed'} (${details})`);
             } else {
-                setError(data?.message || 'Transaction failed');
+                setError(data?.message || 'Failed to save employee profile');
             }
-            console.error('[Onboarding Error]:', err);
         } finally {
             setLoading(false);
         }
@@ -140,96 +138,141 @@ const Onboarding: React.FC = () => {
         return matchesQuery && matchesStatus;
     });
 
+    const { hasAnyRole, hasPermission } = useAuthStore();
+    const isAuthorized = hasAnyRole('super_admin', 'admin', 'hr') || hasPermission('onboarding:manage');
+
+    if (!isAuthorized) {
+        return (
+            <div className="h-[70vh] flex flex-col items-center justify-center px-4 text-center">
+                <div className="w-14 h-14 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-center text-rose-600 mb-3.5 shadow-xs">
+                    <Shield size={26} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight">Access Restricted</h3>
+                <p className="text-xs text-slate-500 max-w-sm mt-1.5 leading-relaxed">
+                    You do not have authorization to access the Onboarding module. Candidate onboarding and employee creation are restricted to authorized HR and Administrators.
+                </p>
+            </div>
+        );
+    }
+
+    const inProgressCount = candidates.filter(c => c.status === 'onboarding').length;
+    const activeCount = candidates.filter(c => c.status === 'active').length;
+    const totalCount = candidates.length;
+    const completionRate = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 0;
+
     return (
-        <div className="p-6 space-y-8 page-enter max-w-[1600px] mx-auto">
-            
+        <div className="w-full min-w-0 max-w-[1440px] mx-auto px-6 py-6 space-y-5 animate-in fade-in duration-200">
             {/* ── Page Header ──────────────────────────────── */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-                        <Shield size={20} className="text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-black text-[#0F172A] tracking-tight">Onboarding</h2>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">
-                            Manage new employee onboarding
-                        </p>
-                    </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-xl font-bold text-slate-900 tracking-tight">Employee Onboarding</h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        Manage new hire setup, orientation workflows, and roster activation
+                    </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                     <button 
                         onClick={fetchData} 
-                        className={`p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 transition-all shadow-sm ${loadingData ? 'animate-spin text-indigo-600' : ''}`}
+                        className={`p-2 bg-white border border-slate-200/90 rounded-lg text-slate-500 hover:text-slate-800 transition-all shadow-xs ${loadingData ? 'animate-spin text-blue-600' : ''}`}
+                        title="Refresh"
                     >
-                        <RefreshCw size={18}/>
+                        <RefreshCw size={15}/>
                     </button>
-                    <button onClick={()=>setShowBulk(true)}
-                        className="flex items-center gap-2 px-5 py-3 bg-white border border-violet-200 text-violet-700 rounded-xl text-[12px] font-black uppercase tracking-widest hover:bg-violet-50 transition-all shadow-sm">
-                        <Upload size={16}/> Bulk Upload
+                    <button 
+                        onClick={() => setShowBulk(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200/90 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-xs"
+                    >
+                        <Upload size={14} className="text-slate-500" />
+                        Bulk Upload
                     </button>
                     <button
                         onClick={() => { setEditId(null); setForm(emptyForm); setIsModalOpen(true); }}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl text-[12px] font-black tracking-widest uppercase transition-all shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center gap-2.5"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-all shadow-xs"
                     >
-                        <Plus size={16} />
-                        Add Employee
+                        <Plus size={14} />
+                        Add Candidate
                     </button>
                 </div>
             </div>
 
-            {/* ── Operational KPIs ────────────────────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {[
-                    { label: 'Total Candidates', val: candidates.length, icon: Activity, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                    { label: 'In Progress', val: candidates.filter(c => c.status === 'onboarding').length, icon: Shield, color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'Activated',   val: candidates.filter(c => c.status === 'active').length, icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Growth Rate', val: '12%', icon: RefreshCw, color: 'text-slate-600', bg: 'bg-slate-50', isPrc: true }
-                ].map((s, i) => (
-                    <div key={i} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-all">
-                        <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
-                            <p className="text-xl font-black text-slate-900 mt-0.5 tracking-tight">
-                                {s.val}{s.isPrc && <span className="text-[10px] text-emerald-500 ml-1">↑</span>}
-                            </p>
-                        </div>
-                        <div className={`w-10 h-10 ${s.bg} ${s.color} rounded-lg flex items-center justify-center`}>
-                            <s.icon size={18} />
+            {/* ── Metric Cards ─────────────────────────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-semibold text-slate-500">Total Candidates</span>
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <Users size={16} />
                         </div>
                     </div>
-                ))}
+                    <div className="text-2xl font-bold text-slate-900 tracking-tight">{totalCount}</div>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">In onboarding system</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-semibold text-slate-500">In Progress</span>
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <Clock size={16} />
+                        </div>
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900 tracking-tight">{inProgressCount}</div>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">Pending document completion</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-semibold text-slate-500">Ready to Activate</span>
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <CheckCircle2 size={16} />
+                        </div>
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900 tracking-tight">{activeCount}</div>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">Profile details verified</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-semibold text-slate-500">Completion Rate</span>
+                        <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+                            <TrendingUp size={16} />
+                        </div>
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900 tracking-tight">{completionRate}%</div>
+                    <p className="text-xs text-slate-400 mt-1 font-medium">Pipeline velocity</p>
+                </div>
             </div>
 
             {/* ── Toolbar with Search Bar ───────────────────── */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200/90 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs">
                 <div className="flex items-center gap-3 flex-1">
                     {/* Status Filter Dropdown */}
                     <div className="relative">
                         <button
                             onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                            className="flex items-center gap-2 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:border-indigo-500 hover:bg-white transition-all shadow-2xs group whitespace-nowrap"
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-all whitespace-nowrap"
                         >
                             <span>
                                 {statusFilter === 'all' ? 'All Candidates' : statusFilter === 'onboarding' ? 'In Progress' : 'Activated'}
                             </span>
-                            <span className="px-1.5 py-0.2 bg-slate-200/70 rounded text-[10px] text-slate-600 font-extrabold">
+                            <span className="px-1.5 py-0.5 bg-slate-200/80 rounded text-[10px] text-slate-700 font-bold">
                                 {filteredCandidates.length}
                             </span>
-                            <ChevronDown size={14} className={`text-slate-400 group-hover:text-indigo-600 transition-transform ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                            <ChevronDown size={13} className={`text-slate-400 transition-transform ${showStatusDropdown ? 'rotate-180' : ''}`} />
                         </button>
 
                         {showStatusDropdown && (
-                            <div className="absolute top-full left-0 mt-1.5 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1.5 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="absolute top-full left-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-30 py-1 animate-in fade-in zoom-in-95 duration-100">
                                 {[
                                     { id: 'all', label: 'All Candidates', count: candidates.length },
-                                    { id: 'onboarding', label: 'In Progress', count: candidates.filter(c => c.status === 'onboarding').length },
-                                    { id: 'active', label: 'Activated', count: candidates.filter(c => c.status === 'active').length },
+                                    { id: 'onboarding', label: 'In Progress', count: inProgressCount },
+                                    { id: 'active', label: 'Activated', count: activeCount },
                                 ].map(opt => (
                                     <button
                                         key={opt.id}
                                         onClick={() => { setStatusFilter(opt.id as any); setShowStatusDropdown(false); }}
-                                        className={`w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-left transition-colors
-                                            ${statusFilter === opt.id ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                                        className={`w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-left transition-colors
+                                            ${statusFilter === opt.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
                                     >
                                         <span>{opt.label}</span>
                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-bold">{opt.count}</span>
@@ -241,48 +284,38 @@ const Onboarding: React.FC = () => {
 
                     {/* Candidate Search Bar */}
                     <div className="relative flex-1 max-w-md">
-                        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                         <input
                             type="text"
                             placeholder="Search candidates by name, ID, email, or role..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-8 py-2 bg-slate-50/80 border border-slate-200/90 rounded-xl text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 outline-none transition-all"
+                            className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200/90 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 outline-none transition-all"
                         />
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200/60 transition-colors"
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
                             >
-                                <X size={13} />
+                                <X size={12} />
                             </button>
                         )}
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 px-1 self-end sm:self-auto">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                     {(searchQuery || statusFilter !== 'all') && (
                         <button 
                             onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
-                            className="px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 rounded-lg transition-colors"
+                            className="px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 rounded-lg transition-colors"
                         >
-                            Reset
+                            Reset filters
                         </button>
                     )}
-                    <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-all" title="Toggle Fullscreen">
-                        <Maximize2 size={16} />
-                    </button>
-                    <button 
-                        onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                        className={`p-2 rounded-lg transition-all ${statusFilter !== 'all' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-100'}`} 
-                        title="Filter Candidates"
-                    >
-                        <Filter size={16} />
-                    </button>
                 </div>
             </div>
 
-            {/* ── Candidate Matrix ────────────────────────── */}
+            {/* ── Candidate Table ─────────────────────────── */}
             <CandidateTable 
                 candidates={filteredCandidates} 
                 loading={loadingData} 
@@ -291,7 +324,7 @@ const Onboarding: React.FC = () => {
                 onClearSearch={() => { setSearchQuery(''); setStatusFilter('all'); }}
             />
 
-            {/* ── Add Employee Modal (Reused) ───────────── */}
+            {/* ── Add Employee Modal ──────────────────────── */}
             <AddEmployeeModal 
                 show={isModalOpen}
                 onClose={() => { setIsModalOpen(false); setForm(emptyForm); setEditId(null); }}
@@ -302,7 +335,7 @@ const Onboarding: React.FC = () => {
                 error={error}
             />
 
-            {/* ── Bulk Upload Modal ──────────────────────── */}
+            {/* ── Bulk Upload Modal ───────────────────────── */}
             <BulkUploadModal 
                 show={showBulk} 
                 onClose={() => setShowBulk(false)} 
@@ -313,4 +346,3 @@ const Onboarding: React.FC = () => {
 };
 
 export default Onboarding;
-

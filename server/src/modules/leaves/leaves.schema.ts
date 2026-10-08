@@ -5,9 +5,9 @@ import { z } from 'zod';
 // the body is ignored.
 
 export const applyLeaveSchema = z.object({
-    leave_type_id: z.coerce.number(),
-    start_date: z.string(),
-    end_date: z.string(),
+    leave_type_id: z.coerce.number().int().positive('Please select a valid leave type.'),
+    start_date: z.string().min(1, 'Start date is required.'),
+    end_date: z.string().min(1, 'End date is required.'),
     reason: z.string().optional().nullable()
 });
 

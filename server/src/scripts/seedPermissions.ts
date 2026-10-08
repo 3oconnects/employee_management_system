@@ -79,6 +79,19 @@ export async function seedPermissionsAndSuperAdmin(): Promise<void> {
     try {
         await client.query('BEGIN');
 
+        // ── 0. Additive table hardening (ensures payroll_runs & entries have required columns) ──
+        await client.query(`
+            ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'COMPLETED';
+            ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS present_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS absent_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS leave_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_days INTEGER DEFAULT 0;
+            ALTER TABLE payroll_entries ADD COLUMN IF NOT EXISTS lop_deduction NUMERIC DEFAULT 0;
+            ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS employee_id TEXT REFERENCES employees(id);
+        `).catch(() => {});
+
         // ── 1. Ensure permissions table has a unique constraint ───────────────
         await client.query(`
             DO $$ BEGIN

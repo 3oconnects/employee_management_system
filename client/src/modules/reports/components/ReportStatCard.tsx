@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownRight, LucideIcon } from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 
 interface ReportStatCardProps {
     label: string;
@@ -14,17 +14,21 @@ interface ReportStatCardProps {
 export const ReportStatCard: React.FC<ReportStatCardProps> = ({ 
     label, value, trend, up, icon: Icon, iconColor, iconBg 
 }) => (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-        <div className="flex items-start justify-between mb-4">
-            <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center`}>
-                <Icon size={18} className={iconColor} />
-            </div>
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold ${up ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                {up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {trend}
+    <div className="bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs hover:border-slate-300 transition-all">
+        <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold text-slate-500">{label}</span>
+            <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center`}>
+                <Icon size={16} className={iconColor} />
             </div>
         </div>
-        <p className="text-[12px] font-semibold text-slate-500 mb-1">{label}</p>
-        <p className="text-2xl font-black text-slate-800 tracking-tight truncate" title={value}>{value}</p>
+        <p className="text-2xl font-bold text-slate-900 tracking-tight truncate" title={value}>{value}</p>
+        <div className="flex items-center gap-1.5 mt-2">
+            <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-semibold ${
+                up ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+            }`}>
+                {trend}
+            </span>
+            <span className="text-xs text-slate-400 font-medium">vs previous period</span>
+        </div>
     </div>
 );

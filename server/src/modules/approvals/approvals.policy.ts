@@ -48,6 +48,8 @@ const PERMISSIONS_BY_TYPE: Record<string, string[]> = {
     password_reset: ['settings:manage'],
     // HF-5: a regularization is a request that someone else must approve before attendance changes
     attendance_regularization: ['attendance:regularize', 'attendance:manage'],
+    // decided by the requester's reporting manager (see MANAGER_ROUTED_TYPES); the route gate below only
+    // needs the caller to be allowed to decide something
 };
 const GENERIC_PERMISSIONS = ['approvals:approve'];
 
@@ -70,6 +72,15 @@ export const PENDING_STATUSES: Record<ApprovalKind, string[]> = {
 /** The status each decision writes (onboarding activates the employee). */
 export const decisionStatus = (kind: ApprovalKind, action: 'approve' | 'reject'): string =>
     action === 'approve' ? (kind === 'onboarding' ? 'active' : 'approved') : 'rejected';
+
+/** Requests an employee can raise for themselves; each is decided by their reporting manager. */
+export const SELF_SERVICE_FIELDS: Record<string, string[]> = {
+    role_change: ['requested_role', 'requested_role_id', 'reason'],
+    promotion: ['requested_designation', 'effective_date', 'reason'],
+    team_change: ['target_team', 'target_team_id', 'effective_date', 'reason'],
+};
+/** Types decided by the requester's reporting manager (admin when they have none). */
+export const MANAGER_ROUTED_TYPES = new Set<string>(['attendance_regularization', ...Object.keys(SELF_SERVICE_FIELDS)]);
 
 /** Types that have their own workflow and table, so they cannot be minted via POST /approvals. */
 export const RESERVED_TYPES = new Set([

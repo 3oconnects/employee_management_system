@@ -1,23 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-    History,
-    FileText,
-    Download,
-    CheckCircle2,
-    AlertCircle,
-    Loader2,
-    Plus,
-    IndianRupee,
-    Clock,
-    XCircle,
-    X,
-    Send,
-    Wallet,
-    Calendar,
-    ArrowUpRight,
-    Search,
-    ShieldCheck
+    FileText, Download, CheckCircle2, Loader2, Plus, Clock, XCircle, X, Send,
+    Wallet, Receipt, TrendingUp, Inbox, CalendarDays, Plane, Stethoscope, Utensils, Tag, Info
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import api from '../../../services/api';
 import { useAuthStore } from '../../../store/authStore';
 import { fmtCurrency } from '../../../utils/formatters';
@@ -42,6 +28,20 @@ interface Claim {
     created_at: string;
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MAX_CLAIM = 10_000_000;
+/** Older records can hold absurd values; they must not distort totals or break the layout. */
+const isSane = (n: unknown) => Number.isFinite(Number(n)) && Number(n) > 0 && Number(n) <= MAX_CLAIM;
+
+const CATEGORY_ICON: Record<string, React.ReactNode> = {
+    Travel: <Plane size={15} />, Medical: <Stethoscope size={15} />, Food: <Utensils size={15} />,
+};
+const STATUS_STYLE: Record<string, { chip: string; icon: React.ReactNode; label: string }> = {
+    pending:  { chip: 'bg-amber-50 text-amber-700 border-amber-200',    icon: <Clock size={11} />,        label: 'Pending' },
+    approved: { chip: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 size={11} />, label: 'Approved' },
+    rejected: { chip: 'bg-rose-50 text-rose-700 border-rose-200',       icon: <XCircle size={11} />,      label: 'Rejected' },
+};
 
 const EmployeePayroll = () => {
     const { user } = useAuthStore();
@@ -50,25 +50,20 @@ const EmployeePayroll = () => {
     const [loading, setLoading] = useState(true);
     const [showClaimModal, setShowClaimModal] = useState(false);
     const [submittingClaim, setSubmittingClaim] = useState(false);
+    const [claimError, setClaimError] = useState('');
+    const [claimFilter, setClaimFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+    const [downloading, setDownloading] = useState<number | null>(null);
 
-    const [claimData, setClaimData] = useState({
-        type: 'Travel',
-        amount: '',
-        reason: ''
-    });
+    const [claimData, setClaimData] = useState({ type: 'Travel', amount: '', reason: '' });
 
     const fetchData = async () => {
         const empId = user?.employee_id;
-        if (!empId) {
-            setLoading(false);
-            return;
-        }
-
+        if (!empId) { setLoading(false); return; }
         setLoading(true);
         try {
             const [payslipsRes, claimsRes] = await Promise.all([
                 api.get(`payroll/history/${empId}`),
-                api.get(`claims/employee/${empId}`)
+                api.get(`claims/employee/${empId}`),
             ]);
             setPayslips(payslipsRes.data.payroll_history || []);
             setClaims(claimsRes.data || []);
@@ -79,275 +74,277 @@ const EmployeePayroll = () => {
         }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, [user?.id]);
+    useEffect(() => { fetchData(); }, [user?.id]);
 
-    const downloadPayslip = async (payslipId: number | string, name: string, month: string, year: string, employeeId: string) => {
-        const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const monthLabel = MONTHS[(parseInt(month) - 1)] || month;
+    const sortedSlips = useMemo(
+        () => [...payslips].sort((a, b) => (Number(b.year) - Number(a.year)) || (Number(b.month) - Number(a.month))),
+        [payslips]
+    );
+    const latest = sortedSlips[0];
+    const thisYear = String(new Date().getFullYear());
+    const ytd = sortedSlips.filter(p => String(p.year) === thisYear).reduce((n, p) => n + Number(p.net_salary || 0), 0);
+    const pendingClaims = claims.filter(c => c.status === 'pending');
+    const pendingAmount = pendingClaims.filter(c => isSane(c.amount)).reduce((n, c) => n + Number(c.amount), 0);
+    const reimbursed = claims.filter(c => c.status === 'approved' && isSane(c.amount)).reduce((n, c) => n + Number(c.amount), 0);
+    const shownClaims = claims.filter(c => claimFilter === 'all' || c.status === claimFilter);
 
+    const downloadPayslip = async (p: Payslip) => {
+        const monthLabel = MONTHS[parseInt(p.month) - 1] || p.month;
+        setDownloading(p.id);
         try {
             const res = await api.get(
-                `/payroll/payslip/${encodeURIComponent(employeeId)}/monthly?month=${month}&year=${year}`,
+                `/payroll/payslip/${encodeURIComponent(p.employee_id)}/monthly?month=${p.month}&year=${p.year}`,
                 { responseType: 'blob' }
             );
-            const blob = new Blob([res.data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
             const a = document.createElement('a');
             a.href = url;
-            const safeName = (name || employeeId).replace(/[^a-zA-Z0-9]/g, '_');
-            a.download = `${safeName}_${monthLabel}_${year}_Payslip.pdf`;
+            a.download = `${(p.employee || p.employee_id).replace(/[^a-zA-Z0-9]/g, '_')}_${monthLabel}_${p.year}_Payslip.pdf`;
             a.click();
             window.URL.revokeObjectURL(url);
-        } catch (err: any) {
+        } catch {
             alert('Failed to download payslip.');
+        } finally {
+            setDownloading(null);
         }
     };
 
     const handleClaimSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const empId = user?.employee_id;
-        if (!empId || !claimData.amount || !claimData.reason) return;
-
+        const amount = Number(claimData.amount);
+        if (!empId || !claimData.reason.trim()) return;
+        if (!(amount > 0) || amount > MAX_CLAIM) {
+            setClaimError(`Enter an amount between ₹1 and ${fmtCurrency(MAX_CLAIM)}.`);
+            return;
+        }
         setSubmittingClaim(true);
+        setClaimError('');
         try {
-            await api.post('claims', {
-                employee_id: empId,
-                category: claimData.type,
-                amount: Number(claimData.amount),
-                description: claimData.reason
-            });
+            await api.post('claims', { employee_id: empId, category: claimData.type, amount, description: claimData.reason.trim() });
             setShowClaimModal(false);
             setClaimData({ type: 'Travel', amount: '', reason: '' });
             fetchData();
         } catch (error: any) {
-            alert("Failed to submit claim.");
+            setClaimError(error.response?.data?.message || 'Failed to submit claim.');
         } finally {
             setSubmittingClaim(false);
         }
     };
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center py-32 gap-4">
-            <Loader2 size={32} className="text-blue-600 animate-spin" />
-            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Hydrating Financial Record...</p>
+        <div className="flex flex-col items-center justify-center py-32 gap-3">
+            <Loader2 size={28} className="text-indigo-600 animate-spin" />
+            <p className="text-xs font-medium text-slate-400">Loading your payroll…</p>
         </div>
     );
 
     return (
-        <div className="p-6 space-y-8 page-enter">
-            
-            {/* ── Page Header ──────────────────────────────── */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-100">
-                        <Wallet size={20} className="text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-[17px] font-black text-gray-900 tracking-tight uppercase">My Payroll Hub</h2>
-                        <p className="text-[11.5px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
-                            Personal Earnings & Expense Tracking
+        <div className="space-y-6 min-w-0">
+            {/* ── Summary row ─────────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-w-0">
+                {/* Hero: latest pay */}
+                <div className={`lg:col-span-2 min-w-0 relative overflow-hidden rounded-2xl ${latest ? 'p-6' : 'px-6 py-5'} text-white flex flex-col justify-center bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 shadow-lg shadow-indigo-600/20`}>
+                    <div className="absolute -right-10 -top-10 w-48 h-48 rounded-full bg-white/10" />
+                    <div className="absolute right-16 -bottom-16 w-40 h-40 rounded-full bg-white/5" />
+                    <div className="relative">
+                        <p className="text-[11px] font-semibold text-indigo-100 flex items-center gap-1.5">
+                            <Wallet size={13} /> {latest ? `Latest net pay · ${MONTHS_LONG[parseInt(latest.month) - 1]} ${latest.year}` : 'Latest net pay'}
                         </p>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
-                        <ShieldCheck size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Account Verified</span>
-                    </div>
-                    <button 
-                        onClick={() => setShowClaimModal(true)}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-[12px] font-bold hover:bg-black transition-all shadow-lg shadow-gray-200 active:scale-95"
-                    >
-                        <Plus size={14} />
-                        New Claim
-                    </button>
-                </div>
-            </div>
-
-            {/* ── Stats Strip ─────────────────────────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5">
-                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100"><FileText size={24}/></div>
-                    <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Available Payslips</p>
-                        <p className="text-[22px] font-black text-gray-900 tracking-tight">{payslips.length}</p>
-                    </div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5">
-                    <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-100"><Clock size={24}/></div>
-                    <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pending Claims</p>
-                        <p className="text-[22px] font-black text-gray-900 tracking-tight">{claims.filter(c => c.status === 'pending').length}</p>
-                    </div>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-5">
-                    <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100"><CheckCircle2 size={24}/></div>
-                    <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Claim Lifecycle</p>
-                        <p className="text-[22px] font-black text-gray-900 tracking-tight">Active</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                
-                {/* ── My Earnings List ────────────────────────── */}
-                <div className="lg:col-span-3 space-y-4">
-                    <div className="flex items-center justify-between px-2">
-                        <h3 className="text-[13px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                           <Calendar size={14} className="text-blue-600"/> Salary Archive
-                        </h3>
-                    </div>
-
-                    {payslips.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {payslips.map(p => (
-                                <div 
-                                    key={p.id} 
-                                    onClick={() => downloadPayslip(p.id, p.employee, p.month, p.year, p.employee_id)}
-                                    className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-100 transition-all cursor-pointer group"
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="p-2 bg-gray-50 text-gray-400 rounded-xl group-hover:bg-blue-50 group-hover:text-blue-600 transition-all border border-gray-100">
-                                            <FileText size={18} />
-                                        </div>
-                                        <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">
-                                            <CheckCircle2 size={10} /> Paid
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
-                                            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(p.month) - 1]} {p.year}
-                                        </p>
-                                        <p className="text-[20px] font-black text-gray-900 tracking-tight mt-1 truncate" title={fmtCurrency(Number(p.net_salary))}>{fmtCurrency(Number(p.net_salary))}</p>
-
-                                    </div>
-                                    <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">ID: {p.id}</span>
-                                        <button className="flex items-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-wider hover:translate-x-1 transition-transform">
-                                            Download <Download size={12}/>
-                                        </button>
-                                    </div>
+                        {latest ? (
+                            <>
+                                <p className="text-[34px] leading-tight font-black tracking-tight mt-2">{fmtCurrency(Number(latest.net_salary))}</p>
+                                <div className="flex flex-wrap items-center gap-3 mt-4">
+                                    <button onClick={() => downloadPayslip(latest)} disabled={downloading === latest.id}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-white text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-all disabled:opacity-60">
+                                        {downloading === latest.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Download payslip
+                                    </button>
+                                    <span className="text-[11px] text-indigo-100">Paid {latest.paid_at ? new Date(latest.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
                                 </div>
-                            ))}
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-[22px] leading-tight font-black tracking-tight mt-1.5">No payslip yet</p>
+                                <p className="text-xs text-indigo-100 mt-2 max-w-md leading-relaxed">
+                                    It appears here once payroll is processed for you.
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/* Compact stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-5 min-w-0">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm min-w-0">
+                        <p className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5"><TrendingUp size={13} className="text-emerald-500" /> Earned in {thisYear}</p>
+                        <p className="text-[22px] font-black text-slate-900 tracking-tight mt-1.5">{fmtCurrency(ytd)}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{sortedSlips.filter(p => String(p.year) === thisYear).length} payslip(s) this year</p>
+                    </div>
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm min-w-0">
+                        <p className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5"><Receipt size={13} className="text-amber-500" /> Claims</p>
+                        <p className="text-[22px] font-black text-slate-900 tracking-tight mt-1.5 truncate">{fmtCurrency(reimbursed)}</p>
+                        <p className="text-[11px] text-slate-400">reimbursed so far</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{pendingClaims.length} pending · {fmtCurrency(pendingAmount)} awaiting approval</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Payslips + Claims ───────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-w-0">
+                {/* Payslips */}
+                <section className="lg:col-span-3 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900">Payslips</h3>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Your monthly salary statements</p>
                         </div>
+                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{sortedSlips.length} total</span>
+                    </div>
+                    {sortedSlips.length > 0 ? (
+                        <ul className="divide-y divide-slate-100">
+                            {sortedSlips.map(p => (
+                                <li key={p.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50/70 transition-colors">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0"><FileText size={17} /></div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[13px] font-bold text-slate-800">{MONTHS_LONG[parseInt(p.month) - 1]} {p.year}</p>
+                                        <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5"><CalendarDays size={11} /> Paid {p.paid_at ? new Date(p.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</p>
+                                    </div>
+                                    <p className="text-[14px] font-black text-slate-900 tabular-nums">{fmtCurrency(Number(p.net_salary))}</p>
+                                    <button onClick={() => downloadPayslip(p)} disabled={downloading === p.id} title="Download PDF"
+                                        className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-all disabled:opacity-60">
+                                        {downloading === p.id ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
                     ) : (
-                        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-100 py-20 flex flex-col items-center gap-4 text-center">
-                            <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-200"><History size={28}/></div>
-                            <div>
-                                <p className="text-[14px] font-black text-gray-800 uppercase tracking-tight">No Pay History</p>
-                                <p className="text-[11px] text-gray-400 px-10">Historical payslips will manifest here once the payroll engine processes your cycle.</p>
-                            </div>
+                        <div className="py-16 px-8 flex flex-col items-center text-center gap-3">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 text-slate-300 flex items-center justify-center"><FileText size={26} /></div>
+                            <p className="text-sm font-bold text-slate-700">No payslips yet</p>
+                            <p className="text-xs text-slate-400 max-w-xs leading-relaxed">Payslips are generated after each pay run. Once yours is processed you can view and download it here.</p>
                         </div>
                     )}
-                </div>
+                </section>
 
-                {/* ── Recent Claims Area ──────────────────────── */}
-                <div className="lg:col-span-2 space-y-4">
-                    <div className="flex items-center justify-between px-2">
-                        <h3 className="text-[13px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                           <ArrowUpRight size={14} className="text-amber-600"/> Recent Claims
-                        </h3>
-                    </div>
-
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        {claims.length > 0 ? (
-                            <div className="divide-y divide-gray-50">
-                                {claims.map((c: any) => (
-                                    <div key={c.id} className="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center group">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all ${c.status === 'approved' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                                                <IndianRupee size={14}/>
-                                            </div>
-                                            <div>
-                                                <p className="text-[13px] font-black text-gray-800 uppercase tracking-tight">{c.category || 'General'}</p>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">₹{Number(c.amount).toLocaleString()}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className={`inline-flex px-2 py-0.5 rounded-lg text-[8.5px] font-black uppercase tracking-widest border ${c.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                                                {c.status || 'pending'}
-                                            </span>
-                                            <p className="text-[9.5px] text-gray-300 font-bold mt-1 italic">{new Date(c.created_at || Date.now()).toLocaleDateString('en-IN', {month: 'short', day: 'numeric'})}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="py-20 flex flex-col items-center gap-3 text-center">
-                                <div className="p-3 bg-gray-50 text-gray-200 rounded-2xl"><Send size={24}/></div>
-                                <p className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest">No Transmitted Claims</p>
-                            </div>
-                        )}
-                        <div className="bg-gray-50 p-3 text-center border-t border-gray-100">
-                             <p className="text-[9.5px] text-gray-400 font-bold uppercase tracking-widest">Audited by Financial Compliance Team</p>
+                {/* Claims */}
+                <section className="lg:col-span-2 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900">Expense claims</h3>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Reimbursements you have requested</p>
                         </div>
+                        <button onClick={() => { setClaimError(''); setShowClaimModal(true); }}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all">
+                            <Plus size={14} /> New claim
+                        </button>
                     </div>
-                </div>
+
+                    {claims.length > 0 && (
+                        <div className="flex gap-1.5 px-6 pt-3">
+                            {(['all', 'pending', 'approved', 'rejected'] as const).map(f => (
+                                <button key={f} onClick={() => setClaimFilter(f)}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all ${claimFilter === f ? 'bg-indigo-50 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}>
+                                    {f}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {shownClaims.length > 0 ? (
+                        <ul className="divide-y divide-slate-100 mt-2 flex-1">
+                            {shownClaims.map(c => {
+                                const st = STATUS_STYLE[c.status] || STATUS_STYLE.pending;
+                                return (
+                                    <li key={c.id} className="flex items-start gap-3 px-6 py-3.5">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 text-slate-500 flex items-center justify-center flex-shrink-0">
+                                            {CATEGORY_ICON[c.category] || <Tag size={15} />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-[13px] font-bold text-slate-800 truncate">{c.category || 'General'}</p>
+                                                {isSane(c.amount)
+                                                    ? <p className="text-[13px] font-black text-slate-900 tabular-nums flex-shrink-0">{fmtCurrency(Number(c.amount))}</p>
+                                                    : <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full flex-shrink-0">Invalid amount</span>}
+                                            </div>
+                                            {c.description && <p className="text-[11px] text-slate-400 truncate mt-0.5">{c.description}</p>}
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.chip}`}>{st.icon}{st.label}</span>
+                                                <span className="text-[10px] text-slate-400">{new Date(c.created_at || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                            </div>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    ) : (
+                        <div className="py-14 px-8 flex flex-col items-center text-center gap-3 flex-1">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 text-slate-300 flex items-center justify-center"><Inbox size={26} /></div>
+                            <p className="text-sm font-bold text-slate-700">{claims.length ? `No ${claimFilter} claims` : 'No claims yet'}</p>
+                            <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                                {claims.length ? 'Try another filter.' : 'Spent money on work travel, medical or meals? Raise a claim and track it here.'}
+                            </p>
+                            {!claims.length && (
+                                <button onClick={() => { setClaimError(''); setShowClaimModal(true); }}
+                                    className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all">
+                                    <Plus size={14} /> Raise your first claim
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center gap-2 text-[11px] text-slate-400">
+                        <Info size={12} /> Claims are reviewed by the finance team.
+                    </div>
+                </section>
             </div>
 
             {/* ── Claim Modal ─────────────────────────────── */}
-            {showClaimModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8">
-                        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-900 text-white">
+            {showClaimModal && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onMouseDown={() => setShowClaimModal(false)}>
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden" onMouseDown={e => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                             <div>
-                                <h3 className="text-[17px] font-black uppercase tracking-tight">Transmit Claim</h3>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Financial Reconciliation Request</p>
+                                <h3 className="text-[15px] font-bold text-slate-900">New expense claim</h3>
+                                <p className="text-[11px] text-slate-400 mt-0.5">Reviewed by the finance team</p>
                             </div>
-                            <button onClick={() => setShowClaimModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X size={20}/></button>
+                            <button onClick={() => setShowClaimModal(false)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50"><X size={16} /></button>
                         </div>
-                        <form onSubmit={handleClaimSubmit} className="p-8 space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Category</label>
-                                    <select 
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-400 transition-all"
-                                        value={claimData.type}
-                                        onChange={e => setClaimData({...claimData, type: e.target.value})}
-                                    >
+                        <form onSubmit={handleClaimSubmit} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Category</label>
+                                    <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10"
+                                        value={claimData.type} onChange={e => setClaimData({ ...claimData, type: e.target.value })}>
                                         <option value="Travel">Travel</option>
                                         <option value="Medical">Medical</option>
                                         <option value="Food">Meals</option>
                                         <option value="Other">Miscellaneous</option>
                                     </select>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Amount (INR)</label>
-                                    <input 
-                                        type="number" 
-                                        required
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm font-black text-gray-900 outline-none focus:bg-white focus:border-blue-400 transition-all"
-                                        placeholder="0.00"
-                                        value={claimData.amount}
-                                        onChange={e => setClaimData({...claimData, amount: e.target.value})}
-                                    />
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Amount (₹)</label>
+                                    <input type="number" required min={1} max={MAX_CLAIM} step="0.01" placeholder="0.00"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-800 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10"
+                                        value={claimData.amount} onChange={e => setClaimData({ ...claimData, amount: e.target.value })} />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Business Reason</label>
-                                <textarea 
-                                    className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm font-medium text-gray-700 outline-none focus:bg-white transition-all resize-none italic"
-                                    rows={4}
-                                    placeholder="Briefly explain the expense..."
-                                    required
-                                    value={claimData.reason}
-                                    onChange={e => setClaimData({...claimData, reason: e.target.value})}
-                                />
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Reason</label>
+                                <textarea required rows={3} maxLength={500} placeholder="What was the expense for?"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 resize-none"
+                                    value={claimData.reason} onChange={e => setClaimData({ ...claimData, reason: e.target.value })} />
                             </div>
-                            <div className="flex gap-3">
-                                <button type="button" onClick={() => setShowClaimModal(false)} className="flex-1 py-3 bg-gray-100 text-gray-500 rounded-xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all">Abort</button>
-                                <button type="submit" disabled={submittingClaim} className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                    {submittingClaim ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                                    Transmit
+                            {claimError && <p className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{claimError}</p>}
+                            <div className="flex gap-2 pt-1">
+                                <button type="button" onClick={() => setShowClaimModal(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                                <button type="submit" disabled={submittingClaim}
+                                    className="flex-[1.4] py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+                                    {submittingClaim ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit claim
                                 </button>
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

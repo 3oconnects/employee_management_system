@@ -68,6 +68,7 @@ export interface JwtPayload {
     role: UserRole;
     dashboard_type?: string;
     permissions: string[];
+    is_password_temp?: boolean;
 }
 
 export interface AuthenticatedRequest extends Request {

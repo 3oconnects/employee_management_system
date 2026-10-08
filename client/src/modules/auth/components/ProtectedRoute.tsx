@@ -5,10 +5,11 @@ import { useAuthStore, UserRole } from '../../../store/authStore';
 interface ProtectedRouteProps {
     children: React.ReactNode;
     allowedRoles?: UserRole[];
+    requiredPermissions?: string[];
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-    const { isAuthenticated, hasAnyRole, mustChangePassword } = useAuthStore();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, requiredPermissions }) => {
+    const { isAuthenticated, hasAnyRole, hasAnyPermission, mustChangePassword } = useAuthStore();
     const location = useLocation();
 
     if (!isAuthenticated) {
@@ -24,8 +25,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
         return <Navigate to="/dashboard" replace />;
     }
 
-    if (allowedRoles && !hasAnyRole(...allowedRoles)) {
-        return <Navigate to="/unauthorized" replace />;
+    if (requiredPermissions && requiredPermissions.length > 0) {
+        if (!hasAnyPermission(...requiredPermissions)) {
+            return <Navigate to="/unauthorized" state={{ from: location, requiredPermissions }} replace />;
+        }
+    } else if (allowedRoles && !hasAnyRole(...allowedRoles)) {
+        return <Navigate to="/unauthorized" state={{ from: location, allowedRoles }} replace />;
     }
 
     return <>{children}</>;

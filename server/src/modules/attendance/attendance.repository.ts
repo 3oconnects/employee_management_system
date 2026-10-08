@@ -2,6 +2,13 @@ import { pool } from '../../config/db';
 
 export class AttendanceRepository {
     async resolveEmployeeId(userId: string | number, tenantId: string): Promise<string | null> {
+        const strId = String(userId);
+        const r0 = await pool.query(
+            'SELECT id FROM employees WHERE id = $1 AND tenant_id = $2 LIMIT 1',
+            [strId, tenantId]
+        );
+        if (r0.rows.length > 0) return r0.rows[0].id;
+
         const r1 = await pool.query(
             `SELECT e.id FROM employees e
              JOIN users u ON u.email = e.email AND u.tenant_id = e.tenant_id

@@ -37,28 +37,15 @@ import governanceRoutes from './modules/governance';
 import realtimeRoutes from './modules/realtime';
 import workspaceRoutes from './modules/workspace/workspace.routes';
 import { globalErrorHandler, notFoundHandler } from './core/errors/errorHandler';
+import { requestIdMiddleware } from './core/observability/requestId';
 
 const app = express();
 
-// ─── RATE LIMITERS ──────────────────────────────────────────────────────────
+// ─── REQUEST OBSERVABILITY & TRACING ─────────────────────────────────────────
+app.use(requestIdMiddleware);
 
-// Strict limiter for auth endpoints (login / refresh) — 10 attempts per 15 min per IP
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10,
-    standardHeaders: true,   // Return RateLimit-* headers
-    legacyHeaders: false,
-    message: { success: false, message: 'Too many requests. Please try again later.' },
-});
-
-// General API limiter — 300 requests per minute per IP (generous for normal use)
-const apiLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 300,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, message: 'Too many requests. Please try again later.' },
-});
+import { authLimiter, apiLimiter } from './middleware/rateLimiter';
+export { authLimiter, apiLimiter };
 
 // ─── SECURITY MIDDLEWARE ────────────────────────────────────────────────────
 
@@ -79,7 +66,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id', 'x-request-id']
 }));
 
 // Body parsers
@@ -102,8 +89,8 @@ app.get('/api/v1/health', (_req, res) => {
 
 // ─── API ROUTES ─────────────────────────────────────────────────────────────
 
-// Auth routes get the strict limiter
-app.use('/api/v1/auth', authLimiter, authRoutes);
+// Auth routes (general limiter by default; strict authLimiter applied per-route inside authRoutes)
+app.use('/api/v1/auth', apiLimiter, authRoutes);
 
 // All other API routes get the general limiter
 app.use('/api/v1/users', apiLimiter, userRoutes);

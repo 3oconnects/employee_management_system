@@ -172,7 +172,7 @@ const RegularizePanel: React.FC<{ userId: any }> = ({ userId }) => {
             setTimeout(() => setSubmitted(false), 4000);
             setDate(''); setInT(''); setOutT(''); setReason('');
         } catch (err: any) {
-            alert(err.response?.data?.error || 'Submission failed');
+            alert(err.response?.data?.message || err.response?.data?.error || 'Submission failed');
         } finally {
             setLoading(false);
         }

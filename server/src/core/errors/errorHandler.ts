@@ -62,6 +62,7 @@ export const globalErrorHandler = (
     res.status(statusCode).json({
         success: false,
         message,
+        correlationId: req.id || (req.headers['x-request-id'] as string) || undefined,
         ...(code && { code }),
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
     });

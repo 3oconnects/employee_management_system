@@ -13,6 +13,8 @@ router.post('/', validateRequest(submitClaimSchema, 'body'), asyncHandler(submit
 router.get('/employee/:employeeId', asyncHandler(getEmployeeClaims));
 // Every employee's claims: approvers only (HF-5). Own claims: /employee/:employeeId (own id) or approvers.
 router.get('/', authorize(['claims:approve']), asyncHandler(getAllClaims));
+// Contract alias for frontend admin approvals view
+router.get('/admin', authorize(['claims:approve']), asyncHandler(getAllClaims));
 router.put('/:id/status', authorize(['claims:approve']), validateRequest(updateClaimStatusSchema, 'body'), asyncHandler(updateClaimStatus));
 
 export default router;

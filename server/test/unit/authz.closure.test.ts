@@ -73,6 +73,10 @@ vi.mock('../../src/modules/approvals/approvals.repository', () => {
     const impl = {
         async getEmployeeIdByUserId() { return undefined; },
         async getApprovals() { return []; },
+        // in these fixtures every t1 employee reports to mia (user 11)
+        async getReportingManagerUserIds(ids: string[]) { return new Map(ids.map((i) => [i, 11])); },
+        async applySelfServiceChange() { /* nothing to apply in the fixture */ },
+        async getRoleName() { return null; },
         async resolveActorEmployeeId(_c: unknown, tenantId: string, userId: number, email: string) {
             const e = W.employees.find((x) => x.tenant_id === tenantId && (x.user_id === userId || String(x.email).toLowerCase() === email.toLowerCase()));
             return e ? e.id : null;

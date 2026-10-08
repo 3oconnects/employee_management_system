@@ -1,21 +1,26 @@
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
 import { OfferLetterData } from './types';
-import { formatDate, getExpiryDate, getLogoPath } from './utils';
+import { CompanyConfig } from './config';
+import { formatDate, getExpiryDate, getLogoPath, buildRefNumber } from './utils';
+import { getRoleScopeAndStandards } from './roleScope';
 
 /**
  * Generates an executive, 2-page print-perfect vector PDF offer letter buffer using PDFKit.
- * Matches exact Ozofi corporate branding with complete terms and counter-signatures.
+ * Matches exact corporate branding with complete terms and counter-signatures.
+ * All brand parameters, legal names, and defaults come from CompanyConfig (env-driven).
  */
 export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promise<Buffer> {
+    const cfg = CompanyConfig;
+    const roleScope = getRoleScopeAndStandards(data);
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({
             size: 'A4',
             margin: 40,
             autoFirstPage: true,
             info: {
-                Title: `Ozofi Official Offer Letter - ${data.name}`,
-                Author: 'Ozofi People Operations',
+                Title: `${cfg.name} Official Offer Letter - ${data.name}`,
+                Author: `${cfg.name} ${cfg.hrTeamName}`,
                 Subject: `Offer of Employment for ${data.name} (${data.employeeId})`,
             }
         });
@@ -26,12 +31,11 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
         doc.on('error', reject);
 
         const issueDateStr = formatDate(data.issueDate);
-        const expiryDateStr = getExpiryDate(data.issueDate, data.expiryDays || 7);
+        const expiryDateStr = getExpiryDate(data.issueDate, data.expiryDays ?? cfg.defaultExpiryDays);
         const firstName = data.name.split(' ')[0] || data.name;
         const year = new Date().getFullYear();
-        const empNum = (data.employeeId || '001').replace(/[^0-9]/g, '').padStart(3, '0') || '001';
-        const refNumber = `OZO/HR/OFFER/${year}/${empNum}`;
-        const location = data.workLocation || [data.city, data.state].filter(Boolean).join(', ') || 'Bengaluru / Chennai, Hybrid';
+        const refNumber = buildRefNumber(cfg.refPrefix, year, data.employeeId);
+        const location = data.workLocation || [data.city, data.state].filter(Boolean).join(', ') || cfg.defaultWorkLocation;
         const engagementTypeStr = (data.employmentType || '').toLowerCase() === 'intern' ? 'Internship' : 'Full-time Employment';
 
         const isIntern = (data.employmentType || '').toLowerCase() === 'intern';
@@ -45,8 +49,8 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
         }
 
         const probationStr = data.probationDuration || (isIntern ? '3 Months Internship' : '3 Months Probation');
-        const scheduleStr = data.workSchedule || 'Monday – Friday, 9:30 AM – 6:30 PM IST';
-        const reportingStr = data.reportingManager || 'Chief Technology Officer (CTO)';
+        const scheduleStr = data.workSchedule || cfg.defaultWorkSchedule;
+        const reportingStr = data.reportingManager || cfg.defaultReportingMgr;
         const logoPath = getLogoPath();
 
         // ══════════════════════════════════════════════════════════
@@ -58,13 +62,13 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
             try {
                 doc.image(logoPath, 40, 36, { width: 105 });
             } catch (e) {
-                doc.font('Helvetica-Bold').fontSize(22).fillColor('#0f172a').text('OZOFI', 40, 38);
+                doc.font('Helvetica-Bold').fontSize(22).fillColor('#0f172a').text(cfg.name.toUpperCase(), 40, 38);
             }
         } else {
-            doc.font('Helvetica-Bold').fontSize(22).fillColor('#0f172a').text('OZOFI', 40, 38);
+            doc.font('Helvetica-Bold').fontSize(22).fillColor('#0f172a').text(cfg.name.toUpperCase(), 40, 38);
         }
 
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#4338ca').text('BUILDING INTELLIGENT DIGITAL SYSTEMS', 40, 80);
+        doc.font('Helvetica-Bold').fontSize(8).fillColor('#4338ca').text(cfg.tagline.toUpperCase(), 40, 80);
 
         // Header Right: Date & Reference
         doc.font('Helvetica').fontSize(8.5).fillColor('#64748b').text(`Date: ${issueDateStr}`, 320, 38, { width: 235, align: 'right' });
@@ -98,7 +102,7 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
         doc.text(`Dear ${firstName},`, 40, 228);
 
         doc.text(
-            `On behalf of Ozofi, we are delighted to offer you the position of ${data.position}. Your selection for this key role is an outcome of your distinguished professional background, technical acumen, and our strong belief in your capability to lead, design, and scale advanced enterprise solutions.`,
+            `On behalf of ${cfg.legalName}, we are delighted to offer you the position of ${data.position}. Your selection for this key role reflects your proven professional background, domain expertise, and our strong confidence in your capability to drive impactful results and contribute meaningfully to the growth of ${cfg.name}.`,
             40, 244, { width: 515, align: 'justify', lineGap: 3 }
         );
 
@@ -114,7 +118,7 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
         // Table Rows
         const summaryRows: [string, string][] = [
             ['Official Position', data.position],
-            ['Department / Unit', data.department || 'AI & Innovation Labs'],
+            ['Department / Unit', data.department || roleScope.categoryName || 'General Operations'],
             ['Work Location', location],
             ['Reporting Hierarchy', reportingStr],
             ['Effective Date of Joining', formatDate(data.joinDate)],
@@ -163,10 +167,10 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
                .text(val, 225, currentY + 6, { width: 320 });
         });
 
-        // Page 1 Footer (Exact coordinate, well inside printable area)
+        // Page 1 Footer
         doc.moveTo(40, 775).lineTo(555, 775).strokeColor('#e2e8f0').lineWidth(0.8).stroke();
         doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
-           .text('Ozofi | Confidential Employment Offer | Registered People Operations Document', 40, 782, { width: 380 });
+           .text(`${cfg.name} | Confidential Employment Offer | Registered People Operations Document`, 40, 782, { width: 380 });
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b')
            .text('Page 1 of 2', 420, 782, { width: 135, align: 'right' });
 
@@ -180,8 +184,10 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
             try {
                 doc.image(logoPath, 40, 36, { width: 75 });
             } catch (e) {
-                doc.font('Helvetica-Bold').fontSize(14).fillColor('#0f172a').text('OZOFI', 40, 38);
+                doc.font('Helvetica-Bold').fontSize(14).fillColor('#0f172a').text(cfg.name.toUpperCase(), 40, 38);
             }
+        } else {
+            doc.font('Helvetica-Bold').fontSize(14).fillColor('#0f172a').text(cfg.name.toUpperCase(), 40, 38);
         }
         doc.font('Helvetica').fontSize(8).fillColor('#64748b')
            .text(`Offer Letter — ${data.name} | Ref: ${refNumber}`, 140, 42, { width: 260 });
@@ -189,14 +195,14 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
            .text(`Date: ${issueDateStr}`, 400, 42, { width: 155, align: 'right' });
         doc.moveTo(40, 60).lineTo(555, 60).strokeColor('#e2e8f0').lineWidth(1).stroke();
 
-        // 1. Role & Professional Responsibilities
+        // 1. Role Scope & Responsibilities
         doc.font('Helvetica-Bold').fontSize(10).fillColor('#0f172a').text('1. ROLE SCOPE & RESPONSIBILITIES', 40, 72);
         doc.moveTo(40, 85).lineTo(555, 85).strokeColor('#f1f5f9').lineWidth(0.8).stroke();
 
         doc.font('Helvetica').fontSize(8.5).fillColor('#334155');
-        doc.text('• Primary Deliverables: You will lead and architect mission-critical AI systems, modern cloud infrastructure, advanced software deliverables, and technology solutions aligning with business roadmaps.', 50, 92, { width: 505, lineGap: 2 });
-        doc.text('• Engineering Standards: You are expected to uphold the highest benchmarks of technical rigor, design elegance, scalable architecture, clean documentation, code reviews, and cross-functional leadership.', 50, 120, { width: 505, lineGap: 2 });
-        doc.text('• Professional Integrity: You shall maintain active ownership, timely execution of commitments, positive mentorship of engineering peers, and absolute compliance with organizational governance.', 50, 148, { width: 505, lineGap: 2 });
+        doc.text(`• Primary Deliverables: ${roleScope.primaryDeliverables}`, 50, 92, { width: 505, lineGap: 2 });
+        doc.text(`• ${roleScope.standardsLabel}: ${roleScope.professionalStandards}`, 50, 120, { width: 505, lineGap: 2 });
+        doc.text(`• Professional Integrity: ${roleScope.professionalIntegrity}`, 50, 148, { width: 505, lineGap: 2 });
 
         // 2. Terms & Conditions
         doc.font('Helvetica-Bold').fontSize(10).fillColor('#0f172a').text('2. TERMS & CONDITIONS OF APPOINTMENT', 40, 184);
@@ -204,10 +210,10 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
 
         const termsList: [string, string][] = [
             ['Verification of Credentials', 'This appointment is contingent upon comprehensive verification of academic records, prior employment credentials, government identification, and professional references.'],
-            ['Confidentiality & Non-Disclosure', 'You shall protect all company, customer, pricing, codebase, architectural diagrams, model weights, and proprietary trade secrets from unauthorized dissemination or disclosure at all times.'],
-            ['Intellectual Property', 'All software, models, algorithms, documentation, inventions, and research produced in the course of your engagement are the sole, exclusive intellectual property of Ozofi.'],
-            ['Compliance & Code of Conduct', 'You agree to abide by Ozofi corporate policies, security protocols, cloud governance, non-solicitation covenants, and operational directives throughout your tenure.'],
-            ['Termination & Notice Period', 'Either party may initiate resignation or separation subject to the agreed notice period of 30 days or payment in lieu thereof as governed by company policy. Ozofi reserves the right to terminate engagement immediately in cases of material breach, ethical violations, or document falsification.']
+            ['Confidentiality & Non-Disclosure', 'You shall protect all company, customer, pricing, business methods, proprietary data, designs, codebases, and trade secrets from unauthorized dissemination or disclosure at all times.'],
+            ['Intellectual Property', `All deliverables, documentation, work product, inventions, designs, and materials produced in the course of your engagement are the sole, exclusive intellectual property of ${cfg.legalName}.`],
+            ['Compliance & Code of Conduct', `You agree to abide by ${cfg.name} corporate policies, security protocols, workplace guidelines, non-solicitation covenants, and operational directives throughout your tenure.`],
+            ['Termination & Notice Period', `Either party may initiate resignation or separation subject to the agreed notice period of ${cfg.defaultNoticePeriod} or payment in lieu thereof as governed by company policy. ${cfg.name} reserves the right to terminate engagement immediately in cases of material breach, ethical violations, or document falsification.`]
         ];
 
         let termY = 205;
@@ -221,16 +227,16 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
         const accY = termY + 8;
         doc.rect(40, accY, 515, 36).fillAndStroke('#faf5ff', '#d8b4fe');
         doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#581c87')
-           .text(`ACCEPTANCE DEADLINE: Please sign, date, and return a duplicate copy of this letter on or before ${expiryDateStr} to confirm your formal acceptance. We look forward to creating exceptional technology together.`, 52, accY + 9, { width: 495, lineGap: 2 });
+           .text(`ACCEPTANCE DEADLINE: Please sign, date, and return a duplicate copy of this letter on or before ${expiryDateStr} to confirm your formal acceptance. We look forward to welcoming you to the ${cfg.name} team.`, 52, accY + 9, { width: 495, lineGap: 2 });
 
-        // 4. Formal Signatures (Side by side)
+        // 4. Formal Signatures
         const sigTopY = accY + 68;
 
         // Left Signature: Company
         doc.moveTo(40, sigTopY).lineTo(250, sigTopY).strokeColor('#94a3b8').lineWidth(1).stroke();
-        doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a').text('For Ozofi Technologies Private Limited', 40, sigTopY + 8);
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#475569').text('Authorized Signatory', 40, sigTopY + 22);
-        doc.font('Helvetica').fontSize(8).fillColor('#64748b').text('Global People Operations & Technology Culture', 40, sigTopY + 34);
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a').text(`For ${cfg.legalName}`, 40, sigTopY + 8);
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#475569').text(cfg.hrSignatory, 40, sigTopY + 22);
+        doc.font('Helvetica').fontSize(8).fillColor('#64748b').text(cfg.hrTeamName, 40, sigTopY + 34);
         doc.text(`Issuance Date: ${issueDateStr}`, 40, sigTopY + 46);
 
         // Right Signature: Candidate
@@ -243,7 +249,7 @@ export async function generateOfferLetterPdfBuffer(data: OfferLetterData): Promi
         // Page 2 Footer
         doc.moveTo(40, 775).lineTo(555, 775).strokeColor('#e2e8f0').lineWidth(0.8).stroke();
         doc.font('Helvetica').fontSize(8).fillColor('#94a3b8')
-           .text('Ozofi | Confidential Employment Offer | Registered People Operations Document', 40, 782, { width: 380 });
+           .text(`${cfg.name} | Confidential Employment Offer | Registered People Operations Document`, 40, 782, { width: 380 });
         doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b')
            .text('Page 2 of 2', 420, 782, { width: 135, align: 'right' });
 

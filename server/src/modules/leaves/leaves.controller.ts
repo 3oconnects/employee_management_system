@@ -14,7 +14,8 @@ export const applyLeave = async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
     // POST mutation — always use the authenticated user's ID; ignore any userId in body
     const userId = req.user!.userId;
-    const result = await service.applyLeave(tenantId, { ...req.body, userId });
+    const email = req.user!.email;
+    const result = await service.applyLeave(tenantId, { ...req.body, userId, email });
     res.status(201).json({ ...result, message: 'Leave application submitted.' });
 };
 

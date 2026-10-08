@@ -2,7 +2,13 @@ import { z } from 'zod';
 
 export const loginSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(1, 'Password is required')
+    password: z.string().min(1, 'Password is required'),
+    twoFactorCode: z.string().optional()
+});
+
+export const verify2FASchema = z.object({
+    tempToken: z.string().min(1, 'Temporary token is required'),
+    twoFactorCode: z.string().min(6, '6-digit verification code is required')
 });
 
 export const refreshSchema = z.object({

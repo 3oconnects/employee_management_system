@@ -122,9 +122,9 @@ export const LeaveRequests: React.FC<LeaveRequestsProps> = ({ requests, onEdit, 
                     {onRequestNew && statusFilter === 'all' && (
                         <button
                             onClick={onRequestNew}
-                            className="mt-4 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-sm"
+                            className="mt-4 inline-flex items-center gap-2 px-4 h-10 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
                         >
-                            <Plus size={14} /> Request Absence
+                            <Plus size={16} /> Request absence
                         </button>
                     )}
                 </div>

@@ -47,9 +47,36 @@ interface AuthState {
 
     // Permission helpers
     hasPermission: (permission: string) => boolean;
+    hasAnyPermission: (...permissions: string[]) => boolean;
     hasAnyRole: (...roles: UserRole[]) => boolean;
     hasModule: (module: string) => boolean;
 }
+
+const PERM_ALIASES: Record<string, string[]> = {
+    'employee.view': ['employees:read', 'employees:manage', 'employees.read', 'employees.view'],
+    'employee.manage': ['employees:manage', 'employees.manage'],
+    'employees.view': ['employees:read', 'employees:manage'],
+    'employees.read': ['employees:read', 'employees:manage'],
+    'payroll.process': ['payroll:manage', 'payroll.manage', 'payroll:run'],
+    'payroll.manage': ['payroll:manage', 'payroll.manage'],
+    'payroll.read': ['payroll:read', 'payroll:manage'],
+    'payroll.view': ['payroll:read', 'payroll:manage'],
+    'claims.approve': ['claims:approve'],
+    'claims.submit': ['claims:submit'],
+    'leave.apply': ['leave:apply', 'leave:manage'],
+    'leave.approve': ['leave:approve', 'leave:manage'],
+    'leave.view': ['leave:view', 'leave:read', 'leave:approve', 'leave:manage'],
+    'timesheet.submit': ['timesheet:submit', 'timesheet:manage'],
+    'timesheet.approve': ['timesheet:approve', 'timesheet:manage'],
+    'reports.view': ['reports:view', 'reports:read'],
+    'settings.manage': ['settings:manage'],
+    'audit.read': ['audit:read', 'audit:view'],
+    'audit.view': ['audit:read', 'audit:view'],
+    'organization.read': ['organization:read', 'organization:manage', 'governance:read'],
+    'organization.manage': ['organization:manage', 'governance:manage'],
+    'onboarding.manage': ['onboarding:manage'],
+    'approvals.manage': ['approvals:manage', 'leave:approve', 'timesheet:approve', 'claims:approve']
+};
 
 export const useAuthStore = create<AuthState>()(
     persist(
@@ -61,13 +88,13 @@ export const useAuthStore = create<AuthState>()(
             mustChangePassword: false,
 
             setAuth: (user, accessToken, refreshToken, mustChangePassword = false) =>
-                set({
+                set((state) => ({
                     user,
                     accessToken,
-                    refreshToken: refreshToken || null,
+                    refreshToken: refreshToken !== undefined ? (refreshToken || null) : state.refreshToken,
                     isAuthenticated: true,
                     mustChangePassword,
-                }),
+                })),
 
             setAccessToken: (accessToken) => set({ accessToken }),
 
@@ -86,29 +113,46 @@ export const useAuthStore = create<AuthState>()(
                     isAuthenticated: false,
                 }),
 
-            // ─── PERMISSION HELPERS ─────────────────────────────────────
+            // ─── DYNAMIC PERMISSION HELPERS ──────────────────────────────
             hasPermission: (permission: string) => {
                 const user = get().user;
                 if (!user) return false;
                 const role = (user.role || '').toLowerCase();
-                if (role === 'super_admin' || role === 'admin' || role === 'administrator' || user.dashboard_type === 'admin') return true;
-                return user.permissions?.includes(permission) ?? false;
+                // Super Admin has system-wide pass-through
+                if (role === 'super_admin') return true;
+
+                const userPerms = (user.permissions || []).map(p => p.toLowerCase());
+                const target = permission.toLowerCase();
+
+                // Direct match (raw, dot format, colon format)
+                if (userPerms.includes(target)) return true;
+                if (userPerms.includes(target.replace('.', ':'))) return true;
+                if (userPerms.includes(target.replace(':', '.'))) return true;
+
+                // Check defined aliases
+                const aliases = PERM_ALIASES[target] || [];
+                for (const alias of aliases) {
+                    if (userPerms.includes(alias.toLowerCase())) return true;
+                }
+
+                return false;
+            },
+
+            hasAnyPermission: (...permissions: string[]) => {
+                return permissions.some(p => get().hasPermission(p));
             },
 
             hasAnyRole: (...roles: UserRole[]) => {
                 const user = get().user;
                 if (!user) return false;
                 const userRole = (user.role || '').toLowerCase();
-                const dashType = user.dashboard_type || 'employee'; // Default to employee
-                
-                // 1. Direct match (literal role name)
+                const dashType = user.dashboard_type || 'employee';
+
                 if (roles.some(r => r.toLowerCase() === userRole)) return true;
-                
-                // 2. System Admin Override (Safety Net)
+
                 const isSystemAdmin = user.name === 'System Admin' || (user.email && user.email.toLowerCase() === 'admin@company.com');
                 if (isSystemAdmin && roles.includes('admin' as UserRole)) return true;
 
-                // 3. Dashboard Type Mapping (allows custom roles to inherit UI structure)
                 if (roles.includes('admin' as UserRole) && (dashType === 'admin' || userRole === 'admin' || userRole === 'super_admin' || userRole === 'administrator')) return true;
                 if (roles.includes('manager' as UserRole) && (dashType === 'manager' || userRole === 'manager')) return true;
                 if (roles.includes('employee' as UserRole) && (dashType === 'employee' || userRole === 'employee')) return true;
@@ -119,20 +163,17 @@ export const useAuthStore = create<AuthState>()(
             hasModule: (module: string) => {
                 const user = get().user;
                 if (!user) return false;
-                const role = (user.role || '').toLowerCase();
-                if (role === 'super_admin' || role === 'admin' || role === 'administrator' || user.dashboard_type === 'admin') return true;
+                if ((user.role || '').toLowerCase() === 'super_admin') return true;
 
-                // Core modules always accessible to all authenticated employees
                 const coreEmployeeModules = ['dashboard', 'attendance', 'leave', 'timesheet', 'payroll', 'profile'];
-                if (coreEmployeeModules.includes(module)) return true;
+                if (coreEmployeeModules.includes(module.toLowerCase())) return true;
 
-                return user.permissions?.some(p => p.startsWith(`${module}:`)) ?? false;
+                return get().hasAnyPermission(`${module}:read`, `${module}:manage`, `${module}:view`, `${module}.view`, `${module}.read`);
             },
         }),
         {
             name: 'auth-storage',
-            storage: createJSONStorage(() => sessionStorage),
-            // Don't persist tokens in storage for security — only user & auth state
+            storage: createJSONStorage(() => localStorage),
             partialize: (state) => ({
                 user: state.user,
                 isAuthenticated: state.isAuthenticated,

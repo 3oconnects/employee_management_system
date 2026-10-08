@@ -16,7 +16,10 @@ const store = vi.hoisted(() => ({
     calls: { lock: 0, execDept: [] as any[], created: [] as any[] },
 }));
 
-vi.mock('../../src/services/emailService', () => ({ sendEmployeeActionNotification: vi.fn().mockResolvedValue(true) }));
+vi.mock('../../src/services/emailService', () => ({ 
+    sendEmployeeActionNotification: vi.fn().mockResolvedValue(true),
+    sendOnboardingCredentialsEmail: vi.fn().mockResolvedValue(true)
+}));
 
 vi.mock('../../src/database/transaction', () => {
     let tail: Promise<unknown> = Promise.resolve();
@@ -33,6 +36,9 @@ vi.mock('../../src/modules/approvals/approvals.repository', () => {
     const impl = {
         async getEmployeeIdByUserId() { return undefined; },
         async getApprovals() { return []; },
+        async getReportingManagerUserIds(ids: string[]) { return new Map(ids.map((i) => [i, null])); },
+        async applySelfServiceChange() { /* nothing to apply in the fixture */ },
+        async getRoleName() { return null; },
         async resolveActorEmployeeId(_c: unknown, tenantId: string, userId: number, email: string) {
             const e = store.employees.find((x) => x.tenant_id === tenantId && (x.user_id === userId || x.email.toLowerCase() === email.toLowerCase()));
             return e ? e.id : null;

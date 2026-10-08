@@ -47,6 +47,7 @@ export function syncSession({ force = false, minIntervalMs = 60_000 }: SyncOptio
         if (fresh.availability_status) harmless.availability_status = fresh.availability_status;
         if (fresh.name) harmless.name = fresh.name;
         if (fresh.avatar_url !== undefined && fresh.avatar_url !== null) harmless.avatar_url = fresh.avatar_url;
+        if (fresh.preferences) harmless.preferences = fresh.preferences;
 
         if (!accessChanged) {
             if (Object.keys(harmless).length) updateUser(harmless as any);
@@ -71,6 +72,7 @@ export function syncSession({ force = false, minIntervalMs = 60_000 }: SyncOptio
             role: fresh.role ?? user.role,
             dashboard_type: fresh.dashboard_type ?? user.dashboard_type,
             permissions: Array.isArray(fresh.permissions) ? fresh.permissions : user.permissions,
+            preferences: fresh.preferences ?? user.preferences,
         });
         return true;
     })().finally(() => { inflight = null; });

@@ -8,9 +8,20 @@ import { DomainEventType } from '../../core/events/eventTypes';
 const service = new AuthService();
 
 export const login = async (req: Request, res: Response) => {
-    const { email, password } = req.body;
+    const { email, password, twoFactorCode } = req.body;
     
-    const result = await service.login(email.trim(), password.trim());
+    const result = await service.login(email.trim(), password.trim(), twoFactorCode);
+
+    if ('requires2FA' in result) {
+        return res.json({
+            success: true,
+            requires2FA: true,
+            tempToken: result.tempToken,
+            email: result.email,
+            name: result.name,
+            method: result.method
+        });
+    }
 
     EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, result.user.tenant_id, {
         action: AuditAction.LOGIN,
@@ -41,8 +52,67 @@ export const login = async (req: Request, res: Response) => {
             address: result.user.address || '',
             emergency: result.user.emergency || '',
             permissions: result.permissions,
+            preferences: result.user.preferences || {},
         },
     });
+};
+
+export const verify2FA = async (req: Request, res: Response) => {
+    const { tempToken, twoFactorCode } = req.body;
+
+    const result = await service.verify2FA(tempToken, twoFactorCode);
+
+    EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, result.user.tenant_id, {
+        action: AuditAction.LOGIN,
+        entityType: 'user',
+        entityId: String(result.user.id),
+        details: {
+            ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || '',
+            userAgent: req.headers['user-agent'] || '',
+            method: '2fa_totp'
+        }
+    }, result.user.id);
+
+    res.json({
+        success: true,
+        accessToken: result.accessToken,
+        token: result.accessToken,
+        refreshToken: result.refreshToken,
+        mustChangePassword: result.user.is_password_temp || false,
+        user: {
+            id: result.user.id,
+            tenant_id: result.user.tenant_id,
+            employee_id: result.user.employee_id,
+            name: result.user.name,
+            email: result.user.email,
+            role: result.user.role,
+            dashboard_type: result.user.dashboard_type || 'employee',
+            availability_status: result.user.availability_status || 'available',
+            phone: result.user.phone || '',
+            address: result.user.address || '',
+            emergency: result.user.emergency || '',
+            permissions: result.permissions,
+            preferences: result.user.preferences || {},
+        },
+    });
+};
+
+export const send2FAEmailCode = async (req: Request, res: Response) => {
+    const { tempToken, email } = req.body;
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.userId;
+
+    const result = await service.send2FAEmailCode(tempToken, userId, email);
+    res.json(result);
+};
+
+export const verify2FACodeEndpoint = async (req: AuthenticatedRequest, res: Response) => {
+    const { code, tempSecret } = req.body;
+    if (!code) {
+        return res.status(400).json({ success: false, message: 'Verification code is required.' });
+    }
+    const result = await service.verifyCodeForUser(req.user!.userId, code, tempSecret);
+    res.json(result);
 };
 
 export const refresh = async (req: Request, res: Response) => {
@@ -86,6 +156,12 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const updateProfile = async (req: AuthenticatedRequest, res: Response) => {
+    delete req.body.id;
+    delete req.body.userId;
+    delete req.body.tenantId;
+    delete req.body.role;
+    delete req.body.permissions;
+
     const user = await service.updateProfile(req.user!.userId, req.body);
     
     EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, req.user!.tenantId, {

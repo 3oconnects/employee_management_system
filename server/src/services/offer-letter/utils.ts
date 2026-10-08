@@ -12,7 +12,7 @@ export function formatDate(dateInput?: string | Date): string {
 }
 
 /**
- * Calculate expiry date (default 7 days from issue date)
+ * Calculate expiry date (days after issue date).
  */
 export function getExpiryDate(issueDate?: string | Date, days = 7): string {
     const d = issueDate ? new Date(issueDate) : new Date();
@@ -22,55 +22,64 @@ export function getExpiryDate(issueDate?: string | Date, days = 7): string {
 }
 
 /**
- * Get base64 string of the Ozofi logo for HTML embedding
+ * Build a formatted reference number for the offer letter.
+ * Example: OZO/HR/OFFER/2026/003
+ */
+export function buildRefNumber(prefix: string, year: number, employeeId?: string): string {
+    const empNum = (employeeId || '001').replace(/[^0-9]/g, '').padStart(3, '0') || '001';
+    return `${prefix}/${year}/${empNum}`;
+}
+
+/**
+ * Resolve base64 string of the company logo for inline HTML embedding.
+ * Searches known public asset paths; returns '' if not found.
  */
 export function getLogoBase64(): string {
-    const logoPaths = [
+    const candidates = [
         path.join(__dirname, '../../../public/Images/logo-removebg-preview.png'),
         path.join(__dirname, '../../../public/Images/logo.png'),
         path.join(process.cwd(), 'public/Images/logo-removebg-preview.png'),
         path.join(process.cwd(), 'public/Images/logo.png'),
     ];
-
-    for (const p of logoPaths) {
+    for (const p of candidates) {
         if (fs.existsSync(p)) {
-            const data = fs.readFileSync(p);
-            return `data:image/png;base64,${data.toString('base64')}`;
+            return `data:image/png;base64,${fs.readFileSync(p).toString('base64')}`;
         }
     }
     return '';
 }
 
 /**
- * Get absolute path of the logo image
+ * Resolve the absolute path of the company logo file.
+ * Returns null if no file is found.
  */
 export function getLogoPath(): string | null {
-    const logoPaths = [
+    const candidates = [
         path.join(__dirname, '../../../public/Images/logo.png'),
         path.join(__dirname, '../../../public/Images/logo-removebg-preview.png'),
         path.join(process.cwd(), 'public/Images/logo.png'),
         path.join(process.cwd(), 'public/Images/logo-removebg-preview.png'),
     ];
-
-    for (const p of logoPaths) {
+    for (const p of candidates) {
         if (fs.existsSync(p)) return p;
     }
     return null;
 }
 
 /**
- * Formats currency amount in INR
+ * Formats compensation as a human-readable string.
+ * Reads annualCTC (full-time) or internshipStipend (intern) from OfferLetterData.
  */
 export function formatCompensation(data: OfferLetterData): string {
     const isIntern = (data.employmentType || '').toLowerCase() === 'intern';
     if (isIntern) {
         const stipend = Number(data.internshipStipend) || 0;
-        return stipend > 0 ? `₹${stipend.toLocaleString('en-IN')} / month (Stipend)` : 'Fixed Monthly Stipend as per policy';
+        return stipend > 0
+            ? `₹${stipend.toLocaleString('en-IN')} / month (Stipend)`
+            : 'Fixed Monthly Stipend as per policy';
     }
-
     const ctc = Number(data.annualCTC) || 0;
-    if (ctc > 0) {
-        return `₹${ctc.toLocaleString('en-IN')} per annum (CTC)`;
-    }
-    return 'Competitive Compensation as discussed';
+    return ctc > 0
+        ? `₹${ctc.toLocaleString('en-IN')} per annum (CTC)`
+        : 'Competitive Compensation as discussed';
 }

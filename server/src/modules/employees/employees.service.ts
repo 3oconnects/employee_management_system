@@ -10,6 +10,7 @@ import {
     buildWelcomeEmail, 
     sendCandidateWelcomeAndOffer,
     sendEmployeeActionNotification,
+    sendOnboardingCredentialsEmail,
     EmployeeActionChange
 } from '../../services/emailService';
 import { NotificationService } from '../../services/notificationService';
@@ -62,7 +63,7 @@ export class EmployeesService {
                 }
 
                 const existingUser = await client.query(
-                    'SELECT id, name, email, tenant_id FROM users WHERE LOWER(email) = LOWER($1)',
+                    'SELECT id, name, email, tenant_id FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND is_active = true',
                     [data.email.trim()]
                 );
                 if (existingUser.rows.length > 0) {
@@ -83,7 +84,7 @@ export class EmployeesService {
                 }
 
                 const existingPersonalUser = await client.query(
-                    'SELECT id, name, email, tenant_id FROM users WHERE LOWER(email) = $1 LIMIT 1',
+                    'SELECT id, name, email, tenant_id FROM users WHERE LOWER(email) = $1 AND deleted_at IS NULL AND is_active = true LIMIT 1',
                     [cleanPersonal]
                 );
                 if (existingPersonalUser.rows.length > 0) {
@@ -136,7 +137,7 @@ export class EmployeesService {
                 const loginUrl = `${process.env.APP_URL || 'http://localhost:5173'}/login`;
                 
                 // Instantly dispatch the official Offer Letter (PDF + HTML)
-                // along with welcome message and one-time password to the candidate
+                // to the candidate's personal email (credentials will only be issued upon onboarding clearance)
                 await sendCandidateWelcomeAndOffer({
                     employeeId: newId,
                     name: data.name,
@@ -153,8 +154,6 @@ export class EmployeesService {
                     annualCTC: data.annualCTC,
                     internshipStipend: data.internshipStipend,
                     reportingManager: data.reportingManagerName || data.reportingManagerId,
-                    tempPassword,
-                    loginUrl,
                     issueDate: new Date().toISOString(),
                     expiryDays: 7, // 7 days validity window
                 }, tenantId).catch(err => {
@@ -175,6 +174,19 @@ export class EmployeesService {
 
             NotificationService.onEmployeeCreated(tenantId, data.name, newId);
 
+            try {
+                const { EventPublisher } = await import('../../core/events/eventPublisher.js');
+                const { DomainEventType } = await import('../../core/events/eventTypes.js');
+                EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, tenantId, {
+                    action: 'CREATE',
+                    entityType: 'employee',
+                    entityId: newId,
+                    details: { name: data.name, email: data.email, position: finalPosition, department: data.department }
+                }, actor?.userId);
+            } catch (auditErr) {
+                console.error('[EmployeesService.createEmployee] Audit event failed:', auditErr);
+            }
+
             return { employeeId: newId };
         });
     }
@@ -188,7 +200,7 @@ export class EmployeesService {
             // 1. Email check if changing email
             if (updates.email && updates.email.trim().toLowerCase() !== current.email?.toLowerCase()) {
                 const existing = await client.query(
-                    'SELECT id, tenant_id FROM employees WHERE LOWER(email) = LOWER($1) AND id != $2',
+                    'SELECT id, tenant_id FROM employees WHERE LOWER(email) = LOWER($1) AND id != $2 AND deleted_at IS NULL',
                     [updates.email.trim(), id]
                 );
                 if (existing.rows.length > 0) {
@@ -237,6 +249,18 @@ export class EmployeesService {
             if (grantedRole && targetEmail) {
                 await this.repo.updateUserRole(client, targetEmail, grantedRole.name, grantedRole.id, tenantId);
             }
+            if (updates.status === 'terminated' && targetEmail) {
+                await client.query(
+                    'UPDATE users SET is_active = false, updated_at = NOW() WHERE email = $1 AND tenant_id = $2',
+                    [targetEmail, tenantId]
+                );
+            } else if (updates.status === 'active' && targetEmail) {
+                await client.query(
+                    'UPDATE users SET is_active = true, updated_at = NOW() WHERE email = $1 AND tenant_id = $2',
+                    [targetEmail, tenantId]
+                );
+            }
+
 
             // 4. Submodel: Payroll & Compensation (payroll_profiles table)
             const payrollUpdates = extractEmployeePayrollUpdates(updates);
@@ -338,6 +362,51 @@ export class EmployeesService {
                 }, tenantId).catch(err => {
                     console.error('[EmployeesService] Failed to send instant promotion/action email:', err);
                 });
+            }
+
+            // When employee status transitions from Onboarding -> Active, dispatch official portal credentials
+            const isOnboardingCompleted = (updates.status || '').trim().toLowerCase() === 'active' && (current.status || '').trim().toLowerCase() === 'onboarding';
+            if (isOnboardingCompleted) {
+                const targetWorkEmail = (updates.email || current.email || '').trim();
+                const targetPersonalEmail = current.personal_email || (updates.personalEmail || updates.personal_email || null);
+                if (targetWorkEmail) {
+                    try {
+                        const tempPassword = Math.random().toString(36).slice(-10).toUpperCase();
+                        const hashedPassword = await PasswordService.hash(tempPassword);
+                        await pool.query(
+                            `UPDATE users SET password = $1, is_password_temp = true, is_active = true WHERE email = $2 AND tenant_id = $3`,
+                            [hashedPassword, targetWorkEmail, tenantId]
+                        );
+
+                        sendOnboardingCredentialsEmail({
+                            employeeId: current.id,
+                            name: updates.name || current.name,
+                            email: targetWorkEmail,
+                            personalEmail: targetPersonalEmail,
+                            tempPassword,
+                            position: updates.position || current.position,
+                            department: updates.department || current.department,
+                            tenantId,
+                        }, tenantId).catch(err => {
+                            console.error('[EmployeesService] Failed to send onboarding credentials email:', err);
+                        });
+                    } catch (credErr) {
+                        console.error('[EmployeesService] Error dispatching onboarding credentials:', credErr);
+                    }
+                }
+            }
+
+            try {
+                const { EventPublisher } = await import('../../core/events/eventPublisher.js');
+                const { DomainEventType } = await import('../../core/events/eventTypes.js');
+                EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, tenantId, {
+                    action: 'UPDATE',
+                    entityType: 'employee',
+                    entityId: id,
+                    details: { updatedFields: Object.keys(updates), changes }
+                }, actor?.userId);
+            } catch (auditErr) {
+                console.error('[EmployeesService.updateEmployee] Audit event failed:', auditErr);
             }
 
             return { success: true };
@@ -590,7 +659,24 @@ export class EmployeesService {
         });
     }
 
-    async deleteEmployee(employeeId: string, tenantId: string) {
-        return this.repo.delete(employeeId, tenantId);
+    async deleteEmployee(employeeId: string, tenantId: string, actor?: { userId?: number; email?: string }) {
+        const deleted = await this.repo.delete(employeeId, tenantId);
+        // ARC-02: Emit audit event on successful deletion
+        if (deleted && actor) {
+            try {
+                const { EventPublisher } = await import('../../core/events/eventPublisher.js');
+                const { DomainEventType } = await import('../../core/events/eventTypes.js');
+                EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, tenantId, {
+                    action: 'DELETE',
+                    entityType: 'employee',
+                    entityId: employeeId,
+                    details: { deletedBy: actor.userId, deletedByEmail: actor.email }
+                }, actor.userId);
+            } catch (auditErr) {
+                // Audit failures must never block the primary operation
+                console.error('[EmployeesService.deleteEmployee] Audit event failed:', auditErr);
+            }
+        }
+        return deleted;
     }
 }

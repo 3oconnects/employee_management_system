@@ -121,9 +121,9 @@ const blankRow = (): EntryRow => ({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const Timesheets: React.FC = () => {
-  const { user }   = useAuthStore();
+  const { user, hasPermission } = useAuthStore();
   const userId     = user?.id;
-  const isManager  = user?.role === 'admin' || user?.role === 'hr' || user?.role === 'manager' || user?.role === 'super_admin';
+  const isManager  = hasPermission('timesheet.approve') || hasPermission('timesheet:approve');
 
   const [activeTab, setActiveTab] = useState<'my' | 'history' | 'approvals'>('my');
   const [weekStart, setWeekStart] = useState(() => getMondayOf(new Date()));

@@ -31,7 +31,7 @@ export async function assertMayViewEmployeeProfile(actor: Actor, employeeId: str
     const emp = await findEmployeeInTenant(employeeId, actor.tenantId);
     if (!emp) throw AppError.notFound('Employee not found');
     const isOwn = emp.user_id === actor.userId || (!!emp.email && emp.email.toLowerCase() === actor.email.toLowerCase());
-    if (!isOwn && !hasAccess(actor, ['employees:view'])) {
+    if (!isOwn && !hasAccess(actor, ['employees:view', 'employees:read', 'employee.view', 'employees:manage'])) {
         throw AppError.forbidden('Access denied: you can only view your own profile.');
     }
     return { isOwn };

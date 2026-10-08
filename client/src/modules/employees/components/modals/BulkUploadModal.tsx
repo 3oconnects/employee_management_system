@@ -119,13 +119,13 @@ const BulkUploadModal: React.FC<Props> = ({ show, onClose, onSuccess }) => {
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={onClose}>
-            <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300"
+            <div className="bg-white rounded-xl w-full max-w-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300"
                 onClick={e => e.stopPropagation()}>
 
                 {/* ── Header ── */}
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-violet-600 rounded-xl flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 bg-violet-600 rounded-lg flex items-center justify-center shadow-xs">
                             <Upload size={15} className="text-white"/>
                         </div>
                         <div>
@@ -202,8 +202,8 @@ const BulkUploadModal: React.FC<Props> = ({ show, onClose, onSuccess }) => {
                             <div
                                 onDrop={handleDrop} onDragOver={e => e.preventDefault()}
                                 onClick={() => fileRef.current?.click()}
-                                className="border-2 border-dashed border-slate-300 hover:border-violet-400 rounded-2xl py-12 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all hover:bg-violet-50/30 group">
-                                <div className="w-12 h-12 bg-slate-100 group-hover:bg-violet-100 rounded-2xl flex items-center justify-center transition-all">
+                                className="border-2 border-dashed border-slate-300 hover:border-violet-400 rounded-xl py-12 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all hover:bg-violet-50/30 group">
+                                <div className="w-12 h-12 bg-slate-100 group-hover:bg-violet-100 rounded-xl flex items-center justify-center transition-all">
                                     <Upload size={20} className="text-slate-400 group-hover:text-violet-500 transition-all"/>
                                 </div>
                                 <div className="text-center">
@@ -301,7 +301,7 @@ const BulkUploadModal: React.FC<Props> = ({ show, onClose, onSuccess }) => {
                     {step === 'result' && result && (
                         <div className="space-y-4">
                             {/* Success summary */}
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
                                 <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-2"/>
                                 <p className="text-[16px] font-black text-emerald-800">Upload Complete!</p>
                                 <p className="text-[12px] text-emerald-600 mt-1">{result.inserted} employees added · {result.skipped} skipped</p>

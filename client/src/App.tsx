@@ -25,6 +25,7 @@ const StructuralDeepDivePage = lazy(() => import('./modules/organization/pages/S
 
 const AuditLogPage = lazy(() => import('./modules/audit/pages/AuditLogPage'));
 const ChangePasswordPage = lazy(() => import('./modules/auth/pages/ChangePasswordPage'));
+const UnauthorizedPage = lazy(() => import('./modules/auth/pages/UnauthorizedPage'));
 
 // ─── ROOT REDIRECT ─────────────────────────────────────────────────────────
 
@@ -62,17 +63,17 @@ function App() {
                         </ProtectedRoute>
                     } />
                     <Route path="/onboarding" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['onboarding:manage']}>
                             <PageLoader><Onboarding /></PageLoader>
                         </ProtectedRoute>
                     } />
                     <Route path="/employees" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['employees:read', 'employee.view', 'employees:manage']}>
                             <PageLoader><EmployeeTable /></PageLoader>
                         </ProtectedRoute>
                     } />
                     <Route path="/reports" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['reports:view']}>
                             <PageLoader><Reports /></PageLoader>
                         </ProtectedRoute>
                     } />
@@ -94,29 +95,29 @@ function App() {
                         <ProtectedRoute><PageLoader><Timesheets /></PageLoader></ProtectedRoute>
                     } />
                     <Route path="/payroll" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'employee', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['payroll:read', 'payroll:manage', 'payroll.process']}>
                             <PageLoader><GeneratePayroll /></PageLoader>
                         </ProtectedRoute>
                     } />
 
-                    {/* Admin-only routes */}
+                    {/* Permission-guarded administration routes */}
                     <Route path="/approvals" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'manager', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['approvals:read', 'approvals:manage', 'leave:approve', 'timesheet:approve', 'claims:approve']}>
                             <PageLoader><Approvals /></PageLoader>
                         </ProtectedRoute>
                     } />
                     <Route path="/organization" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['organization:read', 'organization:manage', 'governance:read']}>
                             <PageLoader><OrganizationPage /></PageLoader>
                         </ProtectedRoute>
                     } />
                     <Route path="/organization/deep-dive/:type/:id" element={
-                        <ProtectedRoute allowedRoles={['admin', 'hr', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['organization:read', 'organization:manage', 'governance:read']}>
                             <PageLoader><StructuralDeepDivePage /></PageLoader>
                         </ProtectedRoute>
                     } />
                     <Route path="/audit-logs" element={
-                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                        <ProtectedRoute requiredPermissions={['audit:read']}>
                             <PageLoader>
                                 <AuditLogPage />
                             </PageLoader>
@@ -124,47 +125,34 @@ function App() {
                     } />
 
                     <Route path="/settings" element={
-                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                        <ProtectedRoute>
                             <PageLoader><Settings /></PageLoader>
                         </ProtectedRoute>
                     } />
 
                     <Route path="/unauthorized" element={
-                        <div className="flex flex-col items-center justify-center h-[70vh] p-8">
-                            <div className="w-24 h-24 bg-rose-50 rounded-[28px] flex items-center justify-center text-rose-500 mb-8 shadow-xl shadow-rose-500/10 animate-in zoom-in-50 duration-500">
-                                <ShieldAlert size={48} />
-                            </div>
-                            <div className="text-center max-w-md animate-in slide-in-from-bottom-4 duration-700">
-                                <h1 className="text-4xl font-black text-primary tracking-tighter mb-4">Access Denied</h1>
-                                <p className="text-[13px] text-text-muted font-bold uppercase tracking-widest leading-relaxed mb-10">
-                                    You do not have permission to access this secure module.
-                                </p>
-                                <button 
-                                    onClick={() => navigate('/dashboard')}
-                                    className="px-10 py-4 bg-primary text-white rounded-xl text-[12px] font-black uppercase tracking-[0.2em] hover:bg-primary-soft hover:shadow-2xl hover:shadow-primary/20 transition-all flex items-center gap-3 mx-auto"
-                                >
-                                    <ArrowLeft size={16} /> Return to Dashboard
-                                </button>
-                            </div>
-                        </div>
+                        <PageLoader><UnauthorizedPage /></PageLoader>
                     } />
                 </Route>
 
                 <Route path="*" element={
-                    <div className="flex flex-col items-center justify-center h-screen bg-white p-8">
-                        <div className="w-32 h-32 bg-primary/5 rounded-[40px] flex items-center justify-center text-primary/20 mb-12 animate-pulse">
-                            <Terminal size={64} />
-                        </div>
-                        <div className="text-center max-w-lg">
-                            <h1 className="text-6xl font-black text-primary tracking-tighter mb-4">404 - Not Found</h1>
-                            <p className="text-[14px] text-text-muted font-bold uppercase tracking-[0.2em] leading-relaxed mb-12">
-                                The page you are looking for does not exist within the system.
+                    <div className="min-h-screen bg-[#F4F5F8] flex items-center justify-center p-6 select-none">
+                        <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200/80 shadow-xl shadow-slate-200/50 p-8 sm:p-10 text-center">
+                            <div className="w-20 h-20 bg-slate-50 border border-slate-100 rounded-3xl flex items-center justify-center text-slate-400 mx-auto mb-6 shadow-sm">
+                                <Terminal size={36} />
+                            </div>
+                            <span className="inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black uppercase tracking-wider mb-3">
+                                404 • Not Found
+                            </span>
+                            <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Page Not Found</h1>
+                            <p className="text-[13.5px] text-slate-500 leading-relaxed mb-8">
+                                The page or resource you are looking for does not exist or may have been relocated.
                             </p>
                             <button 
-                                onClick={() => navigate('/')}
-                                className="px-12 py-4 bg-primary text-white rounded-xl text-[12px] font-black uppercase tracking-[0.2em] hover:bg-primary-soft hover:shadow-2xl hover:shadow-primary/20 transition-all"
+                                onClick={() => navigate('/dashboard')}
+                                className="w-full py-3 px-5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2"
                             >
-                                Return Home
+                                <ArrowLeft size={15} /> Return to Dashboard
                             </button>
                         </div>
                     </div>

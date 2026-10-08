@@ -10,6 +10,7 @@ export {
     authorize,
     enforceTenantIsolation,
     requireSelfOrAdmin,
+    authenticateWithQueryToken,
 } from '../core/security/authorize';
 
 import { JwtService } from '../core/security/jwt.service';

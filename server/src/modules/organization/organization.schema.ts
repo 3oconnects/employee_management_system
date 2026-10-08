@@ -14,6 +14,7 @@ export const createTeamSchema = z.object({
     name: z.string(),
     department_id: z.number(),
     parent_team_id: z.number().optional().nullable(),
+    member_ids: z.array(z.string()).max(200).optional(),
     description: z.string().optional(),
     manager_id: z.number().optional().nullable(),
     metadata: z.any().optional(),

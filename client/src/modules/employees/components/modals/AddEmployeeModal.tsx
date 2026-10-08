@@ -83,13 +83,13 @@ const AddEmployeeModal: React.FC<Props> = ({ show, onClose, onSubmit, form, setF
 
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}>
-            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300"
+            <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300"
                 onClick={e => e.stopPropagation()}>
 
                 {/* ── Header ── */}
                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center shadow-xs">
                             <UserPlus size={16} className="text-white"/>
                         </div>
                         <div>

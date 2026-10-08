@@ -6,9 +6,8 @@ import { publishDecisionAudit } from './approvals.audit';
 const service = new ApprovalsService();
 
 export const getApprovals = async (req: AuthenticatedRequest, res: Response) => {
-    const { userId, role, tenantId } = req.user!;
     const status = (req.query.status as string) || 'pending';
-    const data = await service.getApprovals(userId, role, tenantId, status);
+    const data = await service.getApprovals(req.user!, status);
     res.json({ success: true, data });
 };
 
@@ -16,6 +15,12 @@ export const createApprovalRequest = async (req: AuthenticatedRequest, res: Resp
     const tenantId = req.user!.tenantId;
     await service.createApprovalRequest(tenantId, req.body);
     res.status(201).json({ success: true });
+};
+
+export const createSelfServiceRequest = async (req: AuthenticatedRequest, res: Response) => {
+    const { type, ...details } = req.body;
+    const result = await service.createSelfServiceRequest(req.user!, type, details);
+    res.status(201).json({ success: true, ...result });
 };
 
 export const updateApprovalAction = async (req: AuthenticatedRequest, res: Response) => {

@@ -1,5 +1,5 @@
 // ── Shared types, constants, and pure helpers (no JSX) ──────────────────
-export const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder:text-slate-300";
+export const inputCls = "w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder:text-slate-300";
 export const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1";
 
 // export const DEPTS = ['Engineering','Product','Sales','Marketing','HR','Finance','Operations','Design','Support','Legal','Management']; // Deprecated: Now dynamic

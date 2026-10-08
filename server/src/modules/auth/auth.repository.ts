@@ -137,7 +137,7 @@ export class AuthRepository {
 
     async updatePassword(id: number, hashed: string) {
         await pool.query(
-            'UPDATE users SET password = $1, temp_password = NULL, is_password_temp = false WHERE id = $2',
+            'UPDATE users SET password = $1, temp_password = NULL, is_password_temp = false, refresh_token = NULL WHERE id = $2',
             [hashed, id]
         );
     }

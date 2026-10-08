@@ -20,6 +20,8 @@ export class PayrollRepository {
             FROM employees e
             LEFT JOIN payroll_profiles p ON e.id = p.employee_id AND p.tenant_id = e.tenant_id
             WHERE e.tenant_id = $1
+              AND e.deleted_at IS NULL
+              AND (e.status IS NULL OR LOWER(e.status) != 'terminated')
             ORDER BY e.id
         `, [tenantId]);
         return result.rows;
@@ -50,12 +52,106 @@ export class PayrollRepository {
     }
 
     async getPayrollRuns(tenantId: string, limit?: number) {
-        const query = limit
-            ? 'SELECT * FROM payroll_runs WHERE tenant_id = $1 ORDER BY processed_at DESC LIMIT $2'
-            : 'SELECT * FROM payroll_runs WHERE tenant_id = $1 ORDER BY processed_at DESC';
-        const params = limit ? [tenantId, limit] : [tenantId];
-        const result = await pool.query(query, params);
-        return result.rows;
+        try {
+            const query = limit
+                ? 'SELECT * FROM payroll_runs WHERE tenant_id = $1 ORDER BY COALESCE(completed_at, created_at, processed_at) DESC LIMIT $2'
+                : 'SELECT * FROM payroll_runs WHERE tenant_id = $1 ORDER BY COALESCE(completed_at, created_at, processed_at) DESC';
+            const params = limit ? [tenantId, limit] : [tenantId];
+            const result = await pool.query(query, params);
+            return result.rows;
+        } catch (err: any) {
+            if (err?.code === '42703' || err?.message?.includes('does not exist')) {
+                const query = limit
+                    ? 'SELECT * FROM payroll_runs WHERE tenant_id = $1 ORDER BY processed_at DESC LIMIT $2'
+                    : 'SELECT * FROM payroll_runs WHERE tenant_id = $1 ORDER BY processed_at DESC';
+                const params = limit ? [tenantId, limit] : [tenantId];
+                const result = await pool.query(query, params);
+                return result.rows;
+            }
+            throw err;
+        }
+    }
+
+    async getPayrollRun(tenantId: string, month: string | number, year: string | number) {
+        const res = await pool.query(
+            'SELECT * FROM payroll_runs WHERE tenant_id = $1 AND month = $2 AND year = $3',
+            [tenantId, String(month), String(year)]
+        );
+        return res.rows[0] || null;
+    }
+
+    async isPeriodLocked(tenantId: string, month: string | number, year: string | number): Promise<boolean> {
+        try {
+            const res = await pool.query(
+                "SELECT id, status FROM payroll_runs WHERE tenant_id = $1 AND month = $2 AND year = $3 AND UPPER(status) IN ('COMPLETED', 'LOCKED')",
+                [tenantId, String(month), String(year)]
+            );
+            return res.rows.some((r: any) => r.status && ['COMPLETED', 'LOCKED'].includes(String(r.status).toUpperCase()));
+        } catch (err: any) {
+            // Self-healing & backward-compatibility: if column "status" does not exist in active database
+            if (err?.code === '42703' || err?.message?.includes('status')) {
+                // Proactively attempt to add missing column in background
+                pool.query("ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'COMPLETED'").catch(() => {});
+                
+                try {
+                    // Fallback to checking if period was completed by existence of payroll run
+                    const fallback = await pool.query(
+                        'SELECT id FROM payroll_runs WHERE tenant_id = $1 AND month = $2 AND year = $3',
+                        [tenantId, String(month), String(year)]
+                    );
+                    return fallback.rows.length > 0;
+                } catch {
+                    return false;
+                }
+            }
+            throw err;
+        }
+    }
+
+    async getEmployeeAttendanceStats(employeeId: string, tenantId: string, month: number, year: number) {
+        const attendanceRes = await pool.query(`
+            SELECT COUNT(DISTINCT date)::int AS present_count
+            FROM attendance
+            WHERE employee_id = $1
+              AND tenant_id = $2
+              AND EXTRACT(MONTH FROM date) = $3
+              AND EXTRACT(YEAR FROM date) = $4
+              AND deleted_at IS NULL
+              AND status IN ('IN', 'OUT', 'PRESENT')
+        `, [employeeId, tenantId, month, year]);
+
+        const tenantAttendanceRes = await pool.query(`
+            SELECT COUNT(*)::int AS total_logs
+            FROM attendance
+            WHERE tenant_id = $1
+              AND EXTRACT(MONTH FROM date) = $2
+              AND EXTRACT(YEAR FROM date) = $3
+              AND deleted_at IS NULL
+        `, [tenantId, month, year]);
+
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+        const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+        const leaveRes = await pool.query(`
+            SELECT COALESCE(SUM(
+                LEAST(end_date, $4::date) - GREATEST(start_date, $3::date) + 1
+            ), 0)::int AS leave_count
+            FROM leave_requests
+            WHERE employee_id = $1
+              AND tenant_id = $2
+              AND status = 'approved'
+              AND deleted_at IS NULL
+              AND start_date <= $4::date
+              AND end_date >= $3::date
+        `, [employeeId, tenantId, monthStart, monthEnd]);
+
+        return {
+            presentCount: attendanceRes.rows[0]?.present_count ?? 0,
+            hasTenantAttendance: (tenantAttendanceRes.rows[0]?.total_logs ?? 0) > 0,
+            leaveCount: leaveRes.rows[0]?.leave_count ?? 0,
+            daysInMonth
+        };
     }
 
     async countPendingClaims(tenantId: string) {
@@ -64,23 +160,63 @@ export class PayrollRepository {
     }
 
     async getAllPayrollProfiles(tenantId: string) {
-        const result = await pool.query('SELECT * FROM payroll_profiles WHERE tenant_id = $1', [tenantId]);
+        // Enforce: Exclude deleted or terminated employees
+        const result = await pool.query(`
+            SELECT p.*, e.name as employee_name, e.department as employee_department
+            FROM payroll_profiles p
+            JOIN employees e ON p.employee_id = e.id AND e.tenant_id = p.tenant_id
+            WHERE p.tenant_id = $1
+              AND e.deleted_at IS NULL
+              AND (e.status IS NULL OR LOWER(e.status) != 'terminated')
+            ORDER BY e.id
+        `, [tenantId]);
         return result.rows;
     }
 
-    async createPayrollRun(client: any, id: string, month: string, year: string, tenantId: string) {
-        await client.query(
-            'INSERT INTO payroll_runs (id, month, year, tenant_id) VALUES ($1, $2, $3, $4)',
-            [id, month, year, tenantId]
-        );
+    async createPayrollRun(client: any, id: string, month: string, year: string, tenantId: string, status: string = 'COMPLETED') {
+        try {
+            await client.query(
+                `INSERT INTO payroll_runs (id, month, year, tenant_id, status, created_at, completed_at)
+                 VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+                [id, String(month), String(year), tenantId, status]
+            );
+        } catch (err: any) {
+            if (err?.code === '42703' || err?.message?.includes('does not exist')) {
+                await client.query(
+                    `INSERT INTO payroll_runs (id, month, year, tenant_id)
+                     VALUES ($1, $2, $3, $4)`,
+                    [id, String(month), String(year), tenantId]
+                );
+                return;
+            }
+            throw err;
+        }
     }
 
     async insertPayrollEntry(client: any, data: any) {
         await client.query(
             `INSERT INTO payroll_entries 
-             (payroll_run_id, employee_id, month, year, gross_salary, pf_employee, esi_employee, professional_tax, tds, total_deductions, net_salary, tenant_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-            [data.payroll_run_id, data.employee_id, data.month, data.year, data.gross_salary, data.pf_employee, data.esi_employee, data.professional_tax, data.tds, data.total_deductions, data.net_salary, data.tenant_id]
+             (payroll_run_id, employee_id, month, year, gross_salary, pf_employee, esi_employee, professional_tax, tds, total_deductions, net_salary, tenant_id, present_days, absent_days, leave_days, lop_days, lop_deduction)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+            [
+                data.payroll_run_id,
+                data.employee_id,
+                data.month,
+                data.year,
+                data.gross_salary,
+                data.pf_employee,
+                data.esi_employee,
+                data.professional_tax,
+                data.tds,
+                data.total_deductions,
+                data.net_salary,
+                data.tenant_id,
+                data.present_days || 0,
+                data.absent_days || 0,
+                data.leave_days || 0,
+                data.lop_days || 0,
+                data.lop_deduction || 0
+            ]
         );
     }
 

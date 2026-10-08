@@ -20,8 +20,10 @@ const routeLabels: Record<string, string> = {
     '/profile':    'My Profile',
     '/audit-logs': 'Audit Logs',
     '/organization': 'Hierarchy',
-    '/approvals':  'Approvals',
-    '/settings':   'Settings',
+    '/approvals':       'Approvals',
+    '/settings':        'Settings',
+    '/unauthorized':    'Access Control',
+    '/change-password': 'Security Credentials',
 };
 
 /* Avatar color map — same as Sidebar for consistency */
@@ -35,7 +37,7 @@ const AVATAR_COLORS: Record<string, string> = {
 const getAvatarColor = (name?: string) => AVATAR_COLORS[(name?.[0] ?? 'U').toUpperCase()] ?? '#6366f1';
 
 const Topbar: React.FC = () => {
-    const { user, logout, accessToken, hasAnyRole } = useAuthStore();
+    const { user, logout, accessToken, hasAnyRole, hasPermission } = useAuthStore();
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -74,19 +76,24 @@ const Topbar: React.FC = () => {
     }, [searchQuery, canFindPeople]);
 
     useEffect(() => {
-        if (!accessToken) return;
+        if (!accessToken || !user?.id) return;
+        let isMounted = true;
         const fetchNotifs = () => {
             api.get('/notifications?limit=8')
                 .then(res => {
-                    setNotifications(res.data.data || []);
-                    setUnreadCount(res.data.unreadCount || 0);
+                    if (!isMounted) return;
+                    setNotifications(res.data?.data || []);
+                    setUnreadCount(res.data?.unreadCount ?? res.data?.meta?.unreadCount ?? 0);
                 })
                 .catch(() => {});
         };
         fetchNotifs();
         const interval = setInterval(fetchNotifs, 60000);
-        return () => clearInterval(interval);
-    }, [accessToken]);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, [accessToken, user?.id]);
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -366,9 +373,9 @@ const Topbar: React.FC = () => {
                                 </button>
                                 <button onClick={() => { navigate('/settings'); setUserMenuOpen(false); }}
                                     className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
-                                    <Settings size={14} /> Settings
+                                    <Settings size={14} /> Settings & Preferences
                                 </button>
-                                {(user?.role === 'admin' || user?.role === 'super_admin' || user?.dashboard_type === 'admin') && (
+                                {hasPermission('audit:read') && (
                                     <button onClick={() => { navigate('/audit-logs'); setUserMenuOpen(false); }}
                                         className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-slate-600 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-all">
                                         <Shield size={14} /> Audit Logs

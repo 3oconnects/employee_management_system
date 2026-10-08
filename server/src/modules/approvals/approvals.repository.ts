@@ -8,13 +8,38 @@ export class ApprovalsRepository {
         return empResult.rows[0]?.id;
     }
 
-    async getApprovals(tenantId: string, currentEmployeeId: number | undefined, role: string, isHistory: boolean) {
+    /** Employee id -> user id of who they report to (reporting_manager_id, else the manager employee's login). */
+    async getReportingManagerUserIds(employeeIds: string[], tenantId: string, db: { query: (sql: string, p: any[]) => Promise<{ rows: any[] }> } = pool) {
+        const out = new Map<string, number | null>();
+        if (!employeeIds.length) return out;
+        const { rows } = await db.query(
+            `SELECT e.id, COALESCE(e.reporting_manager_id, mu.id) AS mgr_user_id
+             FROM employees e
+             LEFT JOIN employees me ON me.id = e.manager_id
+             LEFT JOIN users mu ON mu.tenant_id = e.tenant_id AND (mu.id = me.user_id OR LOWER(mu.email) = LOWER(me.email))
+             WHERE e.id = ANY($1::text[]) AND e.tenant_id = $2`,
+            [employeeIds, tenantId],
+        );
+        for (const r of rows) out.set(r.id, r.mgr_user_id != null ? Number(r.mgr_user_id) : null);
+        return out;
+    }
+
+    async getApprovals(
+        tenantId: string, who: { userId: number | string; email: string; employeeId: string | null }, role: string, isHistory: boolean,
+    ) {
         let filterClause = "WHERE (ap.tenant_id = $1 OR ap.tenant_id IS NULL OR ap.tenant_id = '')"; 
         const params: any[] = [tenantId];
 
-        if ((role === 'manager' || role === 'employee') && currentEmployeeId) {
-            filterClause += " AND (ap.manager_id = $2 OR ap.requested_by = $2)";
-            params.push(currentEmployeeId);
+        if (role === 'manager' || role === 'employee') {
+            // What I raised, what is about me, what my direct reports raised, or requests from employees without an assigned reporting manager.
+            filterClause += ` AND (
+                ($2::text IS NOT NULL AND (ap.employee_id = $2 OR ap.requested_by = $2 OR ap.manager_id = $2))
+                OR LOWER(ap.requested_by) = LOWER($3)
+                OR ap.requested_by = $4::text
+                OR subj.reporting_manager_id = $4::int
+                OR (subj.reporting_manager_id IS NULL AND subj.manager_id IS NULL)
+            )`;
+            params.push(who.employeeId, who.email, String(who.userId));
         }
 
         const standardStatus = isHistory ? "('approved', 'rejected', 'completed')" : "('pending', 'active', 'onboarding')";
@@ -48,13 +73,14 @@ export class ApprovalsRepository {
                     e.department as department, 
                     'leave' as type, 
                     l.status as status,
-                    json_build_object('leave_type', l.type, 'start_date', l.start_date, 'end_date', l.end_date, 'reason', l.reason)::jsonb as metadata,
+                    json_build_object('leave_type', COALESCE(lt.name, 'Leave'), 'start_date', l.start_date, 'end_date', l.end_date, 'reason', l.reason)::jsonb as metadata,
                     l.employee_id as requested_by, 
                     l.created_at as created_at,
                     e.manager_id as manager_id,
                     l.tenant_id as tenant_id
                 FROM leave_requests l
                 JOIN employees e ON l.employee_id = e.id
+                LEFT JOIN leave_types lt ON lt.id = l.leave_type_id
                 WHERE (NOT ${isHistory} AND LOWER(l.status) IN ${leaveStatus})
                    OR (${isHistory} AND LOWER(l.status) IN ('approved', 'rejected', 'cancelled')) 
 
@@ -114,10 +140,11 @@ export class ApprovalsRepository {
                    OR (${isHistory} AND LOWER(c.status) IN ('approved', 'rejected'))
             )
             SELECT 
-                id, employee_id, employee_name, department, type, status, metadata, requested_by, created_at, manager_id
+                ap.id, ap.employee_id, ap.employee_name, ap.department, ap.type, ap.status, ap.metadata, ap.requested_by, ap.created_at, ap.manager_id
             FROM all_pending ap
+            LEFT JOIN employees subj ON subj.id = ap.employee_id
             ${filterClause}
-            ORDER BY department ASC, created_at DESC
+            ORDER BY ap.department ASC, ap.created_at DESC
         `;
         
         const result = await pool.query(query, params);
@@ -128,6 +155,14 @@ export class ApprovalsRepository {
         await pool.query(
             'INSERT INTO approvals (id, employee_id, type, status, tenant_id) VALUES ($1, $2, $3, $4, $5)', 
             [id, employeeId, type, status, tenantId]
+        );
+    }
+
+    async createSelfServiceRequest(id: string, employeeId: string, type: string, metadata: object, requestedBy: string, tenantId: string) {
+        await pool.query(
+            `INSERT INTO approvals (id, employee_id, type, status, metadata, requested_by, tenant_id)
+             VALUES ($1, $2, $3, 'pending', $4, $5, $6)`,
+            [id, employeeId, type, JSON.stringify(metadata), requestedBy, tenantId]
         );
     }
 
@@ -155,6 +190,22 @@ export class ApprovalsRepository {
             ['team', teamRes.rows[0].id, parentNodeId, meta.name, meta.category || 'core']
         );
         await client.query('INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2)', [nodeRes.rows[0].id, ownerId]);
+        // Move the listed people into the new team (and its department), within this tenant only
+        const memberIds: string[] = Array.isArray(meta.member_ids) ? meta.member_ids.map(String) : [];
+        if (memberIds.length) {
+            let deptName: string | null = null;
+            if (deptId) {
+                const d = await client.query('SELECT name FROM departments WHERE id = $1 AND tenant_id = $2', [deptId, tenantId]);
+                deptName = d.rows[0]?.name ?? null;
+            }
+            await client.query(
+                `UPDATE employees SET team_id = $1,
+                        department_id = COALESCE($2::int, department_id),
+                        department = COALESCE($3, department)
+                 WHERE id = ANY($4::text[]) AND tenant_id = $5 AND deleted_at IS NULL`,
+                [teamRes.rows[0].id, deptId, deptName, memberIds, tenantId]
+            );
+        }
         await client.query('UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)', [status, id, tenantId, '']);
     }
 
@@ -171,7 +222,39 @@ export class ApprovalsRepository {
             ['department', deptRes.rows[0].id, meta.name, meta.category || 'core']
         );
         await client.query('INSERT INTO org_governance (node_id, owner_id) VALUES ($1, $2)', [nodeRes.rows[0].id, ownerId]);
+
         await client.query('UPDATE approvals SET status = $1 WHERE id = $2 AND (tenant_id = $3 OR tenant_id IS NULL OR tenant_id = $4)', [status, id, tenantId, '']);
+    }
+
+    /** Applies an approved role change / promotion / team change to the requester. */
+    async applySelfServiceChange(client: any, row: Record<string, any>, tenantId: string) {
+        const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {});
+        const empId = row.employee_id;
+        if (row.type === 'promotion' && meta.requested_designation) {
+            await client.query('UPDATE employees SET position = $1 WHERE id = $2 AND tenant_id = $3', [meta.requested_designation, empId, tenantId]);
+        } else if (row.type === 'team_change' && meta.target_team_id) {
+            const t = await client.query(
+                `SELECT t.id, t.department_id, d.name AS dept_name FROM teams t
+                 LEFT JOIN departments d ON d.id = t.department_id
+                 WHERE t.id = $1 AND t.tenant_id = $2`, [Number(meta.target_team_id), tenantId]);
+            if (!t.rows[0]) return;
+            await client.query(
+                `UPDATE employees SET team_id = $1, department_id = COALESCE($2::int, department_id), department = COALESCE($3, department)
+                 WHERE id = $4 AND tenant_id = $5`,
+                [t.rows[0].id, t.rows[0].department_id, t.rows[0].dept_name, empId, tenantId]);
+        } else if (row.type === 'role_change' && meta.requested_role_id) {
+            const r = await client.query('SELECT id, name FROM roles WHERE id = $1 AND tenant_id = $2', [Number(meta.requested_role_id), tenantId]);
+            const e = await client.query('SELECT email FROM employees WHERE id = $1 AND tenant_id = $2', [empId, tenantId]);
+            if (!r.rows[0] || !e.rows[0]) return;
+            await client.query('UPDATE users SET role_id = $1, role = $2 WHERE LOWER(email) = LOWER($3) AND tenant_id = $4',
+                [r.rows[0].id, r.rows[0].name, e.rows[0].email, tenantId]);
+        }
+    }
+
+    /** Name of a role, for the elevated-role guard. */
+    async getRoleName(roleId: number, tenantId: string): Promise<string | null> {
+        const { rows } = await pool.query('SELECT name FROM roles WHERE id = $1 AND tenant_id = $2', [roleId, tenantId]);
+        return rows[0]?.name ?? null;
     }
 
     // ── Decision helpers (HF-4). All take the transaction client and are tenant-strict. ──

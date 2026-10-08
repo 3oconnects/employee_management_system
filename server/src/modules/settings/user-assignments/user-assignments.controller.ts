@@ -17,13 +17,15 @@ export const createUser = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 export const sendWelcome = async (req: AuthenticatedRequest, res: Response) => {
-    const result = await service.sendWelcome(req.params.id, req.user!, req.body.temp_password);
+    // ARC-07: temp_password is no longer accepted from the request body
+    const result = await service.sendWelcome(req.params.id, req.user!);
     res.json({ success: true, ...result });
 };
 
 export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
-    const temp_password = await service.resetPassword(req.params.id, req.user!);
-    res.json({ success: true, temp_password, message: 'Password reset successful.' });
+    // ARC-07: plaintext is emailed to the user, not returned in this response
+    const result = await service.resetPassword(req.params.id, req.user!);
+    res.json({ success: true, ...result });
 };
 
 export const updatePassword = async (req: AuthenticatedRequest, res: Response) => {

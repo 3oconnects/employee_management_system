@@ -1,12 +1,15 @@
 import { AttendanceRepository } from './attendance.repository';
+import { PayrollRepository } from '../payroll/payroll.repository';
 import { AppError } from '../../core/errors/AppError';
 import { randomUUID } from 'crypto';
 
 export class AttendanceService {
     private repo: AttendanceRepository;
+    private payrollRepo: PayrollRepository;
 
     constructor() {
         this.repo = new AttendanceRepository();
+        this.payrollRepo = new PayrollRepository();
     }
 
     async getTodayStatus(userId: string | number, tenantId: string) {
@@ -41,6 +44,12 @@ export class AttendanceService {
     }
 
     async checkIn(userId: string | number, tenantId: string) {
+        const now = new Date();
+        const isLocked = await this.payrollRepo.isPeriodLocked(tenantId, now.getMonth() + 1, now.getFullYear());
+        if (isLocked) {
+            throw AppError.badRequest(`Attendance for ${now.getMonth() + 1}/${now.getFullYear()} is frozen as the payroll run has been completed.`);
+        }
+
         const empId = await this.repo.resolveEmployeeId(userId, tenantId);
         if (!empId) throw AppError.notFound('No employee record found for this user.');
 
@@ -58,6 +67,12 @@ export class AttendanceService {
     }
 
     async checkOut(userId: string | number, tenantId: string) {
+        const now = new Date();
+        const isLocked = await this.payrollRepo.isPeriodLocked(tenantId, now.getMonth() + 1, now.getFullYear());
+        if (isLocked) {
+            throw AppError.badRequest(`Attendance for ${now.getMonth() + 1}/${now.getFullYear()} is frozen as the payroll run has been completed.`);
+        }
+
         const empId = await this.repo.resolveEmployeeId(userId, tenantId);
         if (!empId) throw AppError.notFound('No employee record found for this user.');
 
@@ -117,6 +132,11 @@ export class AttendanceService {
             throw AppError.badRequest('Times must be in HH:MM format.');
         }
         if (checkOutTime && checkOutTime <= checkInTime) throw AppError.badRequest('Check-out must be after check-in.');
+
+        const isLocked = await this.payrollRepo.isPeriodLocked(actor.tenantId, day.getUTCMonth() + 1, day.getUTCFullYear());
+        if (isLocked) {
+            throw AppError.badRequest(`Attendance for ${day.getUTCMonth() + 1}/${day.getUTCFullYear()} cannot be regularized because the payroll period is completed and frozen.`);
+        }
 
         const empId = await this.repo.resolveEmployeeId(actor.userId, actor.tenantId);
         if (!empId) throw AppError.notFound('Employee not found.');

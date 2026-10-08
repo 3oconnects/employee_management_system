@@ -22,4 +22,6 @@ export interface OfferLetterData {
     issueDate?: string;
     expiryDays?: number;
     logoUrl?: string;
+    jobDescription?: string;
+    responsibilities?: string[];
 }

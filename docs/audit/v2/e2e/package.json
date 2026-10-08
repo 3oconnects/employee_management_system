@@ -1,0 +1,17 @@
+{
+  "name": "ems-e2e-audit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright E2E audit suite. Runs ONLY against a throwaway local stack (see scripts/run-local.ps1).",
+  "scripts": {
+    "install:browsers": "playwright install chromium",
+    "test": "playwright test",
+    "test:list": "playwright test --list",
+    "report": "playwright show-report artifacts/html-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^20.19.37",
+    "typescript": "^5.9.3"
+  }
+}

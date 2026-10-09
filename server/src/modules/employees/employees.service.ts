@@ -17,6 +17,7 @@ import { NotificationService } from '../../services/notificationService';
 import { withTransaction } from '../../database/transaction';
 import { AppError } from '../../core/errors/AppError';
 import { AuthzActor, assertMayAssignRole, assertMayManageUser, findTenantUserByEmail, resolveRoleForNewAccount } from '../../core/security/authzState';
+import { OfferAcceptanceRepository } from '../offer-acceptance';
 
 // Default for a new login account (a default, not an authorization rule).
 const BASELINE_ROLE_NAME = 'employee';
@@ -104,7 +105,7 @@ export class EmployeesService {
             }
             const newId = `EMP${nextNum.toString().padStart(3, '0')}`;
             
-            const empStatus = data.status || 'onboarding';
+            const empStatus = data.status || 'offer_sent';
             const finalPosition = data.position || (data.department ? `${data.department} Staff` : 'Member');
             
             const empParams = [
@@ -129,14 +130,29 @@ export class EmployeesService {
                 const tempPassword = Math.random().toString(36).slice(-10).toUpperCase();
                 const hashedPassword = await PasswordService.hash(tempPassword);
                 
-                // Submodel: Role & User account creation
-                const created = await this.repo.createUserAccount(client, data.name, data.email, hashedPassword, grantedRole!.name, tenantId, true, grantedRole!.id);
+                // Submodel: Role & User account creation (Inactive until offer is accepted & confirmed)
+                const isUserActive = empStatus === 'active';
+                const created = await this.repo.createUserAccount(
+                    client, 
+                    data.name, 
+                    data.email, 
+                    hashedPassword, 
+                    grantedRole!.name, 
+                    tenantId, 
+                    true, 
+                    grantedRole!.id, 
+                    isUserActive
+                );
                 // Lost a race with another creator of the same address: nothing was written; never overwrite the account.
                 if (!created) throw AppError.conflict(EMAIL_NOT_AVAILABLE);
 
                 const loginUrl = `${process.env.APP_URL || 'http://localhost:5173'}/login`;
                 
-                // Instantly dispatch the official Offer Letter (PDF + HTML)
+                // Generate secure candidate offer acceptance token
+                const offerAcceptRepo = new OfferAcceptanceRepository();
+                const offerToken = await offerAcceptRepo.ensureOfferToken(newId, tenantId, 7, client);
+
+                // Instantly dispatch the official Offer Letter (PDF + HTML with Acceptance CTA)
                 // to the candidate's personal email (credentials will only be issued upon onboarding clearance)
                 await sendCandidateWelcomeAndOffer({
                     employeeId: newId,
@@ -156,6 +172,7 @@ export class EmployeesService {
                     reportingManager: data.reportingManagerName || data.reportingManagerId,
                     issueDate: new Date().toISOString(),
                     expiryDays: 7, // 7 days validity window
+                    offerToken,
                 }, tenantId).catch(err => {
                     console.error('[EmployeeService] Failed to send welcome & offer letter email:', err);
                 });
@@ -656,6 +673,194 @@ export class EmployeesService {
         await this.assertEmployeeInTenant(employeeId, tenantId);
         return withTransaction(async (client) => {
             return this.repo.replaceEmergencyContacts(client, employeeId, tenantId, contacts);
+        });
+    }
+
+    /**
+     * Stage 2: Candidate accepts the formal offer.
+     * Transitions candidate from 'offer_sent' / 'onboarding' to 'offer_accepted'.
+     * They must now wait for corporate / HR confirmation before receiving login credentials.
+     */
+    async recordOfferAcceptance(employeeId: string, actor: AuthzActor, remarks?: string, acceptedDate?: string) {
+        const tenantId = actor.tenantId;
+        return withTransaction(async (client) => {
+            const emp = await this.repo.findById(employeeId, tenantId);
+            if (!emp) throw AppError.notFound('Candidate record not found');
+
+            const currentStatus = (emp.status || '').toLowerCase();
+            if (currentStatus === 'active') {
+                throw AppError.conflict('Candidate has already been confirmed and hired as an active employee.');
+            }
+
+            await client.query(
+                `UPDATE employees 
+                 SET status = 'offer_accepted', 
+                     offer_accepted_at = COALESCE(offer_accepted_at, NOW()),
+                     offer_accepted_date = COALESCE($1::date, offer_accepted_date, CURRENT_DATE),
+                     offer_acceptance_notes = $2,
+                     offer_accepted_via = COALESCE(offer_accepted_via, 'hr_manual'),
+                     updated_at = NOW() 
+                 WHERE id = $3 AND tenant_id = $4`,
+                [acceptedDate || null, remarks || 'Candidate formal acceptance recorded by HR', employeeId, tenantId]
+            );
+
+            NotificationService.notifyByRole(tenantId, ['super_admin', 'admin', 'hr'], {
+                title: 'Offer Accepted by Candidate',
+                message: `${emp.name} has officially accepted the employment offer for ${emp.position}. Ready for company confirmation.`,
+                type: 'onboarding',
+            }).catch(() => {});
+
+            try {
+                const { EventPublisher } = await import('../../core/events/eventPublisher.js');
+                const { DomainEventType } = await import('../../core/events/eventTypes.js');
+                EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, tenantId, {
+                    action: 'OFFER_ACCEPTED',
+                    entityType: 'employee',
+                    entityId: employeeId,
+                    details: { candidate: emp.name, position: emp.position, remarks: remarks || 'Candidate formal acceptance recorded' }
+                }, actor?.userId);
+            } catch (auditErr) {
+                console.error('[EmployeesService.recordOfferAcceptance] Audit failed:', auditErr);
+            }
+
+            return { success: true, status: 'offer_accepted', message: 'Offer acceptance recorded. Waiting for company confirmation.' };
+        });
+    }
+
+    /**
+     * Stage 3: Corporate Confirmation & Roster Activation.
+     * Triggered by HR once candidate offer acceptance and documentation are verified.
+     * Formally hires candidate, sets status to 'active', provisions portal password,
+     * activates user account (is_active = true), and dispatches credentials welcome email.
+     */
+    async confirmHire(employeeId: string, actor: AuthzActor, remarks?: string) {
+        const tenantId = actor.tenantId;
+        return withTransaction(async (client) => {
+            const emp = await this.repo.findById(employeeId, tenantId);
+            if (!emp) throw AppError.notFound('Candidate record not found');
+
+            if (emp.status === 'active') {
+                throw AppError.conflict('Candidate is already confirmed and active in the employee roster.');
+            }
+
+            // 1. Mark employee status active and record confirmation timestamp
+            await client.query(
+                `UPDATE employees 
+                 SET status = 'active', confirmation_date = CURRENT_TIMESTAMP, updated_at = NOW() 
+                 WHERE id = $1 AND tenant_id = $2`,
+                [employeeId, tenantId]
+            );
+
+            // 2. Generate secure corporate portal temporary password and activate login account
+            const tempPassword = Math.random().toString(36).slice(-10).toUpperCase();
+            const hashedPassword = await PasswordService.hash(tempPassword);
+
+            await client.query(
+                `UPDATE users 
+                 SET password = $1, is_active = true, is_password_temp = true 
+                 WHERE LOWER(email) = LOWER($2) AND (tenant_id = $3 OR tenant_id = 'tenant_default' OR tenant_id = 'default')`,
+                [hashedPassword, emp.email, tenantId]
+            );
+
+            // 3. Dispatch official Welcome & Employee Portal Credentials email
+            if (typeof sendOnboardingCredentialsEmail === 'function') {
+                await sendOnboardingCredentialsEmail({
+                    employeeId: emp.id,
+                    name: emp.name,
+                    email: emp.email,
+                    personalEmail: emp.personal_email,
+                    tempPassword,
+                    position: emp.position,
+                    department: emp.department,
+                    tenantId,
+                }).catch(err => {
+                    console.error('[EmployeesService.confirmHire] Failed to dispatch credentials email:', err);
+                });
+            }
+
+            // 4. Notify & Audit
+            NotificationService.notifyByRole(tenantId, ['super_admin', 'admin', 'hr'], {
+                title: 'Employee Confirmed & Activated',
+                message: `${emp.name} has been formally confirmed as ${emp.position}. Portal credentials dispatched.`,
+                type: 'onboarding',
+            }).catch(() => {});
+
+            try {
+                const { EventPublisher } = await import('../../core/events/eventPublisher.js');
+                const { DomainEventType } = await import('../../core/events/eventTypes.js');
+                EventPublisher.publish(DomainEventType.AUDIT_LOG_REQUESTED, tenantId, {
+                    action: 'HIRE_CONFIRMED',
+                    entityType: 'employee',
+                    entityId: employeeId,
+                    details: { candidate: emp.name, position: emp.position, confirmedBy: actor.userId, remarks: remarks || 'Onboarding cleared and confirmed' }
+                }, actor?.userId);
+            } catch (auditErr) {
+                console.error('[EmployeesService.confirmHire] Audit failed:', auditErr);
+            }
+
+            return { 
+                success: true, 
+                status: 'active', 
+                message: 'Employee onboarding confirmed and corporate portal credentials dispatched successfully.' 
+            };
+        });
+    }
+
+    /**
+     * Resends the formal Offer of Appointment PDF letter to candidate's personal email.
+     */
+    async resendOfferLetter(employeeId: string, actor: AuthzActor) {
+        const tenantId = actor.tenantId;
+        const emp = await this.repo.findById(employeeId, tenantId);
+        if (!emp) throw AppError.notFound('Candidate record not found');
+
+        const offerAcceptRepo = new OfferAcceptanceRepository();
+        const offerToken = await offerAcceptRepo.ensureOfferToken(emp.id, tenantId, 7);
+
+        await sendCandidateWelcomeAndOffer({
+            employeeId: emp.id,
+            name: emp.name,
+            email: emp.email,
+            personalEmail: emp.personal_email,
+            position: emp.position,
+            department: emp.department,
+            joinDate: emp.join_date ? new Date(emp.join_date).toISOString().split('T')[0] : undefined,
+            phone: emp.phone,
+            address: emp.address_line1,
+            city: emp.city,
+            state: emp.state,
+            employmentType: emp.employment_type,
+            annualCTC: emp.annual_ctc,
+            internshipStipend: emp.internship_stipend,
+            reportingManager: emp.reporting_manager_name,
+            issueDate: new Date().toISOString(),
+            expiryDays: 7,
+            offerToken,
+        }, tenantId);
+
+        return { success: true, message: `Offer letter successfully resent to ${emp.personal_email || emp.email}` };
+    }
+
+    /**
+     * Declines / cancels the candidate offer.
+     */
+    async declineOffer(employeeId: string, actor: AuthzActor, reason?: string) {
+        const tenantId = actor.tenantId;
+        return withTransaction(async (client) => {
+            const emp = await this.repo.findById(employeeId, tenantId);
+            if (!emp) throw AppError.notFound('Candidate record not found');
+
+            await client.query(
+                `UPDATE employees SET status = 'offer_declined', exit_reason = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3`,
+                [reason || 'Offer declined by candidate / canceled', employeeId, tenantId]
+            );
+
+            await client.query(
+                `UPDATE users SET is_active = false WHERE LOWER(email) = LOWER($1) AND tenant_id = $2`,
+                [emp.email, tenantId]
+            );
+
+            return { success: true, status: 'offer_declined', message: 'Offer marked as declined.' };
         });
     }
 

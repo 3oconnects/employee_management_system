@@ -153,3 +153,34 @@ export const deleteEmployee = async (req: Request, res: Response) => {
     }
     res.json({ success: true, message: 'Employee deleted successfully.' });
 };
+
+export const recordOfferAcceptance = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { id } = req.params;
+    const { remarks, acceptedDate } = req.body || {};
+    const result = await service.recordOfferAcceptance(id, user, remarks, acceptedDate);
+    res.json(result);
+};
+
+export const confirmHire = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { id } = req.params;
+    const { remarks } = req.body || {};
+    const result = await service.confirmHire(id, user, remarks);
+    res.json(result);
+};
+
+export const resendOfferLetter = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { id } = req.params;
+    const result = await service.resendOfferLetter(id, user);
+    res.json(result);
+};
+
+export const declineOffer = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const result = await service.declineOffer(id, user, reason);
+    res.json(result);
+};

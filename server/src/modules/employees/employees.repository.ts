@@ -31,11 +31,22 @@ export class EmployeesRepository {
             params.push(`%${search}%`);
             pIndex++;
         }
-        if (status) {
-            sql += ` AND e.status = $${pIndex}`;
-            countSql += ` AND e.status = $${pIndex}`;
-            params.push(status);
-            pIndex++;
+        if ((options as any).scope === 'onboarding') {
+            sql += ` AND (LOWER(e.status) IN ('onboarding', 'offer_sent', 'offer_accepted') OR (LOWER(e.status) = 'active' AND e.created_at >= CURRENT_DATE - INTERVAL '60 days'))`;
+            countSql += ` AND (LOWER(e.status) IN ('onboarding', 'offer_sent', 'offer_accepted') OR (LOWER(e.status) = 'active' AND e.created_at >= CURRENT_DATE - INTERVAL '60 days'))`;
+        } else if (status) {
+            if (typeof status === 'string' && status.includes(',')) {
+                const statuses = status.split(',').map((s: string) => s.trim().toLowerCase());
+                sql += ` AND LOWER(e.status) = ANY($${pIndex})`;
+                countSql += ` AND LOWER(e.status) = ANY($${pIndex})`;
+                params.push(statuses);
+                pIndex++;
+            } else {
+                sql += ` AND e.status = $${pIndex}`;
+                countSql += ` AND e.status = $${pIndex}`;
+                params.push(status);
+                pIndex++;
+            }
         }
         if (departmentId) {
             sql += ` AND e.department_id = $${pIndex}`;
@@ -88,12 +99,22 @@ export class EmployeesRepository {
      * Creates a login account. An existing account is NEVER touched (HF-10): on an e-mail collision nothing is
      * written and false is returned, whichever tenant the existing account belongs to.
      */
-    async createUserAccount(client: any, name: string, email: string, hashedPassword: string, role: string, tenantId: string, isPasswordTemp: boolean = true, roleId: number): Promise<boolean> {
+    async createUserAccount(
+        client: any, 
+        name: string, 
+        email: string, 
+        hashedPassword: string, 
+        role: string, 
+        tenantId: string, 
+        isPasswordTemp: boolean = true, 
+        roleId: number,
+        isActive: boolean = true
+    ): Promise<boolean> {
         const res = await client.query(
             `INSERT INTO users (name, email, password, role, tenant_id, is_password_temp, is_active, role_id)
-             VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (email) DO NOTHING`,
-            [name, email, hashedPassword, role, tenantId, isPasswordTemp, roleId]
+            [name, email, hashedPassword, role, tenantId, isPasswordTemp, isActive, roleId]
         );
         return (res.rowCount ?? 0) > 0;
     }

@@ -151,6 +151,14 @@ const CORE_SCHEMA = `
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_supervisor TEXT;
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS internship_college TEXT;
 
+    -- Offer acceptance & candidate verification fields
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS offer_token TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS offer_accepted_at TIMESTAMP;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS offer_accepted_date DATE;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS offer_acceptance_notes TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS offer_accepted_via TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS offer_token_expires_at TIMESTAMP;
+
     -- ╔══════════════════════════════════════════════════════════════╗
     -- ║  PAYROLL_PROFILES (upgraded)                                ║
     -- ╚══════════════════════════════════════════════════════════════╝

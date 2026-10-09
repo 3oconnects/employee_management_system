@@ -41,9 +41,12 @@ const fmtId = (id: string) => {
 };
 
 const ST: Record<string,{dot:string;bg:string;text:string}> = {
-    active:     {dot:'bg-emerald-500',bg:'bg-emerald-50',text:'text-emerald-700'},
-    onboarding: {dot:'bg-amber-500',  bg:'bg-amber-50',  text:'text-amber-700'},
-    terminated: {dot:'bg-rose-500',   bg:'bg-rose-50',   text:'text-rose-600'},
+    active:         {dot:'bg-emerald-500',bg:'bg-emerald-50',text:'text-emerald-700'},
+    onboarding:     {dot:'bg-amber-500',  bg:'bg-amber-50',  text:'text-amber-700'},
+    offer_sent:     {dot:'bg-amber-500',  bg:'bg-amber-50',  text:'text-amber-700'},
+    offer_accepted: {dot:'bg-indigo-500', bg:'bg-indigo-50', text:'text-indigo-700'},
+    offer_declined: {dot:'bg-rose-500',   bg:'bg-rose-50',   text:'text-rose-600'},
+    terminated:     {dot:'bg-rose-500',   bg:'bg-rose-50',   text:'text-rose-600'},
 };
 
 /* Org tree node */

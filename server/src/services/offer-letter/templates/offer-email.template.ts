@@ -23,6 +23,9 @@ export function buildWelcomeAndOfferEmailHtml(data: WelcomeOfferEmailSubmodel): 
     const compStr       = formatCompensation(data);
     const loginUrl      = data.loginUrl        || cfg.loginUrl;
     const logoUrl       = data.logoUrl         || cfg.logoUrl;
+    const token         = data.offerToken      || '';
+    const acceptUrl     = data.acceptUrl       
+        || (token ? `${cfg.appUrl}/offer/accept/${encodeURIComponent(token)}` : `${cfg.appUrl}/offer/accept/${encodeURIComponent(data.employeeId)}`);
     const cleanDocName  = data.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     const engType       = (data.employmentType || '').toLowerCase() === 'intern'
         ? 'Internship' : 'Full-time Employment';
@@ -45,8 +48,14 @@ export function buildWelcomeAndOfferEmailHtml(data: WelcomeOfferEmailSubmodel): 
       </tr>`;
 
     const logoBlock = logoUrl
-        ? `<img src="${logoUrl}" alt="${cfg.name}" style="height:38px;width:auto;max-width:130px;display:block;">`
-        : `<table cellpadding="0" cellspacing="0" border="0"><tr>
+        ? `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="background:#ffffff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.18);">
+             <tr>
+               <td style="padding:6px 14px;background:#ffffff;border-radius:10px;vertical-align:middle;">
+                 <img src="${logoUrl}" alt="${cfg.name}" style="height:30px;width:auto;max-width:140px;display:block;border:0;">
+               </td>
+             </tr>
+           </table>`
+        : `<table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>
              <td style="vertical-align:middle;padding-right:10px;">
                <div style="background:rgba(255,255,255,0.15);width:38px;height:38px;border-radius:10px;text-align:center;line-height:38px;color:#ffffff;font-size:22px;font-weight:900;">${cfg.name.charAt(0)}</div>
              </td>
@@ -125,32 +134,59 @@ export function buildWelcomeAndOfferEmailHtml(data: WelcomeOfferEmailSubmodel): 
       </td>
     </tr>
 
-    <!-- ══ STEP 1-2-3 FORMAL ACCEPTANCE & NEXT STEPS ══ -->
+    <!-- ══ FORMAL OFFER ACCEPTANCE & CALL-TO-ACTION ══ -->
     <tr>
       <td style="padding:0 36px 24px;">
         <table width="100%" cellpadding="0" cellspacing="0" border="0"
-               style="background:#f8fafc;border:1.5px solid #c7d2fe;border-radius:14px;overflow:hidden;border-collapse:separate;box-shadow:0 2px 8px rgba(79,70,229,0.06);">
+               style="background:linear-gradient(135deg,#f8fafc 0%,#eef2ff 100%);border:2px solid #818cf8;border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(79,70,229,0.08);">
           <tr>
-            <td style="padding:16px 20px 12px;background:#f1f5f9;border-bottom:1.5px solid #e2e8f0;">
-              <span style="font-size:11px;font-weight:800;color:#1e1b4b;text-transform:uppercase;letter-spacing:.09em;">
-                OFFER ACCEPTANCE &amp; ONBOARDING PROCESS
-              </span>
+            <td style="padding:16px 22px;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);color:#ffffff;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td valign="middle">
+                    <span style="font-size:11.5px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#c7d2fe;">
+                      OFFICIAL OFFER ACCEPTANCE &bull; STEP 1 OF 2
+                    </span>
+                  </td>
+                  <td align="right" valign="middle">
+                    <span style="display:inline-block;padding:3px 10px;background:rgba(255,255,255,0.15);border-radius:20px;font-size:10px;font-weight:700;color:#ffffff;letter-spacing:0.04em;">
+                      Date: ${issueDateStr}
+                    </span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
-            <td style="padding:16px 20px;font-size:13px;color:#334155;line-height:1.65;">
-              <div style="margin-bottom:12px;">
-                <strong style="color:#1e1b4b;">Step 1 — Review Enclosed PDF:</strong>
-                Please download and review the official Offer of Appointment attached below.
+            <td style="padding:24px 24px 20px;text-align:center;">
+              <h3 style="margin:0 0 8px;font-size:17px;font-weight:800;color:#1e1b4b;letter-spacing:-0.02em;">
+                Ready to join ${cfg.name}?
+              </h3>
+              <p style="margin:0 0 20px;font-size:13px;color:#475569;line-height:1.6;max-width:480px;margin-left:auto;margin-right:auto;">
+                Please review your appointment summary above and click below to formally accept this employment offer online. Your acceptance will be recorded with today&rsquo;s date and submitted to People Operations for final workspace confirmation.
+              </p>
+
+              <!-- Acceptance CTA Button -->
+              <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
+                <tr>
+                  <td align="center" style="border-radius:12px;background:linear-gradient(135deg,#2563eb 0%,#4f46e5 100%);box-shadow:0 6px 20px rgba(79,70,229,0.30);">
+                    <a href="${acceptUrl}" target="_blank"
+                       style="display:inline-block;padding:14px 34px;font-size:14px;font-weight:800;color:#ffffff;text-decoration:none;letter-spacing:0.02em;border-radius:12px;">
+                      ✓ Accept Employment Offer
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="font-size:11px;color:#64748b;line-height:1.5;">
+                Offer valid until <strong>${expiryDateStr}</strong> &bull; Secure Candidate Acceptance Link<br>
+                <span style="font-size:10.5px;color:#94a3b8;word-break:break-all;">${acceptUrl}</span>
               </div>
-              <div style="margin-bottom:12px;">
-                <strong style="color:#1e1b4b;">Step 2 — Sign &amp; Confirm:</strong>
-                Sign the duplicate copy and return it to <a href="mailto:${cfg.hrEmail}" style="color:#4f46e5;font-weight:700;text-decoration:none;">${cfg.hrEmail}</a> on or before <strong>${expiryDateStr}</strong>.
-              </div>
-              <div style="margin-bottom:4px;">
-                <strong style="color:#1e1b4b;">Step 3 — Workspace Provisioning:</strong>
-                Upon formal receipt of your acceptance and completion of pre-joining documentation, your employee portal credentials and company workspace access will be issued directly to you.
-              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 20px;background:#f1f5f9;border-top:1px solid #e2e8f0;font-size:11.5px;color:#475569;line-height:1.5;">
+              <strong>Manual / Offline Alternative:</strong> You may also sign the duplicate copy of the attached PDF and return it via email to <a href="mailto:${cfg.hrEmail}" style="color:#4f46e5;font-weight:700;text-decoration:none;">${cfg.hrEmail}</a> before <strong>${expiryDateStr}</strong>.
             </td>
           </tr>
         </table>

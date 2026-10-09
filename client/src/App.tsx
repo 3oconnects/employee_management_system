@@ -26,6 +26,7 @@ const StructuralDeepDivePage = lazy(() => import('./modules/organization/pages/S
 const AuditLogPage = lazy(() => import('./modules/audit/pages/AuditLogPage'));
 const ChangePasswordPage = lazy(() => import('./modules/auth/pages/ChangePasswordPage'));
 const UnauthorizedPage = lazy(() => import('./modules/auth/pages/UnauthorizedPage'));
+const CandidateOfferAcceptance = lazy(() => import('./modules/onboarding/pages/CandidateOfferAcceptance'));
 
 // ─── ROOT REDIRECT ─────────────────────────────────────────────────────────
 
@@ -52,6 +53,8 @@ function App() {
             <Routes>
                 <Route path="/" element={<RootRedirect />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/offer/accept/:token" element={<PageLoader><CandidateOfferAcceptance /></PageLoader>} />
+                <Route path="/offer-acceptance/:token" element={<PageLoader><CandidateOfferAcceptance /></PageLoader>} />
                 <Route path="/change-password" element={
                     <ProtectedRoute><PageLoader><ChangePasswordPage /></PageLoader></ProtectedRoute>
                 } />

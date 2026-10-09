@@ -31,7 +31,8 @@ export const CompanyConfig = {
     defaultNoticePeriod:   process.env.DEFAULT_NOTICE_PERIOD  || '30 days',
 
     // ── App URLs ────────────────────────────────────────────────────────────
-    loginUrl:       process.env.APP_LOGIN_URL         || process.env.APP_URL ? `${process.env.APP_URL}/login` : 'http://localhost:5173/login',
+    appUrl:         process.env.APP_URL               || 'http://localhost:5173',
+    loginUrl:       process.env.APP_LOGIN_URL         || (process.env.APP_URL ? `${process.env.APP_URL}/login` : 'http://localhost:5173/login'),
     logoUrl:        process.env.APP_LOGO_URL          || '',
 
     // ── Ref number prefix ───────────────────────────────────────────────────

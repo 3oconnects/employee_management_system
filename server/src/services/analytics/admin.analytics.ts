@@ -40,18 +40,19 @@ export async function fetchAdminDashboard(tenantId: string): Promise<AdminDashbo
         salaryDistribution,
         orgMetrics,
     ] = await Promise.all([
-        // 1. Employee status counts
+        // 1. Employee status counts (Strict: candidates in onboarding/offer stages are prospective, not active hires)
         safeQuery(`
             SELECT
-                COUNT(*) FILTER (WHERE status IN ('active', 'onboarding') AND deleted_at IS NULL) AS active,
+                COUNT(*) FILTER (WHERE status = 'active' AND deleted_at IS NULL) AS active,
                 COUNT(*) FILTER (WHERE status IN ('terminated', 'resigned', 'suspended') OR deleted_at IS NOT NULL) AS inactive,
-                COUNT(*) AS total
+                COUNT(*) FILTER (WHERE status = 'active' OR deleted_at IS NOT NULL) AS total
             FROM employees WHERE tenant_id = $1
         `, [tenantId], { rows: [{ active: '0', inactive: '0', total: '0' }] }),
-        // 2. New hires this month
+        // 2. New hires this month (Only confirmed, active hires)
         safeQuery(`
             SELECT COUNT(*) AS count FROM employees
-            WHERE join_date >= DATE_TRUNC('month', CURRENT_DATE)
+            WHERE status = 'active'
+            AND (confirmation_date >= DATE_TRUNC('month', CURRENT_DATE) OR (confirmation_date IS NULL AND join_date >= DATE_TRUNC('month', CURRENT_DATE)))
             AND deleted_at IS NULL AND tenant_id = $1
         `, [tenantId], { rows: [{ count: '0' }] }),
         // 3. Exited this month
@@ -64,7 +65,9 @@ export async function fetchAdminDashboard(tenantId: string): Promise<AdminDashbo
             SELECT
                 COALESCE(SUM(annual_ctc), 0) AS total_ctc,
                 COALESCE(AVG(annual_ctc) FILTER (WHERE annual_ctc > 0), 0) AS avg_ctc
-            FROM payroll_profiles WHERE tenant_id = $1
+            FROM payroll_profiles pp
+            JOIN employees e ON e.id = pp.employee_id
+            WHERE e.status = 'active' AND e.deleted_at IS NULL AND e.tenant_id = $1
         `, [tenantId], { rows: [{ total_ctc: '0', avg_ctc: '0' }] }),
         // 5. Pending leaves
         safeQuery(`SELECT COUNT(*) AS count FROM leave_requests WHERE status = 'pending' AND tenant_id = $1`, [tenantId], { rows: [{ count: '0' }] }),
@@ -88,21 +91,21 @@ export async function fetchAdminDashboard(tenantId: string): Promise<AdminDashbo
                 COUNT(*) FILTER (WHERE LOWER(gender) = 'male') AS male,
                 COUNT(*) FILTER (WHERE LOWER(gender) = 'female') AS female,
                 COUNT(*) FILTER (WHERE LOWER(gender) NOT IN ('male', 'female') OR gender IS NULL) AS other
-            FROM employees WHERE status IN ('active', 'onboarding') AND deleted_at IS NULL AND tenant_id = $1
+            FROM employees WHERE status = 'active' AND deleted_at IS NULL AND tenant_id = $1
         `, [tenantId], { rows: [{ male: '0', female: '0', other: '0' }] }),
         // 10. Department distribution
         safeQuery(`
             SELECT COALESCE(d.name, e.department, 'Unassigned') AS name, COUNT(e.id) AS count
             FROM employees e
             LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id
-            WHERE e.status IN ('active', 'onboarding') AND e.deleted_at IS NULL AND e.tenant_id = $1
+            WHERE e.status = 'active' AND e.deleted_at IS NULL AND e.tenant_id = $1
             GROUP BY COALESCE(d.name, e.department, 'Unassigned')
             ORDER BY count DESC
         `, [tenantId], { rows: [] }),
         // 11. Employment type breakdown
         safeQuery(`
             SELECT COALESCE(employment_type, 'full_time') AS type, COUNT(*) AS count
-            FROM employees WHERE status IN ('active', 'onboarding') AND deleted_at IS NULL AND tenant_id = $1
+            FROM employees WHERE status = 'active' AND deleted_at IS NULL AND tenant_id = $1
             GROUP BY COALESCE(employment_type, 'full_time')
         `, [tenantId], { rows: [] }),
         // 12. Monthly hiring trend (last 6 months)

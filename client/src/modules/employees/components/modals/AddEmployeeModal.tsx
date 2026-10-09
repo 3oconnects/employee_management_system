@@ -715,7 +715,7 @@ const WorkTab: React.FC<{form:AddEmployeeForm; set:any; setForm:any; isIntern:bo
             )}
             <Field label="Initial Status">
                 <div className="grid grid-cols-3 gap-2">
-                    {[{val:'onboarding',label:'Onboarding',color:'bg-amber-50 border-amber-300 text-amber-700'},{val:'active',label:'Active',color:'bg-emerald-50 border-emerald-300 text-emerald-700'},{val:'terminated',label:'Terminated',color:'bg-rose-50 border-rose-300 text-rose-700'}].map(s=>(
+                    {[{val:'offer_sent',label:'Offer Sent',color:'bg-amber-50 border-amber-300 text-amber-700'},{val:'active',label:'Active',color:'bg-emerald-50 border-emerald-300 text-emerald-700'},{val:'onboarding',label:'Onboarding',color:'bg-blue-50 border-blue-300 text-blue-700'}].map(s=>(
                         <button key={s.val} type="button" onClick={()=>setForm((f:any)=>({...f,status:s.val}))}
                             className={`py-2.5 rounded-xl border text-[11px] font-bold transition-all ${form.status===s.val?s.color:'bg-slate-50 border-slate-200 text-slate-400 hover:bg-white'}`}>
                             {s.label}

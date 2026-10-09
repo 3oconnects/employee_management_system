@@ -24,4 +24,6 @@ export interface OfferLetterData {
     logoUrl?: string;
     jobDescription?: string;
     responsibilities?: string[];
+    acceptUrl?: string;
+    offerToken?: string;
 }

@@ -12,7 +12,11 @@ import {
     saveExperience,
     getEmergencyContacts,
     saveEmergencyContacts,
-    deleteEmployee
+    deleteEmployee,
+    recordOfferAcceptance,
+    confirmHire,
+    resendOfferLetter,
+    declineOffer
 } from './employees.controller';
 import { authenticate, authorize } from '../../core/security/authorize';
 import { validateRequest } from '../../core/validation/validateRequest';
@@ -66,6 +70,12 @@ router.put('/:id', validateRequest(updateEmployeeSchema, 'body'), asyncHandler(u
 
 // Bulk upload
 router.post('/bulk-upload', authorize(['admin', 'super_admin', 'hr', 'employees:manage']), validateRequest(bulkUploadSchema, 'body'), asyncHandler(bulkUpload));
+
+// Onboarding & Offer Lifecycle Actions
+router.post('/:id/offer-accept', authorize(['admin', 'super_admin', 'hr', 'employees:manage', 'onboarding:manage']), asyncHandler(recordOfferAcceptance));
+router.post('/:id/confirm-hire', authorize(['admin', 'super_admin', 'hr', 'employees:manage', 'onboarding:manage']), asyncHandler(confirmHire));
+router.post('/:id/resend-offer', authorize(['admin', 'super_admin', 'hr', 'employees:manage', 'onboarding:manage']), asyncHandler(resendOfferLetter));
+router.post('/:id/offer-decline', authorize(['admin', 'super_admin', 'hr', 'employees:manage', 'onboarding:manage']), asyncHandler(declineOffer));
 
 // Delete employee
 router.delete('/:id', authorize(['admin', 'super_admin', 'hr', 'employees:manage']), asyncHandler(deleteEmployee));

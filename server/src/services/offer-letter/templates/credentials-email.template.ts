@@ -17,8 +17,14 @@ export function buildOnboardingCredentialsEmailHtml(data: OnboardingCredentialsS
     const firstName = data.name.split(' ')[0] || data.name;
 
     const logoBlock = logoUrl
-        ? `<img src="${logoUrl}" alt="${cfg.name}" style="height:38px;width:auto;max-width:130px;display:block;">`
-        : `<table cellpadding="0" cellspacing="0" border="0"><tr>
+        ? `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="background:#ffffff;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.18);">
+             <tr>
+               <td style="padding:6px 14px;background:#ffffff;border-radius:10px;vertical-align:middle;">
+                 <img src="${logoUrl}" alt="${cfg.name}" style="height:30px;width:auto;max-width:140px;display:block;border:0;">
+               </td>
+             </tr>
+           </table>`
+        : `<table cellpadding="0" cellspacing="0" border="0" role="presentation"><tr>
              <td style="vertical-align:middle;padding-right:10px;">
                <div style="background:rgba(255,255,255,0.15);width:38px;height:38px;border-radius:10px;text-align:center;line-height:38px;color:#ffffff;font-size:22px;font-weight:900;">${cfg.name.charAt(0)}</div>
              </td>

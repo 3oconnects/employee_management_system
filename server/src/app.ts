@@ -36,6 +36,7 @@ import organizationRoutes from './modules/organization/organization.routes';
 import governanceRoutes from './modules/governance';
 import realtimeRoutes from './modules/realtime';
 import workspaceRoutes from './modules/workspace/workspace.routes';
+import offerAcceptanceRoutes from './modules/offer-acceptance/offer-acceptance.routes';
 import { globalErrorHandler, notFoundHandler } from './core/errors/errorHandler';
 import { requestIdMiddleware } from './core/observability/requestId';
 
@@ -111,6 +112,7 @@ app.use('/api/v1/organization', apiLimiter, organizationRoutes);
 app.use('/api/v1/governance', apiLimiter, governanceRoutes);
 app.use('/api/v1/realtime', apiLimiter, realtimeRoutes);
 app.use('/api/v1/workspace', apiLimiter, workspaceRoutes);
+app.use('/api/v1/offer', apiLimiter, offerAcceptanceRoutes);
 
 // Root path handler
 app.get('/', (_req, res) => {

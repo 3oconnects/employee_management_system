@@ -20,11 +20,11 @@ interface Employee {
     department: string; department_name?: string;
     department_id?: string | number | null;
     team_id?: string | number | null;
-    status: 'active' | 'onboarding' | 'terminated';
+    status: 'active' | 'onboarding' | 'terminated' | 'offer_sent' | 'offer_accepted';
     join_date: string; manager_id?: string | null;
     reporting_manager_id?: string | null;
     manager_name?: string | null;
-    availability_status?: 'available' | 'busy' | 'away' | 'offline' | 'dnd' | 'break';
+    availability_status?: 'available' | 'busy' | 'away' | 'offline' | 'dnd' | 'break' | 'onboarding';
     is_checked_in?: boolean;
     avatar_url?: string;
 }
@@ -291,15 +291,30 @@ const EmployeeTable: React.FC = () => {
         }
     };
 
-    const filtered=employees.filter(e=>{
-        if(statusFilter&&e.status!==statusFilter)return false;
-        if(deptFilter&&(e.department||e.department_name)!==deptFilter)return false;
+    const isEmployeeOnboarding = (e: Employee) => {
+        if (e.status === 'terminated') return false;
+        if (e.status === 'onboarding' || e.status === 'offer_sent' || e.status === 'offer_accepted') return true;
+        if (e.availability_status === 'onboarding') return true;
+        if (e.join_date) {
+            const joinTime = new Date(e.join_date).setHours(0, 0, 0, 0);
+            const nowTime = new Date().setHours(0, 0, 0, 0);
+            if (joinTime > nowTime) return true;
+        }
+        return false;
+    };
+
+    const activeCount = employees.filter(e => !isEmployeeOnboarding(e) && e.status !== 'terminated').length;
+    const onboardCount = employees.filter(e => isEmployeeOnboarding(e)).length;
+    const terminatedCount = employees.filter(e => e.status === 'terminated').length;
+
+    const filtered = employees.filter(e => {
+        if (statusFilter === 'active' && (isEmployeeOnboarding(e) || e.status === 'terminated')) return false;
+        if (statusFilter === 'onboarding' && !isEmployeeOnboarding(e)) return false;
+        if (statusFilter === 'terminated' && e.status !== 'terminated') return false;
+        if (deptFilter && (e.department || e.department_name) !== deptFilter) return false;
         return true;
     });
-    const depts=[...new Set(employees.map(e=>e.department||e.department_name||''))].filter(Boolean).sort();
-    const activeCount=employees.filter(e=>e.status==='active'||!e.status).length;
-    const onboardCount=employees.filter(e=>e.status==='onboarding').length;
-    const terminatedCount=employees.filter(e=>e.status==='terminated').length;
+    const depts = [...new Set(employees.map(e => e.department || e.department_name || ''))].filter(Boolean).sort();
 
     const buildTree=():TreeNode[]=>{
         const map=new Map<string,TreeNode>();
@@ -455,6 +470,8 @@ const EmployeeTable: React.FC = () => {
                         {filtered.map(emp=>{
                             const color=clr(emp.name);
                             const st=ST[emp.status]||ST.active;
+                            const isFutureJoiner = !!(emp.join_date && new Date(emp.join_date).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0));
+                            const isOnboarding = isEmployeeOnboarding(emp);
                             return(
                                 <div key={emp.id}
                                     className="bg-white rounded-xl overflow-hidden shadow-2xs hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group border border-slate-200/90 flex flex-col">
@@ -463,22 +480,31 @@ const EmployeeTable: React.FC = () => {
                                     <div className="relative h-20 flex items-end px-4 pb-0"
                                         style={{background:`linear-gradient(135deg, ${color}dd 0%, ${color} 100%)`}}>
 
-                                        {/* Availability Indicator (Top Left) */}
-                                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 bg-black/30 backdrop-blur-md rounded-md border border-white/15">
+                                        {/* Availability / Onboarding Indicator (Top Left) */}
+                                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 bg-black/35 backdrop-blur-md rounded-md border border-white/15 shadow-2xs">
                                             <div className={`w-1.5 h-1.5 rounded-full ${
+                                                isOnboarding ? 'bg-amber-400' :
+                                                emp.status === 'terminated' ? 'bg-slate-400' :
                                                 emp.availability_status === 'busy' || emp.availability_status === 'dnd' ? 'bg-rose-400' :
                                                 emp.availability_status === 'away' || emp.availability_status === 'break' ? 'bg-amber-400' :
                                                 emp.availability_status === 'offline' ? 'bg-slate-400' :
                                                 'bg-emerald-400'
                                             }`} />
                                             <span className="text-[9px] font-bold text-white uppercase tracking-wider">
-                                                {emp.availability_status || 'available'}
+                                                {isOnboarding ? 'ONBOARDING' :
+                                                 emp.status === 'terminated' ? 'TERMINATED' :
+                                                 (emp.availability_status || 'available')}
                                             </span>
                                         </div>
 
-                                        {/* Attendance Status (Top Right) */}
+                                        {/* Attendance / Pre-Onboarding Status (Top Right) */}
                                         <div className="absolute top-2.5 right-2.5">
-                                            {emp.is_checked_in ? (
+                                            {isOnboarding ? (
+                                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-950/40 backdrop-blur-md text-amber-200 border border-amber-400/30">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                    Not Onboarded
+                                                </div>
+                                            ) : emp.is_checked_in ? (
                                                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-950/40 backdrop-blur-md text-emerald-200 border border-emerald-400/30">
                                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                                                     Checked In
@@ -581,9 +607,15 @@ const EmployeeTable: React.FC = () => {
 
                                         {/* Footer */}
                                         <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 mt-1">
-                                            <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
-                                                <Calendar size={10}/>
-                                                {emp.join_date?new Date(emp.join_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'}
+                                            <span className={`text-[10px] flex items-center gap-1 font-medium ${
+                                                isFutureJoiner ? 'text-amber-600 font-semibold' : 'text-slate-400'
+                                            }`}>
+                                                <Calendar size={10} className={isFutureJoiner ? 'text-amber-500' : 'text-slate-400'} />
+                                                {emp.join_date ? (
+                                                    isFutureJoiner 
+                                                        ? `Joins ${new Date(emp.join_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                                                        : new Date(emp.join_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                ) : '—'}
                                             </span>
                                             <div className="flex items-center gap-1">
                                                 <Link to={`/profile/${emp.id}`}
@@ -627,6 +659,8 @@ const EmployeeTable: React.FC = () => {
                                 {filtered.map(emp=>{
                                     const color=clr(emp.name);
                                     const st=ST[emp.status]||ST.active;
+                                    const isFutureJoiner = !!(emp.join_date && new Date(emp.join_date).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0));
+                                    const isOnboarding = isEmployeeOnboarding(emp);
                                     return(
                                         <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-5 py-3">
@@ -644,23 +678,31 @@ const EmployeeTable: React.FC = () => {
                                                             
                                                             {/* Attendance Tag */}
                                                             <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                                                isOnboarding ? 'bg-amber-50 text-amber-700 border border-amber-200/60' :
                                                                 emp.is_checked_in ? 'bg-emerald-50 text-emerald-600' : 
                                                                 emp.availability_status && emp.availability_status !== 'offline' ? 'bg-indigo-50 text-indigo-600' :
                                                                 'bg-slate-50 text-slate-400'
                                                             }`}>
-                                                                {emp.is_checked_in ? 'Checked In' : emp.availability_status && emp.availability_status !== 'offline' ? 'Online' : 'Not Checked In'}
+                                                                {isOnboarding ? 'Not Onboarded' :
+                                                                 emp.is_checked_in ? 'Checked In' :
+                                                                 emp.availability_status && emp.availability_status !== 'offline' ? 'Online' :
+                                                                 'Not Checked In'}
                                                             </span>
 
                                                             <span className="w-1 h-1 rounded-full bg-slate-300"/>
                                                             <div className="flex items-center gap-1">
                                                                 <div className={`w-1.5 h-1.5 rounded-full ${
+                                                                    isOnboarding ? 'bg-amber-500' :
+                                                                    emp.status === 'terminated' ? 'bg-slate-400' :
                                                                     emp.availability_status === 'busy' || emp.availability_status === 'dnd' ? 'bg-rose-500' :
                                                                     emp.availability_status === 'away' || emp.availability_status === 'break' ? 'bg-amber-500' :
                                                                     emp.availability_status === 'offline' ? 'bg-slate-400' :
                                                                     'bg-emerald-500'
                                                                 }`} />
                                                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                                                                    {emp.availability_status || 'available'}
+                                                                    {isOnboarding ? 'ONBOARDING' :
+                                                                     emp.status === 'terminated' ? 'TERMINATED' :
+                                                                     (emp.availability_status || 'available')}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -678,11 +720,31 @@ const EmployeeTable: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-5 py-3">
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${st.bg} ${st.text}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{emp.status||'active'}
-                                                </span>
+                                                {isOnboarding ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"/>Onboarding
+                                                    </span>
+                                                ) : (
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${st.bg} ${st.text}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{emp.status||'active'}
+                                                    </span>
+                                                )}
                                             </td>
-                                            <td className="px-5 py-3 text-[11px] text-slate-500">{emp.join_date?new Date(emp.join_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—'}</td>
+                                            <td className="px-5 py-3 text-[11px]">
+                                                {emp.join_date ? (
+                                                    isFutureJoiner ? (
+                                                        <span className="text-amber-700 font-semibold bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60 whitespace-nowrap">
+                                                            Joins {new Date(emp.join_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-500">
+                                                            {new Date(emp.join_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                    )
+                                                ) : (
+                                                    <span className="text-slate-400">—</span>
+                                                )}
+                                            </td>
                                             <td className="px-5 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
                                                     <button onClick={()=>handleReachout('call', emp)} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md border border-transparent hover:border-blue-100 transition-all" title="Call Employee"><Phone size={11} strokeWidth={2.2}/></button>

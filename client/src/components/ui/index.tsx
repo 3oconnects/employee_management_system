@@ -33,10 +33,10 @@ export const toast = {
 };
 
 // ─── BUTTON ─────────────────────────────────────────────────────────────────
-// Ozofi Nexus design system button (docs/nexus/DESIGN_SYSTEM.md).
+// Ozofi UI & Color Flow Brand Bundle button primitives.
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+    variant?: 'primary' | 'secondary' | 'danger' | 'destructive' | 'ghost' | 'outline' | 'success' | 'warning' | 'purple' | 'ai';
     size?: 'sm' | 'md' | 'lg';
     loading?: boolean;
     icon?: React.ReactNode;
@@ -55,35 +55,40 @@ export const Button: React.FC<ButtonProps> = ({
     type = 'button',
     ...props
 }) => {
-    const variants = {
-        primary:   'bg-nx-primary text-white hover:bg-nx-primary-hover',
-        secondary: 'bg-nx-surface-muted text-nx-fg hover:bg-nx-border',
-        danger:    'bg-nx-danger text-white hover:bg-nx-danger/90',
-        ghost:     'text-nx-fg-muted hover:bg-nx-surface-muted hover:text-nx-fg',
-        outline:   'border border-nx-border-strong bg-nx-surface text-nx-fg hover:bg-nx-canvas',
+    const variants: Record<string, string> = {
+        primary:     'bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs',
+        secondary:   'border border-slate-200/90 bg-white text-slate-800 hover:bg-[#F5F7FB] shadow-xs',
+        outline:     'border border-slate-200/90 bg-transparent text-slate-700 hover:bg-slate-50',
+        ghost:       'text-slate-600 hover:bg-[#F5F7FB] hover:text-slate-900',
+        success:     'bg-[#65B814] hover:bg-[#529610] text-white shadow-xs',
+        warning:     'bg-[#FFAA0A] hover:bg-[#D98E06] text-white shadow-xs',
+        danger:      'bg-[#EF3434] hover:bg-[#DC2626] text-white shadow-xs',
+        destructive: 'bg-[#EF3434] hover:bg-[#DC2626] text-white shadow-xs',
+        purple:      'bg-[#8B3DFF] hover:bg-[#7828E8] text-white shadow-xs',
+        ai:          'bg-[#8B3DFF] hover:bg-[#7828E8] text-white shadow-xs',
     };
 
     const sizes = {
-        sm: 'h-8 px-3 text-[13px]',
-        md: 'h-10 px-4 text-sm',
-        lg: 'h-11 px-5 text-sm',
+        sm: 'h-8 px-3 text-xs',
+        md: 'h-9 px-3.5 text-xs font-semibold',
+        lg: 'h-10 px-4 text-sm font-semibold',
     };
 
     return (
         <button
             type={type}
             className={`
-                inline-flex items-center justify-center gap-2 rounded-lg font-medium font-nx
+                inline-flex items-center justify-center gap-2 rounded-lg font-semibold
                 transition-colors duration-150
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nx-primary focus-visible:ring-offset-2
-                disabled:opacity-60 disabled:cursor-not-allowed
-                ${fullWidth ? 'w-full' : ''} ${variants[variant]} ${sizes[size]} ${className}
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2
+                disabled:opacity-50 disabled:cursor-not-allowed
+                ${fullWidth ? 'w-full' : ''} ${variants[variant] || variants.primary} ${sizes[size]} ${className}
             `}
             disabled={disabled || loading}
             aria-busy={loading || undefined}
             {...props}
         >
-            {loading ? <Loader2 size={16} className="animate-spin" aria-hidden /> : icon}
+            {loading ? <Loader2 size={15} className="animate-spin" aria-hidden /> : icon}
             {children}
         </button>
     );
@@ -97,29 +102,31 @@ interface BadgeProps {
 }
 
 const statusColors: Record<string, string> = {
-    active:      'bg-emerald-100 text-emerald-700',
-    approved:    'bg-emerald-100 text-emerald-700',
-    paid:        'bg-emerald-100 text-emerald-700',
-    present:     'bg-emerald-100 text-emerald-700',
-    pending:     'bg-amber-100 text-amber-700',
-    submitted:   'bg-indigo-100 text-indigo-700',
-    draft:       'bg-slate-100 text-slate-600',
-    rejected:    'bg-rose-100 text-rose-700',
-    inactive:    'bg-slate-100 text-slate-500',
-    onboarding:  'bg-violet-100 text-violet-700',
-    terminated:  'bg-rose-100 text-rose-700',
-    cancelled:   'bg-slate-100 text-slate-500',
-    leave:       'bg-sky-100 text-sky-700',
-    regularized: 'bg-teal-100 text-teal-700',
-    half_day:    'bg-orange-100 text-orange-700',
-    absent:      'bg-rose-100 text-rose-600',
-    late:        'bg-amber-100 text-amber-600',
+    active:      'bg-emerald-50 text-emerald-700 border-emerald-200',
+    approved:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+    paid:        'bg-emerald-50 text-emerald-700 border-emerald-200',
+    present:     'bg-emerald-50 text-emerald-700 border-emerald-200',
+    completed:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+    pending:     'bg-amber-50 text-amber-800 border-amber-200',
+    late:        'bg-amber-50 text-amber-800 border-amber-200',
+    submitted:   'bg-blue-50 text-blue-700 border-blue-200',
+    draft:       'bg-slate-50 text-slate-600 border-slate-200',
+    inactive:    'bg-slate-50 text-slate-500 border-slate-200',
+    cancelled:   'bg-slate-50 text-slate-500 border-slate-200',
+    rejected:    'bg-rose-50 text-rose-700 border-rose-200',
+    terminated:  'bg-rose-50 text-rose-700 border-rose-200',
+    absent:      'bg-rose-50 text-rose-700 border-rose-200',
+    onboarding:  'bg-purple-50 text-purple-700 border-purple-200',
+    ai:          'bg-purple-50 text-purple-700 border-purple-200',
+    leave:       'bg-sky-50 text-sky-700 border-sky-200',
+    regularized: 'bg-teal-50 text-teal-700 border-teal-200',
+    half_day:    'bg-orange-50 text-orange-700 border-orange-200',
 };
 
 export const Badge: React.FC<BadgeProps> = ({ status, className = '' }) => {
-    const color = statusColors[status.toLowerCase()] || 'bg-slate-100 text-slate-600';
+    const color = statusColors[status.toLowerCase()] || 'bg-slate-50 text-slate-600 border-slate-200';
     return (
-        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${color} ${className}`}>
+        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${color} ${className}`}>
             {status}
         </span>
     );
@@ -141,27 +148,27 @@ export const Card: React.FC<CardProps> = ({ title, value, subtitle, icon, trend,
     return (
         <div
             className={`
-                bg-white rounded-xl p-5 border border-slate-200/60
+                bg-white rounded-xl p-5 border border-slate-200/80 shadow-xs
                 transition-all duration-200
-                ${onClick ? 'cursor-pointer hover:shadow-md hover:border-indigo-200/60 hover:-translate-y-0.5' : ''}
+                ${onClick ? 'cursor-pointer hover:shadow-sm hover:border-slate-300 hover:-translate-y-0.5' : ''}
                 ${className}
             `}
             onClick={onClick}
         >
             <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{title}</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900 truncate">{value}</p>
-                    {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{title}</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900 tracking-tight truncate">{value}</p>
+                    {subtitle && <p className="mt-1 text-xs text-slate-400 font-medium">{subtitle}</p>}
                     {trend && (
-                        <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${trend.value >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        <div className={`mt-2 flex items-center gap-1 text-xs font-semibold ${trend.value >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                             {trend.value >= 0 ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             {Math.abs(trend.value)}% {trend.label}
                         </div>
                     )}
                 </div>
                 {icon && (
-                    <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
                         {icon}
                     </div>
                 )}
@@ -193,23 +200,23 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-            <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}>
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                        <div className="w-1 h-6 bg-indigo-600 rounded-full" />
-                        <h3 className="text-[17px] font-black text-slate-900 tracking-tight">{title}</h3>
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs" onClick={onClose} />
+            <div className={`relative bg-white rounded-xl shadow-xl border border-slate-200/80 w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200`}>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/80">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-1 h-5 bg-[#2563EB] rounded-full" />
+                        <h3 className="text-base font-bold text-slate-900 tracking-tight">{title}</h3>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-all"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                     >
                         <X size={16} />
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
                 {footer && (
-                    <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                    <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/50 flex items-center justify-end gap-2.5">
                         {footer}
                     </div>
                 )}

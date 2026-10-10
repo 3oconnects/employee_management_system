@@ -51,17 +51,17 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
     return (
         <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
             <div className="overflow-x-auto no-scrollbar">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[1100px]">
                     <thead className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-semibold">
                         <tr>
-                            <th className="px-5 py-3.5">Candidate Details</th>
-                            <th className="px-5 py-3.5">Contact & Emails</th>
-                            <th className="px-5 py-3.5">Department</th>
-                            <th className="px-5 py-3.5">Job Title & Type</th>
-                            <th className="px-5 py-3.5">Joining Date</th>
-                            <th className="px-5 py-3.5">Reporting Manager</th>
-                            <th className="px-5 py-3.5">Pipeline Status</th>
-                            <th className="px-5 py-3.5 text-right">Actions</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap">Candidate Details</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap">Contact & Emails</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap">Department</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap">Job Title & Type</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap">Joining Date</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap">Reporting Manager</th>
+                            <th className="px-5 py-3.5 whitespace-nowrap min-w-[170px]">Pipeline Status</th>
+                            <th className="px-5 py-3.5 text-right whitespace-nowrap min-w-[190px]">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -89,7 +89,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                             {onClearSearch && (
                                                 <button
                                                     onClick={onClearSearch}
-                                                    className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors"
+                                                    className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shadow-xs"
                                                 >
                                                     Clear filters
                                                 </button>
@@ -126,13 +126,13 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                 return (
                                     <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                                         {/* Candidate Details */}
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border ${
                                                     isActive 
                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                                                         : isOfferAccepted
-                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
                                                         : 'bg-blue-50 text-blue-700 border-blue-100'
                                                 }`}>
                                                     {initials}
@@ -171,7 +171,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                         </td>
 
                                         {/* Department */}
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-1.5 text-slate-700">
                                                 <Building2 size={13} className="text-slate-400 shrink-0" />
                                                 <span className="font-medium">{c.department_name || c.department || 'Unassigned'}</span>
@@ -179,7 +179,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                         </td>
 
                                         {/* Job Title & Type */}
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-4 whitespace-nowrap">
                                             <div className="space-y-1">
                                                 <span className="font-medium text-slate-800 block">{c.position || '—'}</span>
                                                 <span className="inline-flex px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600 rounded capitalize">
@@ -189,7 +189,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                         </td>
 
                                         {/* Joining Date */}
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-1.5 text-slate-600">
                                                 <Calendar size={12} className="text-slate-400 shrink-0" />
                                                 <span>{formattedJoinDate}</span>
@@ -197,7 +197,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                         </td>
 
                                         {/* Reporting Manager */}
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-1.5 text-slate-600">
                                                 <UserCheck size={13} className="text-slate-400 shrink-0" />
                                                 <span>{c.manager_name || 'Pending'}</span>
@@ -205,28 +205,28 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                         </td>
 
                                         {/* Pipeline Status */}
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-4 whitespace-nowrap min-w-[170px]">
                                             {isOfferSent && (
-                                                <div>
-                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                <div className="space-y-0.5">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap shadow-2xs">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                                         Offer Sent
                                                     </span>
-                                                    <p className="text-[10px] text-amber-600/80 font-medium mt-0.5">Pending Acceptance</p>
+                                                    <p className="text-[10px] text-amber-700 font-medium">Pending Acceptance</p>
                                                 </div>
                                             )}
 
                                             {isOfferAccepted && (
-                                                <div>
-                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                                <div className="space-y-0.5">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap shadow-2xs">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                                                         Offer Accepted
                                                     </span>
-                                                    <p className="text-[10px] text-indigo-600 font-semibold mt-0.5">
+                                                    <p className="text-[10px] text-blue-600 font-medium">
                                                         {c.offer_accepted_date ? (
-                                                            <>Accepted: {new Date(c.offer_accepted_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}{c.offer_accepted_via === 'email' ? ' (Email)' : ''}</>
+                                                            <>Accepted: {new Date(c.offer_accepted_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}{c.offer_accepted_via === 'email' ? ' (Email)' : ''}</>
                                                         ) : c.offer_accepted_at ? (
-                                                            <>Accepted: {new Date(c.offer_accepted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}{c.offer_accepted_via === 'email' ? ' (Email)' : ''}</>
+                                                            <>Accepted: {new Date(c.offer_accepted_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}{c.offer_accepted_via === 'email' ? ' (Email)' : ''}</>
                                                         ) : (
                                                             'Awaiting HR Confirmation'
                                                         )}
@@ -235,18 +235,18 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                             )}
 
                                             {isActive && (
-                                                <div>
-                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <div className="space-y-0.5">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap shadow-2xs">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                                         Confirmed & Hired
                                                     </span>
-                                                    <p className="text-[10px] text-emerald-600 font-medium mt-0.5">Credentials Dispatched</p>
+                                                    <p className="text-[10px] text-emerald-600 font-medium">Credentials Dispatched</p>
                                                 </div>
                                             )}
 
                                             {isDeclined && (
                                                 <div>
-                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap shadow-2xs">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                                         Offer Declined
                                                     </span>
@@ -255,14 +255,14 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                         </td>
 
                                         {/* Actions */}
-                                        <td className="px-5 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-1.5">
+                                        <td className="px-5 py-4 text-right whitespace-nowrap min-w-[190px]">
+                                            <div className="inline-flex items-center justify-end gap-2 flex-nowrap">
                                                 {/* Stage 1: Offer Sent Actions */}
                                                 {isOfferSent && (
                                                     <>
                                                         <button 
                                                             onClick={() => onAcceptOffer?.(c)}
-                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 text-blue-700 text-xs font-semibold rounded-lg transition-all shadow-xs"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 text-blue-700 text-xs font-semibold rounded-lg transition-all shadow-xs whitespace-nowrap active:scale-[0.98]"
                                                             title="Candidate has accepted the offer letter"
                                                         >
                                                             <CheckCircle2 size={13} className="text-blue-600" />
@@ -270,7 +270,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                                         </button>
                                                         <button 
                                                             onClick={() => onResendOffer?.(c)}
-                                                            className="p-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-700 rounded-lg transition-all shadow-xs"
+                                                            className="p-1.5 bg-white border border-slate-200/90 hover:bg-slate-50 text-slate-500 hover:text-slate-700 rounded-lg transition-all shadow-xs"
                                                             title="Resend offer letter email"
                                                         >
                                                             <Send size={12} />
@@ -282,7 +282,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                                 {isOfferAccepted && (
                                                     <button 
                                                         onClick={() => onConfirmHire?.(c)}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-lg transition-all shadow-sm shadow-emerald-600/20"
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-all shadow-xs whitespace-nowrap active:scale-[0.98]"
                                                         title="Confirm candidate hire and dispatch official login credentials"
                                                     >
                                                         <Sparkles size={13} />
@@ -293,7 +293,7 @@ export const CandidateTable: React.FC<CandidateTableProps> = ({
                                                 {/* Edit / Review Details */}
                                                 <button 
                                                     onClick={() => onEdit(c)}
-                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition-all shadow-xs"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200/90 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition-all shadow-xs whitespace-nowrap active:scale-[0.98]"
                                                     title="Review candidate profile details"
                                                 >
                                                     <Edit2 size={12} className="text-slate-500" />

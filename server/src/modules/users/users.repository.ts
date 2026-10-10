@@ -22,15 +22,32 @@ export class UsersRepository {
     }
 
     async getUsers(tenantId: string, role?: string) {
-        let sql = 'SELECT id, name, email, role, COALESCE(is_active, true) as is_active FROM users WHERE tenant_id = $1';
+        let sql = `
+            SELECT u.id, u.name, u.email, u.role, COALESCE(u.is_active, true) as is_active 
+            FROM users u
+            WHERE (u.tenant_id = $1 OR u.tenant_id = 'tenant_default' OR u.tenant_id = 'default')
+              AND COALESCE(u.is_active, true) = true
+              AND u.deleted_at IS NULL
+              AND u.email NOT ILIKE 'deleted_%'
+              AND u.name NOT ILIKE 'deleted_%'
+              AND (
+                  u.role IN ('super_admin', 'admin') 
+                  OR EXISTS (
+                      SELECT 1 FROM employees e 
+                      WHERE (LOWER(e.email) = LOWER(u.email) OR e.user_id = u.id)
+                        AND e.deleted_at IS NULL 
+                        AND (e.status IS NULL OR e.status <> 'terminated')
+                  )
+              )
+        `;
         const params: any[] = [tenantId];
 
         if (role) {
-            sql += ' AND role = $2';
+            sql += ' AND u.role = $2';
             params.push(role);
         }
 
-        sql += ' ORDER BY name ASC';
+        sql += ' ORDER BY u.name ASC';
         const result = await pool.query(sql, params);
         return result.rows;
     }

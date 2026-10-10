@@ -18,55 +18,55 @@ const OrganizationHeader: React.FC<OrganizationHeaderProps> = ({
 }) => {
     return (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-slate-900/10">
-                    <Layers size={24} strokeWidth={2.5} />
+            <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 bg-blue-50 text-[#2563EB] border border-blue-100 rounded-xl flex items-center justify-center shadow-xs">
+                    <Layers size={22} strokeWidth={2.2} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Enterprise Hierarchy</h1>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
-                        Structural Command <ChevronRight size={10} /> Organizational Units
+                    <h1 className="text-2xl font-bold text-[#17213D] tracking-tight">Enterprise Hierarchy</h1>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
+                        Organizational Divisions & Squad Structure <ChevronRight size={12} className="text-slate-400" /> Real-time Delegation
                     </p>
                 </div>
             </div>
 
             <div className="flex items-center gap-3">
-                <div className="flex p-1 bg-slate-100 rounded-xl mr-2">
+                <div className="flex p-1 bg-slate-100 rounded-xl mr-1 border border-slate-200/60">
                     <button 
                         onClick={() => setActiveView('grid')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeView === 'grid' ? 'bg-white text-[#2563EB] shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
-                        <LayoutGrid size={12} /> Grid
+                        <LayoutGrid size={13} /> Grid
                     </button>
                     <button 
                         onClick={() => setActiveView('list')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeView === 'list' ? 'bg-white text-[#2563EB] shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
-                        <ListIcon size={12} /> List
+                        <ListIcon size={13} /> List
                     </button>
                     <button 
                         onClick={() => setActiveView('graph')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${activeView === 'graph' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeView === 'graph' ? 'bg-white text-[#2563EB] shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
                     >
-                        <ShieldCheck size={12} /> Graph
+                        <ShieldCheck size={13} /> Graph
                     </button>
                 </div>
 
                 <div className="relative group">
-                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
                     <input 
                         type="text" 
                         placeholder="Search divisions or squads..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[12px] w-72 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm font-medium"
+                        className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs w-64 focus:ring-2 focus:ring-blue-100 focus:border-[#2563EB] outline-none transition-all shadow-xs font-medium placeholder:text-slate-400"
                     />
                 </div>
                 <button 
                     onClick={onAddDivision}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs active:scale-[0.98]"
                 >
-                    <Plus size={16} strokeWidth={3} /> Add Division
+                    <Plus size={15} strokeWidth={2.5} /> Add Division
                 </button>
             </div>
         </div>

@@ -13,8 +13,8 @@ export const getDepartments = async (req: AuthenticatedRequest, res: Response) =
 export const createDepartment = async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
     const userId = req.user!.userId;
-    await service.createDepartmentRequest(userId, tenantId, req.body);
-    res.status(202).json({ success: true, message: 'Department creation request submitted for approval' });
+    const data = await service.createDepartment(userId, tenantId, req.body);
+    res.status(201).json({ success: true, message: 'Division created successfully', data });
 };
 
 export const updateDepartment = async (req: AuthenticatedRequest, res: Response) => {
@@ -38,8 +38,8 @@ export const getTeams = async (req: AuthenticatedRequest, res: Response) => {
 export const createTeam = async (req: AuthenticatedRequest, res: Response) => {
     const tenantId = req.user!.tenantId;
     const userId = req.user!.userId;
-    await service.createTeamRequest(userId, tenantId, req.body);
-    res.status(202).json({ success: true, message: 'Squad creation request submitted for approval' });
+    const data = await service.createTeam(userId, tenantId, req.body);
+    res.status(201).json({ success: true, message: 'Squad created successfully', data });
 };
 
 export const updateTeam = async (req: AuthenticatedRequest, res: Response) => {

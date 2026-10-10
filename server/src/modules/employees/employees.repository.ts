@@ -9,10 +9,23 @@ export class EmployeesRepository {
                    COALESCE(e.avatar_url, u.avatar_url) as avatar_url,
                    COALESCE(e.user_id, u.id) as user_id,
                    d.name as department_name, m.name as manager_name, 
-                   u.availability_status,
+                   CASE 
+                       WHEN LOWER(e.status) IN ('onboarding', 'offer_sent', 'offer_accepted') 
+                            OR (e.join_date IS NOT NULL AND e.join_date::date > CURRENT_DATE) 
+                       THEN 'onboarding'
+                       WHEN LOWER(e.status) = 'terminated' 
+                       THEN 'offline'
+                       ELSE COALESCE(u.availability_status, 'available')
+                   END as availability_status,
                    COALESCE(r.name, u.role, 'employee') as role,
                    u.role_id,
-                   CASE WHEN a.id IS NOT NULL THEN true ELSE false END as is_checked_in
+                   CASE 
+                       WHEN LOWER(e.status) IN ('onboarding', 'offer_sent', 'offer_accepted') 
+                            OR (e.join_date IS NOT NULL AND e.join_date::date > CURRENT_DATE)
+                       THEN false
+                       WHEN a.id IS NOT NULL THEN true 
+                       ELSE false 
+                   END as is_checked_in
             FROM employees e
             LEFT JOIN departments d ON e.department_id = d.id
             LEFT JOIN users m ON e.reporting_manager_id = m.id
@@ -133,10 +146,26 @@ export class EmployeesRepository {
         const res = await pool.query(`
             SELECT e.*, 
                    COALESCE(r.name, u.role, 'employee') as role,
-                   u.role_id
+                   u.role_id,
+                   CASE 
+                       WHEN LOWER(e.status) IN ('onboarding', 'offer_sent', 'offer_accepted') 
+                            OR (e.join_date IS NOT NULL AND e.join_date::date > CURRENT_DATE) 
+                       THEN 'onboarding'
+                       WHEN LOWER(e.status) = 'terminated' 
+                       THEN 'offline'
+                       ELSE COALESCE(u.availability_status, 'available')
+                   END as availability_status,
+                   CASE 
+                       WHEN LOWER(e.status) IN ('onboarding', 'offer_sent', 'offer_accepted') 
+                            OR (e.join_date IS NOT NULL AND e.join_date::date > CURRENT_DATE)
+                       THEN false
+                       WHEN a.id IS NOT NULL THEN true 
+                       ELSE false 
+                   END as is_checked_in
             FROM employees e
             LEFT JOIN users u ON e.email = u.email AND (e.tenant_id = u.tenant_id OR u.tenant_id = 'tenant_default' OR u.tenant_id = 'default')
             LEFT JOIN roles r ON u.role_id = r.id
+            LEFT JOIN attendance a ON u.id = a.user_id AND a.check_in::date = CURRENT_DATE
             WHERE e.id = $1 AND (e.tenant_id = $2 OR e.tenant_id = 'tenant_default' OR e.tenant_id = 'default')
         `, [id, tenantId]);
         return res.rows[0];

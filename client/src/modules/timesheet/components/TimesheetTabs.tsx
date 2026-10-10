@@ -18,35 +18,35 @@ export const TimesheetTabs: React.FC<TimesheetTabsProps> = ({
   pendingCount
 }) => {
   return (
-    <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-2xl w-fit border border-slate-200/60 shadow-2xs">
+    <div className="flex items-center gap-1 p-1 bg-slate-100/90 rounded-lg w-fit border border-slate-200/80 shadow-xs">
       {/* Tab 1: Weekly Timesheet */}
       <button
         onClick={() => setActiveTab('my')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
           activeTab === 'my'
-            ? 'bg-white text-indigo-600 shadow-xs'
-            : 'text-slate-500 hover:text-slate-900'
+            ? 'bg-white text-[#1064EA] shadow-xs'
+            : 'text-slate-600 hover:text-slate-900'
         }`}
       >
-        <Calendar size={14} />
+        <Calendar size={13} />
         Weekly Timesheet
       </button>
 
       {/* Tab 2: History */}
       <button
         onClick={() => setActiveTab('history')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
           activeTab === 'history'
-            ? 'bg-white text-indigo-600 shadow-xs'
-            : 'text-slate-500 hover:text-slate-900'
+            ? 'bg-white text-[#1064EA] shadow-xs'
+            : 'text-slate-600 hover:text-slate-900'
         }`}
       >
-        <History size={14} />
+        <History size={13} />
         History
         {historyCount > 0 && (
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
+          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
             activeTab === 'history'
-              ? 'bg-indigo-50 text-indigo-700'
+              ? 'bg-[#EEF4FE] text-[#1064EA]'
               : 'bg-slate-200 text-slate-600'
           }`}>
             {historyCount}
@@ -58,19 +58,19 @@ export const TimesheetTabs: React.FC<TimesheetTabsProps> = ({
       {isManager && (
         <button
           onClick={() => setActiveTab('approvals')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
             activeTab === 'approvals'
-              ? 'bg-white text-purple-700 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'bg-white text-[#1064EA] shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <ShieldCheck size={14} />
+          <ShieldCheck size={13} />
           Approvals
-          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
+          <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
             pendingCount > 0
-              ? 'bg-amber-100 text-amber-800 animate-pulse'
+              ? 'bg-[#FEF7EC] text-[#D97706] border border-[#FDE68A] animate-pulse'
               : activeTab === 'approvals'
-              ? 'bg-emerald-50 text-emerald-700'
+              ? 'bg-[#E6F6EE] text-[#00A859] border border-[#B7E8CE]'
               : 'bg-slate-200 text-slate-600'
           }`}>
             {pendingCount}

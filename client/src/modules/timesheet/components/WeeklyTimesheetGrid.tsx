@@ -51,16 +51,16 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
   return (
     <div className="space-y-6">
       {/* The Unified Timesheet Matrix Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         {/* Card Header & Action Toolbar */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shadow-2xs">
+            <div className="w-8 h-8 bg-[#EEF4FE] text-[#1064EA] rounded-lg flex items-center justify-center shadow-xs border border-[#D0E1FD]">
               <FolderGit2 size={16} />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-[13px] font-black text-slate-800 tracking-tight">
+                <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">
                   Weekly Time Allocation
                 </h3>
                 {sheet && <StatusBadge s={sheet.status} />}
@@ -76,10 +76,10 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
             {!isLocked && (
               <button 
                 onClick={fillStandardPreset} 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-300 rounded-xl text-xs font-bold transition-all shadow-2xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-[#1064EA] hover:border-[#1064EA]/40 rounded-lg text-xs font-semibold transition-all shadow-xs"
                 title="Quick fill 8h/day Mon–Fri"
               >
-                <Sparkles size={13} className="text-indigo-600" />
+                <Sparkles size={13} className="text-[#1064EA]" />
                 40h Preset
               </button>
             )}
@@ -88,10 +88,10 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
               <button 
                 onClick={autoFill} 
                 disabled={autoFilling} 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-300 rounded-xl text-xs font-bold transition-all shadow-2xs disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-[#1064EA] hover:border-[#1064EA]/40 rounded-lg text-xs font-semibold transition-all shadow-xs disabled:opacity-50"
                 title="Sync hours from biometric check-ins"
               >
-                {autoFilling ? <Loader2 size={13} className="animate-spin text-indigo-600" /> : <Zap size={13} className="text-amber-500" />}
+                {autoFilling ? <Loader2 size={13} className="animate-spin text-[#1064EA]" /> : <Zap size={13} className="text-[#FBB03B]" />}
                 {autoFilling ? 'Syncing...' : 'Auto-Fill Telemetry'}
               </button>
             )}
@@ -100,7 +100,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
               <button 
                 onClick={() => save(false)} 
                 disabled={saving} 
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all shadow-2xs disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all shadow-xs disabled:opacity-50"
               >
                 <Save size={13} />
                 {saving ? 'Saving...' : 'Save Draft'}
@@ -111,7 +111,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
               <button 
                 onClick={() => save(true)} 
                 disabled={saving || loggedHours === 0} 
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black tracking-tight transition-all shadow-sm shadow-indigo-600/20 disabled:opacity-50 disabled:pointer-events-none"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#1064EA] hover:bg-[#0C54C8] text-white rounded-lg text-xs font-semibold tracking-tight transition-all shadow-xs shadow-[#1064EA]/25 disabled:opacity-50 disabled:pointer-events-none"
               >
                 <Send size={12} />
                 Submit Timesheet
@@ -143,7 +143,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
 
         {/* Feedback toast */}
         {feedback && (
-          <div className={`mx-6 mt-4 p-3 rounded-xl border flex items-center justify-between text-xs font-semibold ${
+          <div className={`mx-6 mt-4 p-3 rounded-lg border flex items-center justify-between text-xs font-semibold ${
             feedback.type === 'ok' 
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
               : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -191,7 +191,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                           {fmtDayHeaderDate(dayDate)}
                         </span>
                         {isDayToday && (
-                          <span className="mt-0.5 px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-black tracking-widest uppercase">
+                          <span className="mt-0.5 px-1.5 py-0.2 rounded-full bg-[#EEF4FE] text-[#1064EA] text-[8px] font-black tracking-widest uppercase border border-[#D0E1FD]">
                             Today
                           </span>
                         )}
@@ -225,7 +225,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                           onChange={e => updateRow(idx, 'project_name', e.target.value)} 
                           disabled={isLocked || isTelemetryRow} 
                           placeholder="Project or Client Name..." 
-                          className="w-full bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-600" 
+                          className="w-full bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200/80 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:border-[#1064EA] focus:ring-2 focus:ring-[#1064EA]/10 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-600" 
                         />
                         <input 
                           type="text" 
@@ -248,7 +248,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                         <td 
                           key={d} 
                           className={`px-2 py-3 text-center ${
-                            isDayToday ? 'bg-indigo-50/20 border-x border-indigo-100/30' : isWeekend ? 'bg-slate-50/20' : ''
+                            isDayToday ? 'bg-[#EEF4FE]/40 border-x border-[#D0E1FD]/50' : isWeekend ? 'bg-slate-50/20' : ''
                           }`}
                         >
                           <input 
@@ -262,10 +262,10 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                             disabled={isLocked} 
                             className={`w-14 mx-auto text-center py-1.5 rounded-lg text-xs font-bold outline-none border transition-all ${
                               num > 8 
-                                ? 'bg-amber-50 text-amber-800 border-amber-300 font-extrabold shadow-2xs' 
+                                ? 'bg-[#FEF7EC] text-[#D97706] border-[#FDE68A] font-extrabold shadow-2xs' 
                                 : num > 0 
-                                ? 'bg-indigo-50/80 text-indigo-700 border-indigo-200 font-extrabold shadow-2xs' 
-                                : 'bg-slate-50/70 text-slate-400 border-slate-200/80 hover:border-slate-300 focus:bg-white focus:text-slate-800'
+                                ? 'bg-[#EEF4FE] text-[#1064EA] border-[#D0E1FD] font-extrabold shadow-2xs' 
+                                : 'bg-slate-50/70 text-slate-400 border-slate-200/80 hover:border-slate-300 focus:bg-white focus:text-slate-800 focus:border-[#1064EA]'
                             }`} 
                           />
                         </td>
@@ -274,7 +274,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
 
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-bold ${
-                        rowTotal > 0 ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'text-slate-400'
+                        rowTotal > 0 ? 'bg-[#EEF4FE] text-[#1064EA] border border-[#D0E1FD]' : 'text-slate-400'
                       }`}>
                         {rowTotal.toFixed(1)}h
                       </span>
@@ -303,17 +303,17 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                   {!isLocked && (
                     <button 
                       onClick={addRow} 
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold shadow-2xs transition-all"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-all"
                     >
-                      <Plus size={13} className="text-indigo-600" /> Add Project Line
+                      <Plus size={13} className="text-blue-600" /> Add Project Line
                     </button>
                   )}
                 </td>
 
                 {dayTotals.map((t, i) => (
                   <td key={i} className="px-2 py-3 text-center">
-                    <span className={`text-xs font-black ${
-                      t > 8 ? 'text-amber-600' : t > 0 ? 'text-indigo-600' : 'text-slate-400'
+                    <span className={`text-xs font-bold ${
+                      t > 8 ? 'text-amber-600' : t > 0 ? 'text-blue-600' : 'text-slate-400'
                     }`}>
                       {t > 0 ? `${t.toFixed(1)}h` : '0.0h'}
                     </span>
@@ -321,7 +321,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                 ))}
 
                 <td className="px-4 py-3 text-center">
-                  <span className="inline-flex px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-black shadow-xs">
+                  <span className="inline-flex px-3 py-1 bg-blue-600 text-white rounded-md text-xs font-bold shadow-xs">
                     {loggedHours.toFixed(1)} hrs
                   </span>
                 </td>
@@ -333,9 +333,9 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
         </div>
 
         {/* Integrated Weekly Progress Track */}
-        <div className="px-6 py-4 bg-slate-50/60 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="px-6 py-4 bg-slate-50/60 border-t border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
               <Target size={16} />
             </div>
             <div>
@@ -351,17 +351,17 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
           <div className="flex-1 max-w-md w-full flex items-center gap-3">
             <div className="flex-1 h-2 bg-slate-200/80 rounded-full overflow-hidden">
               <div 
-                className={`h-full rounded-full transition-all duration-700 ${progressPct >= 100 ? 'bg-emerald-500' : 'bg-indigo-600'}`} 
+                className={`h-full rounded-full transition-all duration-700 ${progressPct >= 100 ? 'bg-emerald-500' : 'bg-blue-600'}`} 
                 style={{ width: `${Math.min(100, progressPct)}%` }}
               />
             </div>
-            <span className="font-mono text-xs font-black text-slate-700 w-10 text-right">
+            <span className="font-mono text-xs font-bold text-slate-700 w-10 text-right">
               {progressPct.toFixed(0)}%
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
               loggedHours >= 40 
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                 : 'bg-slate-100 text-slate-600 border-slate-200'
@@ -375,17 +375,17 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
       {/* Visual Daily Distribution & Guidelines */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Daily Allocation Bar Chart */}
-        <div className="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <h4 className="text-[13px] font-black text-slate-800 tracking-tight">
+              <h4 className="text-sm font-bold text-slate-900 tracking-tight">
                 Daily Work Allocation
               </h4>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 Standard: 8.0h / day
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-medium mb-4">
+            <p className="text-xs text-slate-400 font-medium mb-4">
               Visual breakdown of logged hours against daily quotas
             </p>
 
@@ -405,7 +405,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                   return (
                     <div key={d} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
                       <span className={`text-[10px] font-bold transition-all ${
-                        total > 0 ? (total >= 8 ? 'text-indigo-600 font-black' : 'text-slate-700') : 'opacity-0 group-hover:opacity-100 text-slate-300'
+                        total > 0 ? (total >= 8 ? 'text-blue-600 font-black' : 'text-slate-700') : 'opacity-0 group-hover:opacity-100 text-slate-300'
                       }`}>
                         {total > 0 ? `${total.toFixed(1)}h` : '0h'}
                       </span>
@@ -413,8 +413,8 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                       <div className="w-8 h-20 flex items-end justify-center">
                         {total > 0 ? (
                           <div 
-                            className={`w-full rounded-t-lg transition-all duration-500 shadow-2xs ${
-                              isTodayCol ? 'bg-indigo-600' : total >= 8 ? 'bg-indigo-500' : 'bg-indigo-300'
+                            className={`w-full rounded-t-md transition-all duration-500 shadow-2xs ${
+                              isTodayCol ? 'bg-blue-600' : total >= 8 ? 'bg-blue-500' : 'bg-blue-300'
                             }`} 
                             style={{ height: `${pct}%`, minHeight: '6px' }}
                           />
@@ -424,8 +424,8 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                       </div>
                       
                       <div className="text-center mt-1">
-                        <span className={`text-[11px] font-black uppercase tracking-wider block ${
-                          isTodayCol ? 'text-indigo-600' : isWeekend ? 'text-slate-400' : 'text-slate-700'
+                        <span className={`text-[11px] font-bold uppercase tracking-wider block ${
+                          isTodayCol ? 'text-blue-600' : isWeekend ? 'text-slate-400' : 'text-slate-700'
                         }`}>
                           {DAY_LABELS[i]}
                         </span>
@@ -442,22 +442,22 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
         </div>
 
         {/* Submission Protocol & Checklist */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                 <ShieldCheck size={16} />
               </div>
               <div>
-                <h4 className="text-[13px] font-black text-slate-800 tracking-tight">
+                <h4 className="text-sm font-bold text-slate-900 tracking-tight">
                   Timesheet Protocol & Checklist
                 </h4>
-                <p className="text-[11px] text-slate-400 font-medium">Weekly compliance status</p>
+                <p className="text-xs text-slate-400 font-medium">Weekly compliance status</p>
               </div>
             </div>
 
             <div className="space-y-3 mt-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50/70 border border-slate-200/80">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
                     loggedHours >= 40 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
@@ -471,14 +471,14 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                     </p>
                   </div>
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
                   loggedHours >= 40 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                 }`}>
                   {loggedHours >= 40 ? 'Achieved' : 'Pending'}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50/70 border border-slate-200/80">
                 <div className="flex items-center gap-2.5">
                   <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">
                     ✓
@@ -488,14 +488,14 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                     <p className="text-[10px] text-slate-400 font-medium">Telemetry sync available via Auto-Fill</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
                   Ready
                 </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50/70 border border-slate-200/80">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs">
+                  <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs">
                     ℹ
                   </div>
                   <div>
@@ -503,7 +503,7 @@ export const WeeklyTimesheetGrid: React.FC<WeeklyTimesheetGridProps> = ({
                     <p className="text-[10px] text-slate-400 font-medium">Weekly sheets route for supervisor approval</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">
                   Protocol
                 </span>
               </div>

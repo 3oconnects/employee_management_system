@@ -357,35 +357,41 @@ const ProfileHeader: React.FC<Props> = ({
                             )}
                         </div>
 
-                        {/* Availability badge: this person's own stored status (was a fixed green "Online" for everyone) */}
-                        <div
-                            style={{
-                                position: 'absolute',
-                                bottom: 4,
-                                left: 2,
-                                width: 20,
-                                height: 20,
-                                borderRadius: '50%',
-                                background: availabilityOf(emp?.availability_status).color,
-                                border: '2.5px solid #ffffff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: `0 2px 8px ${availabilityOf(emp?.availability_status).color}80`,
-                                animation: availabilityOf(emp?.availability_status).pulse ? 'emsPulseBadge 3s ease-in-out infinite' : undefined,
-                                zIndex: 4,
-                            }}
-                            title={availabilityOf(emp?.availability_status).label}
-                        >
-                            <div
-                                style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: '50%',
-                                    background: '#ffffff',
-                                }}
-                            />
-                        </div>
+                        {/* Availability badge: this person's own stored status (or onboarding if pending join) */}
+                        {(() => {
+                            const isPreBoarding = (emp?.status === 'onboarding' || emp?.status === 'offer_sent' || emp?.status === 'offer_accepted' || (emp?.join_date && new Date(emp.join_date).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0)));
+                            const st = availabilityOf(isPreBoarding ? 'onboarding' : emp?.availability_status);
+                            return (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: 4,
+                                        left: 2,
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: '50%',
+                                        background: st.color,
+                                        border: '2.5px solid #ffffff',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: `0 2px 8px ${st.color}80`,
+                                        animation: st.pulse ? 'emsPulseBadge 3s ease-in-out infinite' : undefined,
+                                        zIndex: 4,
+                                    }}
+                                    title={st.label}
+                                >
+                                    <div
+                                        style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: '50%',
+                                            background: '#ffffff',
+                                        }}
+                                    />
+                                </div>
+                            );
+                        })()}
 
                         {/* Camera Badge Trigger on Bottom-Right */}
                         {isOwn && (
@@ -515,9 +521,10 @@ const ProfileHeader: React.FC<Props> = ({
                                 {displayName}
                             </h1>
                             <VerifiedBadge />
-                            {/* Availability: this person's own stored status, spelled out (the avatar dot alone was easy to miss) */}
+                            {/* Availability: this person's own stored status, spelled out (or onboarding if pending join) */}
                             {(() => {
-                                const st = availabilityOf(emp?.availability_status);
+                                const isPreBoarding = (emp?.status === 'onboarding' || emp?.status === 'offer_sent' || emp?.status === 'offer_accepted' || (emp?.join_date && new Date(emp.join_date).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0)));
+                                const st = availabilityOf(isPreBoarding ? 'onboarding' : emp?.availability_status);
                                 return (
                                     <span
                                         data-testid="profile-availability"

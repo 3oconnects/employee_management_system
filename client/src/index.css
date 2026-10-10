@@ -5,17 +5,44 @@
 @tailwind utilities;
 
 :root {
-  /* Core Palette — Executive Navy & Royal Indigo */
-  --color-primary: 20, 18, 61;       /* Deep Navy */
-  --color-primary-soft: 42, 38, 115;  /* Royal Indigo */
-  --color-primary-light: 79, 74, 168; /* Light Indigo */
-  --color-accent: 99, 102, 241;       /* Vibrant Indigo Accent */
+  /* ==========================================================================
+     OZOFI — UI & COLOR FLOW BRAND BUNDLE TOKENS
+     ========================================================================== */
+  --ozofi-navy: #17213D;
+  --ozofi-blue: #2563EB;
+  --ozofi-indigo: #3730A3;
+  --ozofi-purple: #8B3DFF;
+  --ozofi-teal: #0F9F8F;
+  --ozofi-green: #65B814;
+  --ozofi-amber: #FFAA0A;
+  --ozofi-orange: #FF641F;
+  --ozofi-red: #EF3434;
+
+  --color-page: #FFFFFF;
+  --color-surface-soft: #F5F7FB;
+  --color-surface-raised: #FFFFFF;
+  --color-border-subtle: #E2E8F0;
+  --color-text-brand-primary: #17213D;
+  --color-text-brand-secondary: #64748B;
+  --color-text-brand-muted: #94A3B8;
+
+  /* Core Palette — Zoho Enterprise Theme */
+  --color-primary: 16, 100, 234;       /* Zoho Blue #1064EA */
+  --color-primary-soft: 37, 99, 235;  /* Vibrant Blue #2563EB */
+  --color-primary-light: 219, 234, 254;/* Light Blue #DBEAFE */
+  --color-accent: 16, 100, 234;       /* Primary Accent */
+
+  /* Zoho Brand Signature Accents */
+  --zoho-red: #ED1C24;
+  --zoho-green: #00A859;
+  --zoho-blue: #1064EA;
+  --zoho-yellow: #FBB03B;
   
-  --color-sidebar-bg: 10, 8, 40;
-  --color-sidebar-active: 42, 38, 115;
+  --color-sidebar-bg: 12, 20, 39;     /* Deep Slate Navy #0C1427 */
+  --color-sidebar-active: 16, 100, 234;/* Zoho Blue Active */
   
   --color-surface: 255, 255, 255;
-  --color-bg: 248, 249, 253;          /* Soft Off-White/Gray */
+  --color-bg: 244, 245, 248;          /* Zoho Canvas Light Gray #F4F5F8 */
   --color-border: 226, 232, 240;      /* Slate 200 */
   
   --color-text-primary: 15, 23, 42;    /* Slate 900 */
@@ -23,23 +50,23 @@
   --color-text-muted: 100, 116, 139;   /* Slate 500 */
   
   --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 24px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-full: 9999px;
   
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.1);
-  --shadow-premium: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
-  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-premium: 0 20px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.04);
 
   /* ── Enhanced UX Tokens ───────────────────────────────── */
-  --topbar-height: 64px;
-  --sidebar-collapsed-width: 68px;
-  --sidebar-expanded-width: 240px;
+  --topbar-height: 54px;
+  --sidebar-collapsed-width: 58px;
+  --sidebar-expanded-width: 218px;
 
   /* Focus ring — accessible & on-brand */
-  --ring-indigo: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  --ring-indigo: 0 0 0 3px rgba(16, 100, 234, 0.18);
 
   /* Transition presets */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -54,30 +81,30 @@
    Legacy tokens above stay untouched until each page is migrated.
    ============================================================================ */
 :root {
-  /* Brand */
-  --nx-primary: 47 91 234;            /* #2F5BEA  Nexus blue (5.52:1 on white) */
-  --nx-primary-hover: 36 74 204;      /* #244ACC */
-  --nx-primary-subtle: 238 242 254;   /* #EEF2FE */
+  /* Brand — Zoho People & Zoho One Palette */
+  --nx-primary: 16 100 234;           /* #1064EA  Zoho Corporate Blue */
+  --nx-primary-hover: 12 84 200;      /* #0C54C8  Zoho Blue Hover */
+  --nx-primary-subtle: 238 244 254;   /* #EEF4FE  Zoho Light Blue */
 
   /* Neutrals */
-  --nx-canvas: 248 250 252;           /* #F8FAFC  page background */
+  --nx-canvas: 244 245 248;           /* #F4F5F8  Zoho Canvas light gray */
   --nx-surface: 255 255 255;          /* #FFFFFF  cards, inputs */
   --nx-surface-muted: 241 245 249;    /* #F1F5F9  subtle fills */
   --nx-border: 226 232 240;           /* #E2E8F0 */
   --nx-border-strong: 203 213 225;    /* #CBD5E1  input borders */
   --nx-fg: 15 23 42;                  /* #0F172A  primary text */
-  --nx-fg-muted: 71 85 105;           /* #475569  secondary text (7.58:1 on white) */
-  --nx-fg-subtle: 100 116 139;        /* #64748B  captions, placeholders (4.76:1 on white) */
+  --nx-fg-muted: 71 85 105;           /* #475569  secondary text */
+  --nx-fg-subtle: 100 116 139;        /* #64748B  captions, placeholders */
 
-  /* Semantic */
-  --nx-success: 21 128 61;            /* #15803D */
-  --nx-success-subtle: 240 253 244;
-  --nx-warning: 180 83 9;             /* #B45309 */
-  --nx-warning-subtle: 255 251 235;
-  --nx-danger: 185 28 28;             /* #B91C1C */
-  --nx-danger-subtle: 254 242 242;
-  --nx-info: 3 105 161;               /* #0369A1 */
-  --nx-info-subtle: 240 249 255;
+  /* Semantic — Zoho Brand Accents */
+  --nx-success: 0 168 89;             /* #00A859  Zoho Green */
+  --nx-success-subtle: 230 246 238;   /* #E6F6EE */
+  --nx-warning: 251 176 59;           /* #FBB03B  Zoho Yellow/Amber */
+  --nx-warning-subtle: 254 247 236;   /* #FEF7EC */
+  --nx-danger: 237 28 36;             /* #ED1C24  Zoho Red */
+  --nx-danger-subtle: 254 236 235;    /* #FEECEB */
+  --nx-info: 16 100 234;              /* #1064EA  Zoho Blue */
+  --nx-info-subtle: 238 244 254;
 }
 
 /* Keep Nexus inputs on the surface colour when the browser autofills them
@@ -162,26 +189,76 @@ code, pre {
 }
 
 .btn-primary {
-  background: var(--color-primary-soft);
+  background: #1064EA;
   color: white;
-  box-shadow: 0 4px 12px rgba(42, 38, 115, 0.25);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 4px rgba(16, 100, 234, 0.2);
 }
 
 .btn-primary:hover {
-  background: var(--color-primary);
+  background: #0C54C8;
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(42, 38, 115, 0.35);
+  box-shadow: 0 4px 10px rgba(16, 100, 234, 0.3);
 }
 
 .btn-secondary {
   background: white;
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
+  border-radius: var(--radius-md);
 }
 
 .btn-secondary:hover {
-  background: var(--color-bg);
-  border-color: var(--color-text-muted);
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+}
+
+/* ── Zoho Design System Components ───────────────────────── */
+.zoho-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.zoho-card:hover {
+  border-color: rgba(203, 213, 225, 1);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.zoho-table-header {
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  color: #64748B;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.zoho-badge-blue {
+  background: #EEF4FE;
+  color: #1064EA;
+  border: 1px solid #D0E1FD;
+}
+
+.zoho-badge-green {
+  background: #E6F6EE;
+  color: #00A859;
+  border: 1px solid #B7E8CE;
+}
+
+.zoho-badge-amber {
+  background: #FEF7EC;
+  color: #D97706;
+  border: 1px solid #FDE68A;
+}
+
+.zoho-badge-red {
+  background: #FEECEB;
+  color: #DC2626;
+  border: 1px solid #FECACA;
 }
 
 /* ── Page Transitions ────────────────────────────────────── */
@@ -201,9 +278,9 @@ code, pre {
 }
 
 .nav-active {
-  background: linear-gradient(135deg, var(--color-primary-soft) 0%, var(--color-primary) 100%);
+  background: #1064EA;
   color: white !important;
-  box-shadow: 0 8px 16px -4px rgba(42, 38, 115, 0.4);
+  box-shadow: 0 4px 12px -2px rgba(16, 100, 234, 0.4);
 }
 
 /* ── Page Enter Animation ───────────────────────────────── */

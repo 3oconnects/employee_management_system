@@ -39,20 +39,20 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
   return (
     <div className="space-y-5">
       {/* ── Submodule Card Container ──────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
         
         {/* Section 1: Header Banner (Spacious, Never Collapsing) */}
-        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center flex-shrink-0 shadow-2xs">
-              <ShieldCheck size={22} strokeWidth={2.2} />
+        <div className="p-5 border-b border-slate-200/80 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center flex-shrink-0">
+              <ShieldCheck size={18} strokeWidth={2.2} />
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h3 className="text-[14px] font-black text-slate-900 tracking-tight uppercase">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                   Unit Timesheet Authorizations
                 </h3>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${
                   pending.length > 0 
                     ? 'bg-amber-50 text-amber-800 border-amber-200' 
                     : 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -60,9 +60,9 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
                   {pending.length > 0 ? `${pending.length} Action Required` : 'Zero Backlog'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
                 Review and authorize team submissions • Total pending volume:{' '}
-                <span className="font-bold text-slate-700">{totalPendingHours.toFixed(1)} hrs</span>
+                <span className="font-semibold text-slate-700">{totalPendingHours.toFixed(1)} hrs</span>
               </p>
             </div>
           </div>
@@ -73,16 +73,16 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
               onClick={onRefresh}
               disabled={appLoading}
               title="Refresh pending submissions"
-              className="px-3.5 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2 disabled:opacity-50"
+              className="px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-2 disabled:opacity-50"
             >
-              <RefreshCw size={13} className={appLoading ? 'animate-spin text-purple-600' : ''} />
+              <RefreshCw size={13} className={appLoading ? 'animate-spin text-blue-600' : ''} />
               <span>{appLoading ? 'Refreshing...' : 'Refresh Queue'}</span>
             </button>
           </div>
         </div>
 
         {/* Section 2: Dedicated Search & Filter Toolbar (Spacious Layout) */}
-        <div className="px-6 py-4 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+        <div className="px-5 py-3.5 bg-white border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           {/* Search Box with proper padding and icon alignment */}
           <div className="relative w-full sm:w-80 md:w-96 flex-shrink-0">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -91,7 +91,7 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
               value={appSearch}
               onChange={e => setAppSearch(e.target.value)}
               placeholder="Search by employee name or email..."
-              className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200/90 rounded-xl pl-10 pr-9 py-2 text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 outline-none transition-all shadow-2xs"
+              className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200/90 rounded-lg pl-10 pr-9 py-2 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all shadow-xs"
             />
             {appSearch && (
               <button
@@ -105,12 +105,12 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
           </div>
 
           {/* Segmented Filter Pills */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100/80 border border-slate-200/70 rounded-xl text-[11px] font-bold self-start sm:self-auto">
+          <div className="flex items-center gap-1 p-1 bg-slate-100/80 border border-slate-200/70 rounded-lg text-xs font-semibold self-start sm:self-auto">
             <button
               onClick={() => setAppFilter('all')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1 rounded-md transition-all ${
                 appFilter === 'all'
-                  ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -118,9 +118,9 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
             </button>
             <button
               onClick={() => setAppFilter('full')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1 rounded-md transition-all ${
                 appFilter === 'full'
-                  ? 'bg-white text-emerald-700 shadow-2xs font-extrabold'
+                  ? 'bg-white text-emerald-700 shadow-xs font-bold'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -128,9 +128,9 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
             </button>
             <button
               onClick={() => setAppFilter('partial')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1 rounded-md transition-all ${
                 appFilter === 'partial'
-                  ? 'bg-white text-amber-700 shadow-2xs font-extrabold'
+                  ? 'bg-white text-amber-700 shadow-xs font-bold'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -142,7 +142,7 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
         {/* Section 3: Content Body */}
         {appLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 animate-pulse">
+            <div className="w-12 h-12 rounded-xl bg-[#EEF4FE] flex items-center justify-center text-[#1064EA] animate-pulse">
               <Loader2 size={24} className="animate-spin" />
             </div>
             <span className="text-xs font-black text-slate-500 uppercase tracking-widest">
@@ -151,54 +151,54 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
           </div>
         ) : pending.length === 0 ? (
           /* Executive "All Caught Up / Zero Backlog" Empty State */
-          <div className="p-10 md:p-14 flex flex-col items-center text-center">
+          <div className="p-10 md:p-12 flex flex-col items-center text-center">
             {/* Glowing Hero Icon */}
-            <div className="relative mb-5">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-100 to-teal-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-md shadow-emerald-500/10">
-                <CheckCircle2 size={38} strokeWidth={2.2} />
+            <div className="relative mb-4">
+              <div className="w-14 h-14 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-xs">
+                <CheckCircle2 size={28} strokeWidth={2.2} />
               </div>
-              <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white shadow-2xs">
-                <Check size={13} strokeWidth={3} />
+              <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white shadow-xs">
+                <Check size={11} strokeWidth={3} />
               </span>
             </div>
 
-            <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-[10px] font-black uppercase tracking-wider mb-2">
+            <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-[10px] font-semibold uppercase tracking-wider mb-2">
               Queue Fully Cleared • Zero Backlog
             </span>
 
-            <h3 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">
               All Unit Timesheets Approved
             </h3>
-            <p className="text-xs md:text-sm text-slate-500 max-w-md mt-1 mb-8 leading-relaxed">
+            <p className="text-xs text-slate-500 max-w-md mt-1 mb-6 leading-relaxed">
               There are currently no timesheets in the queue awaiting supervisor authorization. All submissions within your purview have been evaluated.
             </p>
 
             {/* Informative Guidance Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl w-full text-left">
-              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
-                <div className="flex items-center gap-2.5 text-indigo-600 mb-2">
-                  <CalendarDays size={16} />
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800">Weekly Cycle</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 max-w-3xl w-full text-left">
+              <div className="p-3.5 rounded-lg bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between">
+                <div className="flex items-center gap-2 text-blue-600 mb-1.5">
+                  <CalendarDays size={15} />
+                  <span className="text-xs font-bold text-slate-800">Weekly Cycle</span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   Team submissions close every Friday at 6:00 PM. New weekly batches will automatically populate here.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
-                <div className="flex items-center gap-2.5 text-emerald-600 mb-2">
-                  <ShieldCheck size={16} />
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800">Telemetry Guard</span>
+              <div className="p-3.5 rounded-lg bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between">
+                <div className="flex items-center gap-2 text-emerald-600 mb-1.5">
+                  <ShieldCheck size={15} />
+                  <span className="text-xs font-bold text-slate-800">Telemetry Guard</span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   Entries are automatically reconciled with biometric check-in/out records prior to landing in your queue.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-100 flex flex-col justify-between">
-                <div className="flex items-center gap-2.5 text-purple-600 mb-2">
-                  <CheckCheck size={16} />
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800">Payroll Sync</span>
+              <div className="p-3.5 rounded-lg bg-slate-50/70 border border-slate-200/80 flex flex-col justify-between">
+                <div className="flex items-center gap-2 text-amber-600 mb-1.5">
+                  <CheckCheck size={15} />
+                  <span className="text-xs font-bold text-slate-800">Payroll Sync</span>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   Authorized hours are consolidated and released for payroll processing at the start of each work week.
@@ -207,17 +207,17 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
             </div>
 
             {/* Quick Navigation Buttons */}
-            <div className="mt-8 flex items-center gap-3 flex-wrap justify-center">
+            <div className="mt-6 flex items-center gap-2.5 flex-wrap justify-center">
               <button
                 onClick={onRefresh}
-                className="px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2"
+                className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5"
               >
                 <RefreshCw size={13} />
                 Refresh Queue
               </button>
               <button
                 onClick={onSwitchToMy}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2"
+                className="px-3.5 py-1.5 bg-[#1064EA] hover:bg-[#0C54C8] text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5"
               >
                 Switch to My Timesheet
                 <ArrowRight size={13} />
@@ -226,17 +226,17 @@ export const TimesheetApprovalsTab: React.FC<TimesheetApprovalsTabProps> = ({
           </div>
         ) : filteredPending.length === 0 ? (
           /* Filtered No Matches */
-          <div className="py-20 flex flex-col items-center justify-center text-center px-4">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
-              <Search size={22} />
+          <div className="py-16 flex flex-col items-center justify-center text-center px-4">
+            <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 mb-2.5">
+              <Search size={18} />
             </div>
-            <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">No Matching Submissions</h4>
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">No Matching Submissions</h4>
             <p className="text-xs text-slate-400 mt-1 max-w-sm">
               No timesheet submissions matched your search query or filter criteria.
             </p>
             <button
               onClick={() => { setAppSearch(''); setAppFilter('all'); }}
-              className="mt-4 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+              className="mt-3.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all"
             >
               Clear Filter
             </button>
@@ -293,19 +293,19 @@ const TimesheetApprovalRowItem: React.FC<{
     <div className="hover:bg-slate-50/50 transition-colors">
       <div className="px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Employee Info */}
-        <div className="w-full md:w-1/3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-600 text-white font-black flex items-center justify-center text-sm shadow-2xs flex-shrink-0">
+        <div className="w-full md:w-1/3 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[#1064EA] text-white font-bold flex items-center justify-center text-xs shadow-xs flex-shrink-0">
             {initial}
           </div>
           <div className="min-w-0">
-            <p className="font-extrabold text-slate-900 text-xs truncate">{name}</p>
+            <p className="font-bold text-slate-900 text-xs truncate">{name}</p>
             <p className="text-[11px] text-slate-400 font-medium truncate">{p.applicant_email}</p>
           </div>
         </div>
 
         {/* Period Range */}
         <div className="w-full md:w-1/4">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
             <Calendar size={13} className="text-slate-400" />
             <span>{fmtWeekRange(p.week_start, p.week_end)}</span>
           </div>
@@ -316,7 +316,7 @@ const TimesheetApprovalRowItem: React.FC<{
 
         {/* Logged Hours Status */}
         <div className="w-full md:w-1/6 flex flex-col items-start md:items-center">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black border ${
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold border ${
             hoursNum >= 40
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
               : 'bg-amber-50 text-amber-700 border-amber-200'
@@ -324,7 +324,7 @@ const TimesheetApprovalRowItem: React.FC<{
             <Clock size={12} />
             {hoursNum.toFixed(1)} hrs
           </span>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 mt-1">
             {hoursNum >= 40 ? 'Standard Quota Met' : `${(40 - hoursNum).toFixed(1)}h Below Quota`}
           </span>
         </div>
@@ -334,7 +334,7 @@ const TimesheetApprovalRowItem: React.FC<{
           {entriesCount > 0 && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="p-1.5 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs"
+              className="p-1.5 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-medium transition-all flex items-center gap-1 shadow-xs"
               title="Toggle task breakdown"
             >
               <FileText size={13} />
@@ -346,7 +346,7 @@ const TimesheetApprovalRowItem: React.FC<{
           <button
             onClick={handleApproveClick}
             disabled={approving}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-2xs disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold uppercase tracking-wider transition-all shadow-xs disabled:opacity-50"
           >
             {approving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
             Approve
@@ -355,7 +355,7 @@ const TimesheetApprovalRowItem: React.FC<{
           <button
             onClick={onReject}
             disabled={approving}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50 shadow-xs"
           >
             Reject
           </button>
@@ -364,8 +364,8 @@ const TimesheetApprovalRowItem: React.FC<{
 
       {/* Expandable Breakdown Drawer */}
       {expanded && p.entries && p.entries.length > 0 && (
-        <div className="px-6 pb-4 pt-1 bg-slate-50/40 border-t border-slate-100 animate-in fade-in duration-150">
-          <div className="bg-white rounded-xl border border-slate-200/80 p-3.5 shadow-2xs">
+        <div className="px-5 pb-4 pt-1 bg-slate-50/40 border-t border-slate-100 animate-in fade-in duration-150">
+          <div className="bg-white rounded-lg border border-slate-200/80 p-3.5 shadow-xs">
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Detailed Project & Task Breakdown ({p.entries.length} items)
@@ -400,7 +400,7 @@ const TimesheetApprovalRowItem: React.FC<{
                             key={d}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                               h > 0
-                                ? 'bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-100'
+                                ? 'bg-[#EEF4FE] text-[#1064EA] font-extrabold border border-blue-100'
                                 : 'bg-slate-100 text-slate-400'
                             }`}
                           >

@@ -283,7 +283,7 @@ const Timesheets: React.FC = () => {
   };
 
   return (
-    <div className="p-8 space-y-7 max-w-[1600px] mx-auto page-enter">
+    <div className="p-6 space-y-6 max-w-[1600px] mx-auto page-enter">
       {/* ── Submodule 1: Page Header & Week Navigator ────────────────────── */}
       <TimesheetHeader
         activeTab={activeTab}

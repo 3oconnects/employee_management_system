@@ -8,10 +8,11 @@ import {
     Building2, FileText, Download, Shield,
     BarChart3, History, Briefcase, Activity,
     Calendar, MoreVertical, Search, Filter,
-    CheckCircle2
+    CheckCircle2, UserPlus
 } from 'lucide-react';
 import api from '../../../services/api';
 import { toast } from '../../../components/ui';
+import AssignMembersModal from '../components/AssignMembersModal';
 
 // ─── SESSION CACHE ────────────────────────────────────────────────────────
 // Prevents redundant "buffering" when switching tabs or re-visiting nodes.
@@ -29,12 +30,27 @@ const StructuralDeepDivePage: React.FC = () => {
     const [members, setMembers] = useState<any[]>(cached?.members || []);
     const [childTeams, setChildTeams] = useState<any[]>(cached?.teams || []);
     const [policies, setPolicies] = useState<any[]>(cached?.policies || []);
+    const [assignModalOpen, setAssignModalOpen] = useState(false);
     
     // Only show loader if we have NO cached data for this specific node
     const [loading, setLoading] = useState(!cached);
     
     const [activeTab, setActiveTab] = useState<'overview' | 'personnel' | 'structure' | 'analytics' | 'governance' | 'resources'>('overview');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+    const reloadMembers = async () => {
+        try {
+            const memberRes = await api.get(`/employees?${type === 'dept' ? 'department_id' : 'team_id'}=${id}`);
+            const fetchedMembers = memberRes.data.items || [];
+            setMembers(fetchedMembers);
+            const current = entityCache.get(cacheKey);
+            if (current) {
+                entityCache.set(cacheKey, { ...current, members: fetchedMembers, ts: Date.now() });
+            }
+        } catch {
+            // silent fail
+        }
+    };
 
     useEffect(() => {
         const loadData = async () => {
@@ -144,7 +160,7 @@ const StructuralDeepDivePage: React.FC = () => {
                             <p className="text-[12px] text-white/50 font-medium max-w-xl line-clamp-1">{item.description || 'Enterprise structural unit and operational node.'}</p>
                         </div>
                     </div>
-                    <div className="bg-slate-50 border-l border-slate-200 p-6 flex items-center gap-8 px-10">
+                    <div className="bg-slate-50 border-l border-slate-200 p-6 flex items-center gap-6 px-8">
                         <div className="text-center">
                             <p className="text-[18px] font-black text-slate-900 leading-none">{members.length}</p>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">Force Members</p>
@@ -159,6 +175,15 @@ const StructuralDeepDivePage: React.FC = () => {
                             <p className="text-[18px] font-black text-indigo-600 leading-none">PEAK</p>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">Status</p>
                         </div>
+                        <div className="w-px h-8 bg-slate-200" />
+                        <button
+                            onClick={() => setAssignModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-[11px] font-bold tracking-wide shadow-sm hover:shadow transition-all shrink-0"
+                            title="Assign employees to this unit"
+                        >
+                            <UserPlus size={14} />
+                            <span>Assign</span>
+                        </button>
                     </div>
                 </div>
 
@@ -276,42 +301,71 @@ const StructuralDeepDivePage: React.FC = () => {
                             <div className="flex items-center justify-between border-b border-slate-100 pb-5">
                                 <div>
                                     <h3 className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Force Matrix</h3>
-                                    <p className="text-[11px] text-slate-400 mt-1">Assigned personnel for this unit.</p>
+                                    <p className="text-[11px] text-slate-400 mt-1">Assigned personnel for this unit ({members.length}).</p>
                                 </div>
-                                <div className="flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200 rounded-lg">
-                                    <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><LayoutGrid size={14} /></button>
-                                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><List size={14} /></button>
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={() => setAssignModalOpen(true)}
+                                        className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-[11px] font-bold shadow-sm transition-all"
+                                    >
+                                        <UserPlus size={13} />
+                                        <span>Assign Members</span>
+                                    </button>
+                                    <div className="flex items-center gap-1.5 p-1 bg-slate-50 border border-slate-200 rounded-lg">
+                                        <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><LayoutGrid size={14} /></button>
+                                        <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}><List size={14} /></button>
+                                    </div>
                                 </div>
                             </div>
-                            <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" : "space-y-2"}>
-                                {members.map(member => (
-                                    viewMode === 'grid' ? (
-                                        <div key={member.id} className="p-5 bg-white border border-slate-200 rounded-xl hover:border-indigo-400 hover:shadow-md transition-all group">
-                                            <div className="flex items-start gap-4 mb-4">
-                                                <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 font-black text-[12px] group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                                                    {member.name.substring(0, 2).toUpperCase()}
+
+                            {members.length === 0 ? (
+                                <div className="py-14 px-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                    <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                                        <Users size={24} />
+                                    </div>
+                                    <h4 className="text-[14px] font-black text-slate-900">No Members Assigned Yet</h4>
+                                    <p className="text-[12px] text-slate-500 max-w-sm mx-auto mt-1 mb-5">
+                                        Assign active employees to this {type === 'dept' ? 'department' : 'team'} so they appear in this unit's roster and hierarchy.
+                                    </p>
+                                    <button
+                                        onClick={() => setAssignModalOpen(true)}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[12px] font-bold shadow-sm transition-all"
+                                    >
+                                        <UserPlus size={14} />
+                                        <span>Assign Team Members</span>
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" : "space-y-2"}>
+                                    {members.map(member => (
+                                        viewMode === 'grid' ? (
+                                            <div key={member.id} className="p-5 bg-white border border-slate-200 rounded-xl hover:border-indigo-400 hover:shadow-md transition-all group">
+                                                <div className="flex items-start gap-4 mb-4">
+                                                    <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 font-black text-[12px] group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                        {member.name.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate">{member.name}</h4>
+                                                        <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-1 truncate">{member.position}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <h4 className="text-[13px] font-black text-slate-900 leading-tight truncate">{member.name}</h4>
-                                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mt-1 truncate">{member.position}</p>
+                                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] font-black uppercase text-slate-400">
+                                                    <div className="flex items-center gap-1.5"><div className="w-1 h-1 rounded-full bg-emerald-500" /> Active</div>
+                                                    <button className="text-indigo-600 hover:underline">Profile</button>
                                                 </div>
                                             </div>
-                                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[9px] font-black uppercase text-slate-400">
-                                                <div className="flex items-center gap-1.5"><div className="w-1 h-1 rounded-full bg-emerald-500" /> Active</div>
-                                                <button className="text-indigo-600 hover:underline">Profile</button>
+                                        ) : (
+                                            <div key={member.id} className="flex items-center justify-between p-3.5 bg-white border border-slate-100 rounded-lg hover:bg-slate-50 transition-all group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-9 h-9 rounded-md bg-slate-50 flex items-center justify-center text-slate-400 font-black text-[11px]">{member.name.substring(0, 2).toUpperCase()}</div>
+                                                    <div><h4 className="text-[14px] font-black text-slate-900 leading-none">{member.name}</h4><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{member.position}</p></div>
+                                                </div>
+                                                <button className="px-4 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">Details</button>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div key={member.id} className="flex items-center justify-between p-3.5 bg-white border border-slate-100 rounded-lg hover:bg-slate-50 transition-all group">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-9 h-9 rounded-md bg-slate-50 flex items-center justify-center text-slate-400 font-black text-[11px]">{member.name.substring(0, 2).toUpperCase()}</div>
-                                                <div><h4 className="text-[14px] font-black text-slate-900 leading-none">{member.name}</h4><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{member.position}</p></div>
-                                            </div>
-                                            <button className="px-4 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all">Details</button>
-                                        </div>
-                                    )
-                                ))}
-                            </div>
+                                        )
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -397,6 +451,18 @@ const StructuralDeepDivePage: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* ── ASSIGN MEMBERS MODAL ────────────────── */}
+            <AssignMembersModal
+                isOpen={assignModalOpen}
+                onClose={() => setAssignModalOpen(false)}
+                targetType={type as 'dept' | 'team'}
+                targetId={id!}
+                targetName={item?.name || ''}
+                parentDeptId={item?.department_id}
+                currentMemberIds={members.map(m => String(m.id))}
+                onSuccess={reloadMembers}
+            />
         </div>
     );
 };

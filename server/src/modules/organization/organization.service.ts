@@ -11,17 +11,23 @@ export class OrganizationService {
         return this.repo.getDepartments(tenantId);
     }
 
-    async createDepartmentRequest(userId: string | number, tenantId: string, data: any) {
-        const employeeId = await this.repo.getEmployeeIdByUserId(userId, tenantId);
-        const approvalId = `STR-${Date.now()}`;
-        
-        await this.repo.insertApproval(approvalId, employeeId, 'department_creation', {
-            name: data.name,
-            description: data.description,
-            owner_id: data.manager_id,
-            metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata,
-            category: data.category || 'core'
-        }, tenantId);
+    async createDepartment(userId: string | number, tenantId: string, data: any) {
+        const newDept = await this.repo.createDepartment(data, tenantId);
+        try {
+            const employeeId = await this.repo.getEmployeeIdByUserId(userId, tenantId);
+            const approvalId = `STR-${Date.now()}`;
+            await this.repo.insertApproval(approvalId, employeeId, 'department_creation', {
+                id: newDept.id,
+                name: data.name,
+                description: data.description,
+                owner_id: data.owner_id || data.manager_id,
+                metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata,
+                category: data.category || 'core'
+            }, tenantId);
+        } catch (err: any) {
+            console.error('[OrganizationService] Failed to insert approval record:', err.message);
+        }
+        return newDept;
     }
 
     async updateDepartment(id: string, data: any, tenantId: string) {
@@ -36,20 +42,25 @@ export class OrganizationService {
         return this.repo.getTeams(tenantId, departmentId);
     }
 
-    async createTeamRequest(userId: string | number, tenantId: string, data: any) {
-        const employeeId = await this.repo.getEmployeeIdByUserId(userId, tenantId);
-        const approvalId = `STR-${Date.now()}`;
-        
-        await this.repo.insertApproval(approvalId, employeeId, 'team_creation', {
-            name: data.name,
-            department_id: data.department_id,
-            parent_team_id: data.parent_team_id,
-            description: data.description,
-            owner_id: data.manager_id,
-            member_ids: Array.isArray(data.member_ids) ? Array.from(new Set(data.member_ids.map(String))).slice(0, 200) : [],
-            metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata,
-            category: data.category || 'core'
-        }, tenantId);
+    async createTeam(userId: string | number, tenantId: string, data: any) {
+        const newTeam = await this.repo.createTeam(data, tenantId);
+        try {
+            const employeeId = await this.repo.getEmployeeIdByUserId(userId, tenantId);
+            const approvalId = `STR-${Date.now()}`;
+            await this.repo.insertApproval(approvalId, employeeId, 'team_creation', {
+                id: newTeam.id,
+                name: data.name,
+                department_id: data.department_id,
+                parent_team_id: data.parent_team_id,
+                description: data.description,
+                owner_id: data.owner_id || data.manager_id,
+                metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata,
+                category: data.category || 'core'
+            }, tenantId);
+        } catch (err: any) {
+            console.error('[OrganizationService] Failed to insert approval record:', err.message);
+        }
+        return newTeam;
     }
 
     async updateTeam(id: string, data: any, tenantId: string) {

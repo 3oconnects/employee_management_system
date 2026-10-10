@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Bell, ChevronDown, LogOut, User, Shield, Search,
-    Settings, HelpCircle, Building2, UserCircle2, X, Command
+    Settings, HelpCircle, Building2, UserCircle2, X, Command,
+    Plus, Clock, CalendarDays, UserPlus, CheckCircle2
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
@@ -28,13 +29,13 @@ const routeLabels: Record<string, string> = {
 
 /* Avatar color map — same as Sidebar for consistency */
 const AVATAR_COLORS: Record<string, string> = {
-    A: '#6366f1', B: '#8b5cf6', C: '#ec4899', D: '#f59e0b', E: '#10b981',
-    F: '#3b82f6', G: '#ef4444', H: '#14b8a6', I: '#f97316', J: '#84cc16',
-    K: '#06b6d4', L: '#a855f7', M: '#e11d48', N: '#0ea5e9', O: '#22c55e',
-    P: '#d946ef', Q: '#fb923c', R: '#64748b', S: '#6366f1', T: '#8b5cf6',
-    U: '#ec4899', V: '#10b981', W: '#3b82f6', X: '#f59e0b', Y: '#14b8a6', Z: '#ef4444',
+    A: '#1064EA', B: '#2563EB', C: '#00A859', D: '#F59E0B', E: '#10B981',
+    F: '#1064EA', G: '#ED1C24', H: '#14B8A6', I: '#F97316', J: '#84CC16',
+    K: '#06B6D4', L: '#8B5CF6', M: '#E11D48', N: '#0EA5E9', O: '#22C55E',
+    P: '#D946EF', Q: '#FB923C', R: '#64748B', S: '#1064EA', T: '#2563EB',
+    U: '#00A859', V: '#10B981', W: '#1064EA', X: '#F59E0B', Y: '#14B8A6', Z: '#ED1C24',
 };
-const getAvatarColor = (name?: string) => AVATAR_COLORS[(name?.[0] ?? 'U').toUpperCase()] ?? '#6366f1';
+const getAvatarColor = (name?: string) => AVATAR_COLORS[(name?.[0] ?? 'U').toUpperCase()] ?? '#1064EA';
 
 const Topbar: React.FC = () => {
     const { user, logout, accessToken, hasAnyRole, hasPermission } = useAuthStore();
@@ -43,6 +44,7 @@ const Topbar: React.FC = () => {
 
     const [userMenuOpen, setUserMenuOpen]     = useState(false);
     const [notifOpen, setNotifOpen]           = useState(false);
+    const [quickAddOpen, setQuickAddOpen]     = useState(false);
     const [notifications, setNotifications]   = useState<any[]>([]);
     const [unreadCount, setUnreadCount]       = useState(0);
     const [searchOpen, setSearchOpen]         = useState(false);
@@ -50,6 +52,7 @@ const Topbar: React.FC = () => {
 
     const userMenuRef = useRef<HTMLDivElement>(null);
     const notifRef    = useRef<HTMLDivElement>(null);
+    const quickAddRef = useRef<HTMLDivElement>(null);
     const searchRef   = useRef<HTMLDivElement>(null);
     const searchInput = useRef<HTMLInputElement>(null);
 
@@ -99,6 +102,7 @@ const Topbar: React.FC = () => {
         const handler = (e: MouseEvent) => {
             if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
             if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+            if (quickAddRef.current && !quickAddRef.current.contains(e.target as Node)) setQuickAddOpen(false);
             if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
         };
         document.addEventListener('mousedown', handler);
@@ -138,7 +142,7 @@ const Topbar: React.FC = () => {
     const setView = (v: 'myspace' | 'org') => setSearchParams(v === 'myspace' ? {} : { view: 'org' });
 
     return (
-        <header className="h-[64px] flex-shrink-0 flex items-center bg-white border-b border-slate-100/80 sticky top-0 z-30 px-5 gap-4"
+        <header className="h-[54px] flex-shrink-0 flex items-center bg-white border-b border-slate-200/80 sticky top-0 z-30 px-4 gap-3"
             style={{ boxShadow: '0 1px 0 0 rgba(15,23,42,0.04), 0 2px 8px rgba(15,23,42,0.03)' }}>
 
             {/* ── LEFT: Workspace Switcher (dashboard) OR Page Label ── */}
@@ -161,8 +165,8 @@ const Topbar: React.FC = () => {
                     </div>
                 ) : (
                     <div className="flex items-center gap-2.5">
-                        <div className="w-1 h-5 bg-indigo-500 rounded-full opacity-60" />
-                        <p className="text-[13px] font-semibold text-slate-500 leading-none">{pageLabel}</p>
+                        <div className="w-1.5 h-4.5 bg-[#1064EA] rounded-full" />
+                        <p className="text-[13px] font-bold text-slate-800 leading-none tracking-tight">{pageLabel}</p>
                     </div>
                 )}
             </div>
@@ -174,8 +178,8 @@ const Topbar: React.FC = () => {
                         onClick={() => { setSearchOpen(true); setTimeout(() => searchInput.current?.focus(), 50); }}
                         className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-200
                             ${searchOpen
-                                ? 'bg-white border-indigo-300 shadow-[0_0_0_3px_rgba(99,102,241,0.10)]'
-                                : 'bg-slate-50/80 border-slate-200/70 hover:border-slate-300 hover:bg-white'
+                                ? 'bg-white border-[#1064EA] shadow-[0_0_0_3px_rgba(16,100,234,0.12)]'
+                                : 'bg-slate-50/80 border-slate-200/80 hover:border-slate-300 hover:bg-white'
                             }`}
                     >
                         <Search size={14} className="text-slate-400 flex-shrink-0" />
@@ -256,22 +260,89 @@ const Topbar: React.FC = () => {
             </div>
 
             {/* ── RIGHT: Actions ───────────────────────────────────── */}
-            <div className="flex-shrink-0 flex items-center gap-1.5">
+            <div className="flex-shrink-0 flex items-center gap-2">
+
+                {/* Zoho Signature + Quick Add Button */}
+                <div className="relative" ref={quickAddRef}>
+                    <button
+                        onClick={() => { setQuickAddOpen(!quickAddOpen); setNotifOpen(false); setUserMenuOpen(false); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1064EA] hover:bg-[#0C54C8] text-white rounded-xl text-xs font-bold transition-all shadow-xs shadow-[#1064EA]/25"
+                        title="Quick Add Actions"
+                    >
+                        <Plus size={14} strokeWidth={2.5} />
+                        <span className="hidden sm:inline">Quick Add</span>
+                    </button>
+
+                    {quickAddOpen && (
+                        <div className="absolute right-0 top-[calc(100%+8px)] w-56 bg-white rounded-2xl shadow-[0_16px_48px_rgba(0,0,0,0.12)] border border-slate-200/90 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                            <div className="px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/60">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Zoho Quick Actions</p>
+                            </div>
+                            <div className="p-1.5 space-y-0.5 text-xs">
+                                <button
+                                    onClick={() => { navigate('/timesheet'); setQuickAddOpen(false); }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:text-[#1064EA] hover:bg-blue-50/60 font-semibold transition-colors text-left"
+                                >
+                                    <Clock size={15} className="text-[#1064EA]" />
+                                    <span>Log Timesheet</span>
+                                </button>
+                                <button
+                                    onClick={() => { navigate('/leave'); setQuickAddOpen(false); }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:text-[#00A859] hover:bg-emerald-50/60 font-semibold transition-colors text-left"
+                                >
+                                    <CalendarDays size={15} className="text-[#00A859]" />
+                                    <span>Apply for Leave</span>
+                                </button>
+                                <button
+                                    onClick={() => { navigate('/attendance'); setQuickAddOpen(false); }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:text-[#F59E0B] hover:bg-amber-50/60 font-semibold transition-colors text-left"
+                                >
+                                    <Clock size={15} className="text-[#F59E0B]" />
+                                    <span>Punch Attendance</span>
+                                </button>
+                                {hasPermission('onboarding:manage') && (
+                                    <button
+                                        onClick={() => { navigate('/onboarding'); setQuickAddOpen(false); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:text-purple-600 hover:bg-purple-50/60 font-semibold transition-colors text-left"
+                                    >
+                                        <UserPlus size={15} className="text-purple-600" />
+                                        <span>Onboard Employee</span>
+                                    </button>
+                                )}
+                                {hasPermission('approvals:read') && (
+                                    <button
+                                        onClick={() => { navigate('/approvals'); setQuickAddOpen(false); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/60 font-semibold transition-colors text-left"
+                                    >
+                                        <CheckCircle2 size={15} className="text-indigo-600" />
+                                        <span>Review Approvals</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* Help */}
-                <button className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/70 transition-all">
+                <button 
+                    onClick={() => window.open('https://help.zoho.com', '_blank')}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-[#1064EA] hover:bg-blue-50/70 transition-all"
+                    title="Documentation & Help"
+                >
                     <HelpCircle size={16} />
                 </button>
 
-                {/* Notifications */}
+                {/* Notifications with Zoho Red Accent */}
                 <div className="relative" ref={notifRef}>
                     <button
-                        onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
-                        className="relative w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50/70 transition-all"
+                        onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); setQuickAddOpen(false); }}
+                        className="relative w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-[#1064EA] hover:bg-blue-50/70 transition-all"
                     >
                         <Bell size={16} />
                         {unreadCount > 0 && (
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white shadow-sm" />
+                            <span className="absolute -top-0.5 -right-0.5 px-1 min-w-[15px] h-[15px] bg-[#ED1C24] text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
                         )}
                     </button>
 
@@ -280,10 +351,10 @@ const Topbar: React.FC = () => {
                             <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
                                 <div>
                                     <h4 className="text-[13px] font-bold text-slate-900">Notifications</h4>
-                                    {unreadCount > 0 && <p className="text-[11px] text-indigo-500 font-medium mt-0.5">{unreadCount} unread</p>}
+                                    {unreadCount > 0 && <p className="text-[11px] text-[#1064EA] font-medium mt-0.5">{unreadCount} unread</p>}
                                 </div>
                                 {unreadCount > 0 && (
-                                    <button onClick={handleMarkAllRead} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                    <button onClick={handleMarkAllRead} className="text-[11px] font-semibold text-[#1064EA] hover:text-[#0C54C8] transition-colors">
                                         Mark all read
                                     </button>
                                 )}

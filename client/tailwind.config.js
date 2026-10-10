@@ -7,6 +7,24 @@ export default {
     theme: {
         extend: {
             colors: {
+                ozofi: {
+                    navy: '#17213D',
+                    blue: '#2563EB',
+                    indigo: '#3730A3',
+                    purple: '#8B3DFF',
+                    teal: '#0F9F8F',
+                    green: '#65B814',
+                    amber: '#FFAA0A',
+                    orange: '#FF641F',
+                    red: '#EF3434',
+                    canvas: '#FFFFFF',
+                    surface: '#F5F7FB',
+                    'surface-raised': '#FFFFFF',
+                    border: '#E2E8F0',
+                    text: '#17213D',
+                    'text-secondary': '#64748B',
+                    'text-muted': '#94A3B8',
+                },
                 nx: {
                     'primary': 'rgb(var(--nx-primary) / <alpha-value>)',
                     'primary-hover': 'rgb(var(--nx-primary-hover) / <alpha-value>)',
@@ -29,20 +47,50 @@ export default {
                     'info-subtle': 'rgb(var(--nx-info-subtle) / <alpha-value>)',
                 },
                 primary: {
-                    DEFAULT: '#2A2673',
-                    soft: '#4F4AA8',
-                    light: '#CFD2E6',
+                    DEFAULT: '#1064EA',
+                    soft: '#2563EB',
+                    light: '#DBEAFE',
+                },
+                indigo: {
+                    50: '#EEF4FE',
+                    100: '#DCE7FD',
+                    200: '#BFD4FB',
+                    300: '#94BCF8',
+                    400: '#609DF4',
+                    500: '#387DEF',
+                    600: '#1064EA', /* Zoho Primary Enterprise Blue */
+                    700: '#0C54C8', /* Zoho Blue Hover */
+                    800: '#0E449F',
+                    900: '#113B7E',
+                    950: '#0C1427', /* Zoho Deep Navy */
+                },
+                zoho: {
+                    blue: '#1064EA',
+                    'blue-hover': '#0C54C8',
+                    'blue-subtle': '#EEF4FE',
+                    red: '#ED1C24',
+                    'red-subtle': '#FEECEB',
+                    green: '#00A859',
+                    'green-subtle': '#E6F6EE',
+                    yellow: '#FBB03B',
+                    'yellow-subtle': '#FEF7EC',
+                    navy: '#0C1427',
+                    'navy-light': '#162038',
+                    canvas: '#F4F5F8',
+                    surface: '#FFFFFF',
+                    border: '#E2E8F0',
+                    'border-strong': '#CBD5E1',
                 },
                 sidebar: {
-                    bg: '#14123D',
-                    active: '#2A2673',
+                    bg: '#0C1427',
+                    active: '#1064EA',
                 },
                 surface: '#FFFFFF',
-                bg: '#F7F8FC',
+                bg: '#F4F5F8',
                 text: {
-                    primary: '#14123D',
-                    secondary: '#4F4AA8',
-                    muted: '#9CA3AF',
+                    primary: '#0F172A',
+                    secondary: '#334155',
+                    muted: '#64748B',
                 }
             },
             borderRadius: {

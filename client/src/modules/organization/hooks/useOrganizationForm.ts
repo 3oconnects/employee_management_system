@@ -78,22 +78,33 @@ export const useOrganizationForm = (onSuccess: () => void) => {
         setSubmitting(true);
         try {
             const endpoint = modalType === 'dept' ? '/organization/departments' : '/organization/teams';
-            const payload = {
-                ...formData,
+            const ownerId = formData.owner_id ? parseInt(formData.owner_id, 10) : null;
+            const payload: any = {
+                name: formData.name.trim(),
+                description: formData.description?.trim() || null,
+                owner_id: ownerId,
+                manager_id: ownerId,
+                category: formData.category || 'core',
                 metadata: JSON.stringify(formData.metadata)
             };
+
+            if (modalType === 'team') {
+                payload.department_id = parseInt(formData.department_id, 10);
+                payload.parent_team_id = formData.parent_team_id ? parseInt(formData.parent_team_id, 10) : null;
+            }
 
             if (editingItem) {
                 await api.put(`${endpoint}/${editingItem.id}`, payload);
                 toast.success('Configuration updated');
             } else {
                 await api.post(endpoint, payload);
-                toast.success('New unit initialized');
+                toast.success(`${modalType === 'dept' ? 'Division' : 'Squad'} initialized successfully`);
             }
             setModalType(null);
             onSuccess();
-        } catch (err) {
-            toast.error('Strategic operation failed');
+        } catch (err: any) {
+            const msg = err.response?.data?.message || err.response?.data?.error || 'Operation failed';
+            toast.error(msg);
         } finally {
             setSubmitting(false);
         }

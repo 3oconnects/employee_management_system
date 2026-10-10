@@ -45,7 +45,13 @@ export const useOrganizationData = () => {
 
             const newDepts = deptRes.data.data;
             const newTeams = teamRes.data.data;
-            const newUsers = userRes.data.items || [];
+            const rawUsers = userRes.data.items || [];
+            const newUsers = rawUsers.filter((u: any) => 
+                u.is_active !== false && 
+                !u.deleted_at && 
+                !u.email?.startsWith('deleted_') && 
+                !u.name?.startsWith('deleted_')
+            );
 
             setDepartments(newDepts);
             setTeams(newTeams);
